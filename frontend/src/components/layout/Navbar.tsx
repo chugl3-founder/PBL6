@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Activity, LogOut, Video, Shield } from 'lucide-react';
+import { Activity, LogOut, Video, Shield, User, Zap } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -17,66 +17,83 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+    <header className="glass-panel sticky top-0 z-50 border-b border-slate-800/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand Logo */}
-        <Link to="/" className="flex items-center space-x-2 text-emerald-600 font-bold text-xl tracking-tight">
-          <Activity className="h-6 w-6 text-emerald-600" />
-          <span>Badminton<span className="text-slate-800">AI</span></span>
+        {/* Brand Logo with Neon Cyber Glow */}
+        <Link to="/" className="flex items-center space-x-2.5 group">
+          <div className="p-2 rounded-lg bg-court/10 border border-court/30 text-court group-hover:shadow-neon-court transition-all duration-300">
+            <Activity className="h-5 w-5 text-court" />
+          </div>
+          <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1.5">
+            BADMINTON<span className="text-court drop-shadow-[0_0_8px_rgba(34,197,94,0.6)]">AI</span>
+            <span className="text-[10px] font-mono tracking-widest uppercase bg-slate-800 text-court-cyan px-1.5 py-0.5 rounded border border-court-cyan/30">
+              PRO
+            </span>
+          </span>
         </Link>
 
         {/* Navigation Links */}
-        <nav className="flex items-center space-x-6 text-sm font-medium text-slate-600">
-          <Link to="/" className="hover:text-emerald-600 transition">
-            Thư viện công khai
+        <nav className="flex items-center space-x-6 text-sm font-medium text-slate-300">
+          <Link 
+            to="/" 
+            className="hover:text-court transition-colors flex items-center gap-1.5"
+          >
+            <span>Thư viện trận đấu</span>
           </Link>
           
           {token && (
-            <Link to="/my-matches" className="flex items-center space-x-1 hover:text-emerald-600 transition">
-              <Video className="h-4 w-4" />
+            <Link 
+              to="/my-matches" 
+              className="flex items-center space-x-1.5 hover:text-court transition-colors"
+            >
+              <Video className="h-4 w-4 text-court" />
               <span>Trận đấu của tôi</span>
             </Link>
           )}
 
           {isAdmin && (
-            <Link to="/admin" className="flex items-center space-x-1 text-purple-600 hover:text-purple-700 transition">
+            <Link 
+              to="/admin" 
+              className="flex items-center space-x-1.5 text-purple-400 hover:text-purple-300 transition-colors bg-purple-950/40 px-2.5 py-1 rounded-md border border-purple-800/50"
+            >
               <Shield className="h-4 w-4" />
               <span>Quản trị (Admin)</span>
             </Link>
           )}
         </nav>
 
-        {/* User Account / Auth Actions */}
+        {/* Auth CTA Controls */}
         <div className="flex items-center space-x-3">
           {token ? (
             <div className="flex items-center space-x-3">
-              <Link to="/profile" className="flex items-center space-x-2 text-slate-700 hover:text-emerald-600">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-semibold text-xs">
-                  {user?.fullName?.charAt(0) || 'U'}
+              <div className="flex items-center space-x-2 text-sm bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800 text-slate-300">
+                <div className="w-6 h-6 rounded-full bg-court/20 text-court flex items-center justify-center font-bold text-xs">
+                  {user?.full_name ? user.full_name.charAt(0).toUpperCase() : <User className="h-3.5 w-3.5" />}
                 </div>
-                <span className="text-sm font-medium hidden sm:inline">{user?.fullName || 'Người dùng'}</span>
-              </Link>
+                <span className="font-medium hidden sm:inline">{user?.full_name || 'Tài khoản'}</span>
+              </div>
               <button
                 onClick={handleLogout}
-                className="p-1.5 text-slate-400 hover:text-rose-600 transition"
+                className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors border border-transparent hover:border-red-900/50"
                 title="Đăng xuất"
               >
-                <LogOut className="h-5 w-5" />
+                <LogOut className="h-4 w-4" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
               <Link
                 to="/login"
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:text-emerald-600 transition"
+                className="text-sm font-medium text-slate-300 hover:text-white px-3 py-1.5 rounded-lg transition-colors"
               >
                 Đăng nhập
               </Link>
               <Link
                 to="/register"
-                className="px-3.5 py-1.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition"
+                className="flex items-center gap-1.5 text-sm font-semibold bg-court hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-lg shadow-neon-court transition-all duration-200"
               >
-                Đăng ký
+                <Zap className="h-4 w-4 fill-slate-950" />
+                <span>Bắt đầu ngay</span>
               </Link>
             </div>
           )}
@@ -85,4 +102,3 @@ export const Navbar: React.FC = () => {
     </header>
   );
 };
-

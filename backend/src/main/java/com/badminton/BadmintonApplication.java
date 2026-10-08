@@ -10,4 +10,3 @@ public class BadmintonApplication {
         SpringApplication.run(BadmintonApplication.class, args);
     }
 }
-

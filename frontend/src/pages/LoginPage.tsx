@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Mail } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Lock, Mail, Activity, AlertCircle, ArrowRight, Zap, CheckCircle2 } from 'lucide-react';
 import apiClient from '../api/client';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const isRegisteredSuccess = queryParams.get('registered') === 'true';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,72 +32,122 @@ export const LoginPage: React.FC = () => {
         navigate('/my-matches');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại.');
+      const serverMsg = err.response?.data?.message;
+      setError(serverMsg || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto my-12 bg-white p-8 border border-slate-200 rounded-xl shadow-sm">
-      <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Đăng Nhập</h1>
-        <p className="text-sm text-slate-500 mt-1">Truy cập tài khoản phân tích trận đấu của bạn</p>
+    <div className="relative min-h-[80vh] flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8">
+      {/* Background Badminton Court Atmosphere Graphic */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center opacity-15 pointer-events-none rounded-3xl"
+        style={{
+          backgroundImage: `url('https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=2070&auto=format&fit=crop')`
+        }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-background/90 to-background rounded-3xl pointer-events-none" />
+
+      {/* Main Glassmorphism Card */}
+      <div className="relative z-10 w-full max-w-md glass-panel p-8 sm:p-10 rounded-3xl border border-slate-800 shadow-2xl">
+        <div className="text-center mb-8">
+          <div className="inline-flex p-3 rounded-2xl bg-court/10 border border-court/30 text-court mb-4 shadow-neon-court">
+            <Activity className="h-7 w-7 text-court" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Đăng Nhập Hệ Thống
+          </h1>
+          <p className="text-sm text-slate-400 mt-2">
+            Truy cập nền tảng phân tích kỹ thuật số & video replay
+          </p>
+        </div>
+
+        {isRegisteredSuccess && (
+          <div className="mb-6 p-4 bg-court/10 border border-court/40 text-court text-sm rounded-xl flex items-center gap-3 animate-fade-in shadow-neon-court">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            <span>Đăng ký tài khoản thành công! Vui lòng đăng nhập để tiếp tục.</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-950/50 border border-red-800/80 text-red-200 text-sm rounded-xl flex items-start gap-3 animate-fade-in">
+            <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Email */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+              Email đăng nhập
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="athlete@badminton.vn"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-court focus:ring-1 focus:ring-court transition"
+              />
+            </div>
+          </div>
+
+          {/* Password */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Mật khẩu
+              </label>
+              <Link to="/forgot-password" className="text-xs text-court hover:underline">
+                Quên mật khẩu?
+              </Link>
+            </div>
+            <div className="relative">
+              <Lock className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-court focus:ring-1 focus:ring-court transition"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 px-4 bg-court hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl shadow-neon-court transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Zap className="h-4 w-4 fill-slate-950" />
+                  <span>Đăng Nhập</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-slate-800/80 text-center">
+          <p className="text-sm text-slate-400">
+            Chưa có tài khoản?{' '}
+            <Link to="/register" className="text-court hover:underline font-semibold ml-1">
+              Đăng ký ngay
+            </Link>
+          </p>
+        </div>
       </div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg">
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="player@example.com"
-              className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm transition shadow-sm disabled:opacity-50"
-        >
-          {loading ? 'Đang xác thực...' : 'Đăng nhập'}
-        </button>
-      </form>
-
-      <p className="text-center text-xs text-slate-500 mt-6">
-        Chưa có tài khoản?{' '}
-        <Link to="/register" className="text-emerald-600 font-semibold hover:underline">
-          Đăng ký ngay
-        </Link>
-      </p>
     </div>
   );
 };
-

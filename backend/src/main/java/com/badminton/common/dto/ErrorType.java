@@ -6,4 +6,3 @@ public enum ErrorType {
     AI,
     SYSTEM
 }
-
