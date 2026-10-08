@@ -1,0 +1,53 @@
+# Environment variables & secrets (QUAN TRỌNG: KHÔNG BAO GIỜ COMMIT .env)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editors
+.idea/
+.vscode/
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# Backend - Java & Spring Boot
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+
+# Frontend - Node.js & React
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/.npm/
+
+# AI Worker - Python
+ai-worker/__pycache__/
+ai-worker/*.pyc
+ai-worker/.pytest_cache/
+ai-worker/venv/
+ai-worker/.venv/
+ai-worker/env/
+
+# Logs & Temporary files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Docker & Storage data
+minio_data/
+postgres_data/
+rabbitmq_data/
+

@@ -1,0 +1,1984 @@
+openapi: 3.0.3
+info:
+  title: PBL6 Badminton API Specification
+  description: |
+    Đặc tả API chính thức cho Nền tảng Phân tích Video Cầu lông & Xem lại Trận đấu (PBL6 Badminton).
+    
+    ### Chuẩn Hóa Lỗi (NFR-ERR-01)
+    Mọi phản hồi lỗi (HTTP 4xx, 5xx) đều tuân thủ cấu trúc thống nhất:
+    ```json
+    {
+      "errorType": "UPLOAD | VALIDATION | AI | SYSTEM",
+      "code": "MÃ_LỖI_CHUẨN",
+      "message": "Mô tả chi tiết nguyên nhân lỗi",
+      "details": [{ "field": "tên_trường", "issue": "chi tiết" }],
+      "timestamp": "2026-10-08T20:00:00Z"
+    }
+    ```
+    
+    ### Cơ Chế Phân Quyền (RBAC & Ownership)
+    - **Guest:** Khách vãng lai chưa đăng nhập. Được tra cứu thư viện công khai và xem preview video tối đa 5 phút.
+    - **ROLE_USER:** Người dùng đã xác thực. Được quản lý tài nguyên của chính mình (Owner).
+    - **ROLE_ADMIN:** Quản trị viên hệ thống. Có toàn quyền quản lý, kiểm duyệt, duyệt xuất bản và retry AI.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local Development Server (Spring Boot 3)
+  - url: https://api.badminton-pbl6.edu.vn
+    description: Production Server
+
+tags:
+  - name: Auth
+    description: Đăng ký, đăng nhập JWT, làm mới token và quên mật khẩu
+  - name: Users
+    description: Quản lý thông tin hồ sơ cá nhân và avatar
+  - name: Matches
+    description: Quản lý trận đấu của người dùng (CRUD, soft delete)
+  - name: Videos
+    description: Upload video qua S3 Presigned URL và phát trực tiếp (Streaming)
+  - name: AI Analysis
+    description: Khởi chạy, theo dõi tiến trình, retry và cancel phân tích AI
+  - name: Replay & Analytics
+    description: Dữ liệu sự kiện cú đánh (strokes), pha cầu (rallies) và thống kê
+  - name: Public Library
+    description: Thư viện trận đấu công khai cho cộng đồng và khách vãng lai
+  - name: Admin
+    description: Quản trị người dùng, duyệt trận đấu và giám sát worker AI
+
+paths:
+  # =========================================================================
+  # 1. AUTHENTICATION & PASSWORD MANAGEMENT
+  # =========================================================================
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Đăng ký tài khoản người dùng mới (FR-M01-01)
+      description: Tạo tài khoản mới bằng email và mật khẩu (băm BCrypt).
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Đăng ký thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Email đã tồn tại trong hệ thống
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorType: VALIDATION
+                code: ERR_EMAIL_ALREADY_EXISTS
+                message: Email này đã được đăng ký tài khoản.
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập hệ thống (FR-M01-02)
+      description: Xác thực người dùng, trả về Access Token (30 phút) và Refresh Token (7 ngày).
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Sai email hoặc mật khẩu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorType: VALIDATION
+                code: ERR_INVALID_CREDENTIALS
+                message: Email hoặc mật khẩu không chính xác.
+        '403':
+          description: Tài khoản đã bị khóa bởi quản trị viên
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorType: SYSTEM
+                code: ERR_ACCOUNT_LOCKED
+                message: Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin.
+
+  /api/auth/refresh-token:
+    post:
+      tags: [Auth]
+      summary: Cấp lại Access Token bằng Refresh Token (NFR-SEC-02)
+      description: Gia hạn phiên làm việc khi Access Token hết hạn mà không cần đăng nhập lại.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Cấp token mới thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Đăng xuất khỏi hệ thống (FR-M01-03)
+      description: Thu hồi Refresh Token hiện tại.
+      operationId: logout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Đăng xuất thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Yêu cầu Magic Reset Link khôi phục mật khẩu (FR-M01-06)
+      description: Tạo token đặt lại mật khẩu ngẫu nhiên an toàn có thời hạn 15 phút.
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Yêu cầu tiếp nhận thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: Không tìm thấy email người dùng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Đặt mật khẩu mới qua token (FR-M01-07)
+      description: Cập nhật mật khẩu mới khi cung cấp token hợp lệ và chưa hết hạn.
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Đổi mật khẩu thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Token không hợp lệ hoặc đã hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =========================================================================
+  # 2. USER PROFILE MANAGEMENT
+  # =========================================================================
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Lấy thông tin cá nhân hiện tại (FR-M01-04)
+      operationId: getCurrentUserProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Trả về thông tin cá nhân
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    put:
+      tags: [Users]
+      summary: Cập nhật thông tin profile (FR-M01-04, FR-M01-05)
+      operationId: updateCurrentUserProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Cập nhật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/users/me/avatar:
+    post:
+      tags: [Users]
+      summary: Tải lên ảnh đại diện cá nhân (FR-M01-05)
+      description: Upload file ảnh avatar lên MinIO bucket và cập nhật avatar_url.
+      operationId: uploadAvatar
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [avatar]
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: File ảnh đại diện định dạng jpg, png (tối đa 2MB)
+      responses:
+        '200':
+          description: Upload avatar thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  avatarUrl:
+                    type: string
+                    example: http://localhost:9000/badminton-avatars/usr_10.png
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          description: Dung lượng file ảnh vượt quá 2MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =========================================================================
+  # 3. MATCH MANAGEMENT
+  # =========================================================================
+  /api/matches:
+    post:
+      tags: [Matches]
+      summary: Tạo mới một trận đấu ở chế độ DRAFT (FR-M02-01, FR-M02-03)
+      description: Khởi tạo thông tin trận đấu, gán owner_id của người tạo và status ban đầu là DRAFT.
+      operationId: createMatch
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMatchRequest'
+      responses:
+        '201':
+          description: Tạo trận đấu thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    get:
+      tags: [Matches]
+      summary: Danh sách trận đấu của người dùng hiện tại (FR-M02-07)
+      description: Lấy danh sách trận đấu do chính mình tạo (chưa bị xóa mềm), hỗ trợ phân trang và lọc theo trạng thái.
+      operationId: getMyMatches
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/MatchStatus'
+          description: Lọc theo trạng thái trận đấu (DRAFT, READY, ANALYZING, ANALYZED, PUBLISHED)
+      responses:
+        '200':
+          description: Danh sách trận đấu phân trang
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedMatchResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/matches/{id}:
+    get:
+      tags: [Matches]
+      summary: Xem chi tiết trận đấu (FR-M02-08)
+      operationId: getMatchById
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Thông tin chi tiết trận đấu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchDetailResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    put:
+      tags: [Matches]
+      summary: Chỉnh sửa thông tin metadata trận đấu (FR-M02-04)
+      description: Chỉ chủ sở hữu (Owner) hoặc Admin mới có quyền sửa đổi metadata trận đấu.
+      operationId: updateMatch
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMatchRequest'
+      responses:
+        '200':
+          description: Cập nhật metadata thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Matches]
+      summary: Xóa mềm trận đấu (FR-M02-09, NFR-STO-02)
+      description: Đặt cờ deleted_at = CURRENT_TIMESTAMP. Chỉ chủ sở hữu hoặc Admin được phép xóa.
+      operationId: softDeleteMatch
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Xóa mềm trận đấu thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # =========================================================================
+  # 4. VIDEO MANAGEMENT & DIRECT S3 UPLOAD
+  # =========================================================================
+  /api/matches/{id}/videos/upload-url:
+    post:
+      tags: [Videos]
+      summary: Xin S3 Presigned URL để upload video lớn trực tiếp lên MinIO (NFR-VID-04)
+      description: Trả về URL có chữ ký S3 thời hạn 15 phút. Frontend đẩy binary trực tiếp lên MinIO.
+      operationId: getPresignedUploadUrl
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VideoUploadUrlRequest'
+      responses:
+        '200':
+          description: Sinh Presigned URL thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoUploadUrlResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '413':
+          description: Dung lượng file video vượt quá ngưỡng 500MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/matches/{id}/videos/complete:
+    post:
+      tags: [Videos]
+      summary: Xác nhận upload video hoàn tất & đọc metadata (FR-M02-06)
+      description: Backend xác thực file trên MinIO, trích xuất metadata và cập nhật status sang READY.
+      operationId: completeVideoUpload
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VideoCompleteRequest'
+      responses:
+        '200':
+          description: Video xác thực hợp lệ và đã sẵn sàng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoResponse'
+        '400':
+          description: File không tồn tại hoặc không đúng chuẩn MP4
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/matches/{id}/video:
+    get:
+      tags: [Videos]
+      summary: Xem metadata video của trận đấu (FR-M02-06)
+      operationId: getVideoMetadata
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Thông tin metadata video
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/videos/{id}/stream:
+    get:
+      tags: [Videos]
+      summary: Phát / Stream video trận đấu qua HTTP Range Requests (FR-M04-01, NFR-PRI-01)
+      description: |
+        Hỗ trợ tua và phát video MP4:
+        - **Public Match:** Cho phép Khách vãng lai (Guest) xem preview tối đa 5 phút (300 giây). User đăng nhập xem toàn bộ.
+        - **Private Match:** Bắt buộc đăng nhập và phải là Chủ sở hữu (Owner) hoặc Admin.
+      operationId: streamVideo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID của video cần stream
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+            example: bytes=0-1048576
+          description: Header dải byte tua video (HTTP Byte Range)
+      responses:
+        '200':
+          description: Toàn bộ video content
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Trả về một phân đoạn byte (Partial Content)
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Hết hạn xem thử 5 phút (với Guest) hoặc không có quyền truy cập trận đấu riêng tư
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # =========================================================================
+  # 5. ASYNCHRONOUS AI ANALYSIS MANAGEMENT
+  # =========================================================================
+  /api/matches/{id}/ai-analyses:
+    post:
+      tags: [AI Analysis]
+      summary: Khởi chạy phiên phân tích video AI (FR-M03-03, NFR-PER-02, NFR-AI-01)
+      description: |
+        Kích hoạt tiến trình phân tích bất đồng bộ. Phản hồi HTTP 202 Accepted tức thì (< 200ms).
+        Tuyệt đối không block luồng HTTP request.
+      operationId: startAiAnalysis
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '202':
+          description: Đã tiếp nhận yêu cầu và đưa vào hàng đợi xử lý
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisJobResponse'
+        '400':
+          description: Trận đấu chưa có video hoặc video chưa ở trạng thái READY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          description: Đang có một phiên AI khác đang chạy cho trận đấu này
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [AI Analysis]
+      summary: Xem lịch sử các phiên phân tích của trận đấu (FR-M03-05)
+      operationId: getMatchAnalysesHistory
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Danh sách các phiên phân tích
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AnalysisResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/ai-analyses/{id}:
+    get:
+      tags: [AI Analysis]
+      summary: Theo dõi trạng thái tiến trình phiên phân tích AI (FR-M03-05, NFR-AI-02)
+      description: Phục vụ Polling theo dõi trạng thái chuyển đổi (QUEUED -> PROCESSING -> COMPLETED/FAILED).
+      operationId: getAnalysisStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID của phiên phân tích AI
+      responses:
+        '200':
+          description: Trạng thái hiện tại của phiên phân tích
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/matches/{id}/ai-analyses/{analysisId}/retry:
+    post:
+      tags: [AI Analysis]
+      summary: Thử lại phiên phân tích AI khi bị thất bại (FR-M03-12, NFR-AI-03)
+      description: Tạo phiên phân tích mới thay thế phiên cũ bị FAILED. Quyền dành cho Chủ sở hữu hoặc Admin.
+      operationId: retryAiAnalysis
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+        - name: analysisId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID phiên phân tích cũ bị FAILED
+      responses:
+        '202':
+          description: Đã tạo phiên phân tích mới và đưa vào hàng đợi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisJobResponse'
+        '400':
+          description: Phiên phân tích cũ không ở trạng thái FAILED hoặc UNSUPPORTED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/matches/{id}/ai-analyses/{analysisId}/cancel:
+    post:
+      tags: [AI Analysis]
+      summary: Hủy phiên phân tích AI đang chạy dở (FR-M03-13)
+      operationId: cancelAiAnalysis
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+        - name: analysisId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID phiên phân tích đang QUEUED hoặc PROCESSING
+      responses:
+        '200':
+          description: Hủy phiên phân tích thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResponse'
+        '400':
+          description: Không thể hủy phiên đã hoàn tất hoặc đã dừng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  # =========================================================================
+  # 6. REPLAY & ANALYTICS DATA (EVENTS, RALLIES, STATISTICS)
+  # =========================================================================
+  /api/ai-analyses/{id}/events:
+    get:
+      tags: [Replay & Analytics]
+      summary: Danh sách sự kiện cú đánh (Strokes) cho Replay Timeline (FR-M04-03, FR-M04-04)
+      description: Trả về danh sách markers cú đánh (hit frame, time_seconds, loại cú đánh, confidence).
+      operationId: getStrokeEvents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID phiên phân tích AI
+      responses:
+        '200':
+          description: Danh sách stroke events được sắp xếp theo thời gian
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StrokeEventResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/ai-analyses/{id}/rallies:
+    get:
+      tags: [Replay & Analytics]
+      summary: Danh sách các pha cầu của trận đấu (FR-M05-05)
+      operationId: getRallies
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID phiên phân tích AI
+      responses:
+        '200':
+          description: Danh sách các pha cầu
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RallyResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/rallies/{id}:
+    get:
+      tags: [Replay & Analytics]
+      summary: Chi tiết một pha cầu và chuỗi cú đánh sequence (FR-M05-06, FR-M05-07)
+      operationId: getRallyDetail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID của pha cầu (Rally)
+      responses:
+        '200':
+          description: Thông tin chi tiết pha cầu kèm chuỗi cú đánh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RallyDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/ai-analyses/{id}/statistics:
+    get:
+      tags: [Replay & Analytics]
+      summary: Dữ liệu thống kê chuyên sâu toàn diện của trận đấu (FR-M06-09)
+      description: Tổng số cú đánh, rallies, tỷ lệ smash/clear/drop, thống kê đối đầu Player A vs B.
+      operationId: getMatchStatistics
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID phiên phân tích AI
+      responses:
+        '200':
+          description: Dữ liệu thống kê trận đấu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchStatisticsResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # =========================================================================
+  # 7. PUBLIC MATCH LIBRARY
+  # =========================================================================
+  /api/public-matches:
+    get:
+      tags: [Public Library]
+      summary: Khám phá thư viện trận đấu công khai (FR-M07-01 -> FR-M07-04)
+      description: Công khai cho cả Khách vãng lai (Guest) và Người dùng. Hỗ trợ tìm kiếm, lọc và phân trang.
+      operationId: browsePublicMatches
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Từ khóa tìm kiếm theo tên vận động viên hoặc tiêu đề
+        - name: level
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/BadmintonLevel'
+          description: Lọc theo trình độ vận động viên
+      responses:
+        '200':
+          description: Danh sách trận đấu công khai phân trang
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedMatchResponse'
+
+  /api/public-matches/{id}:
+    get:
+      tags: [Public Library]
+      summary: Xem chi tiết trận đấu công khai (FR-M07-06)
+      operationId: getPublicMatchDetail
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Thông tin chi tiết trận đấu công khai
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchDetailResponse'
+        '404':
+          description: Không tìm thấy trận đấu hoặc trận đấu chưa được xuất bản công khai
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =========================================================================
+  # 8. ADMIN MANAGEMENT & MONITORING
+  # =========================================================================
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: Quản lý danh sách người dùng trong hệ thống (FR-M08-02)
+      operationId: adminGetUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Tìm kiếm theo email hoặc họ tên
+      responses:
+        '200':
+          description: Danh sách người dùng phân trang
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedUserResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/admin/users/{id}:
+    get:
+      tags: [Admin]
+      summary: Xem chi tiết thông tin người dùng (FR-M08-03)
+      operationId: adminGetUserById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID của người dùng
+      responses:
+        '200':
+          description: Thông tin chi tiết người dùng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/admin/users/{id}/status:
+    put:
+      tags: [Admin]
+      summary: Khóa hoặc Mở khóa tài khoản người dùng (FR-M08-04)
+      operationId: adminUpdateUserStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID người dùng cần khóa/mở khóa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: '#/components/schemas/UserStatus'
+      responses:
+        '200':
+          description: Cập nhật trạng thái người dùng thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/admin/matches:
+    get:
+      tags: [Admin]
+      summary: Quản lý toàn bộ trận đấu trong hệ thống (FR-M08-05)
+      operationId: adminGetMatches
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/MatchStatus'
+        - name: includeDeleted
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Bao gồm cả các trận đấu đã bị xóa mềm
+      responses:
+        '200':
+          description: Danh sách trận đấu toàn hệ thống
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedMatchResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/admin/matches/{id}:
+    get:
+      tags: [Admin]
+      summary: Xem chi tiết trận đấu bất kỳ dưới quyền Admin (FR-M08-05)
+      operationId: adminGetMatchById
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Thông tin chi tiết trận đấu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchDetailResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Admin]
+      summary: Xóa mềm trận đấu vi phạm quy định (FR-M08-09)
+      operationId: adminDeleteMatch
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Đã xóa mềm trận đấu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/admin/matches/{id}/restore:
+    post:
+      tags: [Admin]
+      summary: Khôi phục trận đấu đã bị xóa mềm (FR-M08-10)
+      description: Đặt deleted_at = NULL để khôi phục trận đấu từ thùng rác.
+      operationId: adminRestoreMatch
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Khôi phục trận đấu thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/admin/matches/{id}/publish:
+    post:
+      tags: [Admin]
+      summary: Phê duyệt xuất bản trận đấu lên Public Library (FR-M08-08)
+      description: Chuyển trạng thái trận đấu từ ANALYZED sang PUBLISHED.
+      operationId: adminPublishMatch
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Trận đấu đã được xuất bản công khai
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResponse'
+        '400':
+          description: Trận đấu chưa hoàn tất phân tích AI (chưa ở trạng thái ANALYZED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/admin/matches/{id}/unpublish:
+    post:
+      tags: [Admin]
+      summary: Hủy xuất bản trận đấu về chế độ riêng tư (FR-M08-08)
+      description: Chuyển trạng thái trận đấu từ PUBLISHED về ANALYZED.
+      operationId: adminUnpublishMatch
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      responses:
+        '200':
+          description: Đã gỡ trận đấu khỏi thư viện công khai
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/admin/ai-analyses:
+    get:
+      tags: [Admin]
+      summary: Giám sát toàn bộ các phiên phân tích AI trong hệ thống (FR-M08-06, FR-M08-07)
+      description: Hỗ trợ bộ lọc xem riêng các phiên FAILED hoặc PROCESSING kèm phân trang.
+      operationId: adminMonitorAnalyses
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AnalysisStatus'
+          description: Lọc theo trạng thái phiên AI (QUEUED, PROCESSING, COMPLETED, FAILED, UNSUPPORTED)
+      responses:
+        '200':
+          description: Danh sách các phiên phân tích AI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedAnalysisResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/admin/ai-analyses/{id}/retry:
+    post:
+      tags: [Admin]
+      summary: Kích hoạt chạy lại (Retry) phiên phân tích AI bất kỳ từ Quản trị viên (FR-M08-11)
+      operationId: adminRetryAnalysis
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID phiên phân tích bị lỗi cần chạy lại
+      responses:
+        '202':
+          description: Đã tạo phiên phân tích mới và đưa vào hàng đợi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisJobResponse'
+        '400':
+          description: Phiên phân tích không ở trạng thái lỗi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+# =============================================================================
+# COMPONENTS (SCHEMAS, RESPONSES, PARAMETERS, SECURITY)
+# =============================================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Nhập JSON Web Token (Bearer token) để xác thực.
+
+  parameters:
+    MatchIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: Khóa chính ID của trận đấu
+    PageParam:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+      description: Số thứ tự trang (bắt đầu từ 0)
+    SizeParam:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 10
+        minimum: 1
+        maximum: 100
+      description: Số bản ghi trên mỗi trang
+    SortParam:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        default: createdAt,desc
+      description: Trường sắp xếp theo cú pháp {fieldName},{asc|desc}
+
+  responses:
+    ValidationError:
+      description: Dữ liệu gửi lên không đúng định dạng hoặc thiếu trường bắt buộc
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorType: VALIDATION
+            code: ERR_INVALID_PAYLOAD
+            message: Dữ liệu gửi lên không hợp lệ.
+            details:
+              - field: email
+                issue: Email không đúng định dạng tiêu chuẩn.
+    UnauthorizedError:
+      description: Chưa xác thực danh tính hoặc Token hết hạn
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorType: SYSTEM
+            code: ERR_UNAUTHORIZED
+            message: Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.
+    ForbiddenError:
+      description: Không đủ quyền truy cập tài nguyên (Từ chối bởi Authorization RBAC)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorType: SYSTEM
+            code: ERR_FORBIDDEN_ACCESS
+            message: Bạn không có quyền chỉnh sửa hoặc thao tác trên tài nguyên này.
+    NotFoundError:
+      description: Không tìm thấy tài nguyên yêu cầu
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorType: SYSTEM
+            code: ERR_RESOURCE_NOT_FOUND
+            message: Không tìm thấy tài nguyên với ID tương ứng.
+
+  schemas:
+    # ------------------ ENUMS ------------------
+    ErrorType:
+      type: string
+      enum: [UPLOAD, VALIDATION, AI, SYSTEM]
+      description: Nhóm phân loại lỗi theo yêu cầu phi chức năng NFR-ERR-01.
+
+    UserRole:
+      type: string
+      enum: [ROLE_USER, ROLE_ADMIN]
+
+    UserStatus:
+      type: string
+      enum: [ACTIVE, LOCKED, UNVERIFIED]
+
+    Gender:
+      type: string
+      enum: [MALE, FEMALE, OTHER]
+
+    BadmintonLevel:
+      type: string
+      enum: [BEGINNER, INTERMEDIATE, ADVANCED, PRO]
+
+    MatchStatus:
+      type: string
+      enum: [DRAFT, READY, ANALYZING, ANALYZED, PUBLISHED]
+
+    MatchSource:
+      type: string
+      enum: [USER_UPLOAD, ADMIN_CURATED]
+
+    CourtPosition:
+      type: string
+      enum: [PLAYER_A, PLAYER_B]
+
+    VideoStatus:
+      type: string
+      enum: [UPLOADING, UPLOADED, READY, FAILED]
+
+    AnalysisStatus:
+      type: string
+      enum: [QUEUED, PROCESSING, COMPLETED, FAILED, UNSUPPORTED, CANCELLED]
+
+    PlayerSide:
+      type: string
+      enum: [UPPER, LOWER]
+
+    StrokeType:
+      type: string
+      enum: [SERVE, SMASH, CLEAR, DROP, LIFT, DRIVE, NET_SHOT, PUSH, UNKNOWN]
+
+    StrokeSide:
+      type: string
+      enum: [FOREHAND, BACKHAND, AROUNDHEAD, UNKNOWN]
+
+    BoundaryType:
+      type: string
+      enum: [TIME_GAP, SHUTTLE_DEAD, SERVICE_DETECTED]
+
+    # ------------------ ERROR & COMMON SCHEMAS ------------------
+    ErrorDetail:
+      type: object
+      properties:
+        field:
+          type: string
+          example: password
+        issue:
+          type: string
+          example: Mật khẩu phải có tối thiểu 8 ký tự.
+
+    ErrorResponse:
+      type: object
+      required:
+        - errorType
+        - code
+        - message
+      properties:
+        errorType:
+          $ref: '#/components/schemas/ErrorType'
+        code:
+          type: string
+          example: ERR_VALIDATION_FAILED
+        message:
+          type: string
+          example: Dữ liệu gửi lên không vượt qua kiểm tra tính hợp lệ.
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-10-08T20:00:00Z"
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Thao tác thực hiện thành công.
+
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 10
+        totalElements:
+          type: integer
+          format: int64
+          example: 45
+        totalPages:
+          type: integer
+          example: 5
+
+    # ------------------ AUTH SCHEMAS ------------------
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: player@example.com
+        password:
+          type: string
+          minLength: 8
+          example: Badminton#2026
+        fullName:
+          type: string
+          example: Nguyễn Văn A
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: player@example.com
+        password:
+          type: string
+          example: Badminton#2026
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: player@example.com
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+          example: a1b2c3d4e5f6...
+        newPassword:
+          type: string
+          minLength: 8
+          example: NewSecret#2026
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1Ni...
+        refreshToken:
+          type: string
+          example: eyJhbGciOiJIUzI1Ni...
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          example: 1800
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1Ni...
+        refreshToken:
+          type: string
+          example: eyJhbGciOiJIUzI1Ni...
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          example: 1800
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    # ------------------ USER SCHEMAS ------------------
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        email:
+          type: string
+          example: player@example.com
+        fullName:
+          type: string
+          example: Nguyễn Văn A
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        avatarUrl:
+          type: string
+          nullable: true
+          example: http://localhost:9000/badminton-avatars/usr_1.png
+        age:
+          type: integer
+          nullable: true
+          example: 22
+        gender:
+          $ref: '#/components/schemas/Gender'
+        badmintonLevel:
+          $ref: '#/components/schemas/BadmintonLevel'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-08T18:00:00Z"
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          example: Nguyễn Văn A
+        age:
+          type: integer
+          minimum: 5
+          maximum: 100
+          example: 23
+        gender:
+          $ref: '#/components/schemas/Gender'
+        badmintonLevel:
+          $ref: '#/components/schemas/BadmintonLevel'
+
+    PagedUserResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    # ------------------ MATCH SCHEMAS ------------------
+    CreateMatchRequest:
+      type: object
+      required:
+        - playerAName
+        - playerBName
+        - upperPlayer
+        - lowerPlayer
+      properties:
+        playerAName:
+          type: string
+          example: Nguyễn Tiến Minh
+        playerBName:
+          type: string
+          example: Lee Chong Wei
+        upperPlayer:
+          $ref: '#/components/schemas/CourtPosition'
+        lowerPlayer:
+          $ref: '#/components/schemas/CourtPosition'
+        matchDate:
+          type: string
+          format: date
+          example: "2026-10-08"
+        title:
+          type: string
+          example: Chung kết đơn nam giải giao hữu 2026
+        description:
+          type: string
+          example: Trận đấu tập 1 set 21 điểm có phân tích AI
+
+    UpdateMatchRequest:
+      type: object
+      properties:
+        playerAName:
+          type: string
+          example: Nguyễn Tiến Minh
+        playerBName:
+          type: string
+          example: Lee Chong Wei
+        upperPlayer:
+          $ref: '#/components/schemas/CourtPosition'
+        lowerPlayer:
+          $ref: '#/components/schemas/CourtPosition'
+        matchDate:
+          type: string
+          format: date
+          example: "2026-10-08"
+        title:
+          type: string
+          example: Trận chung kết đơn nam cập nhật
+        description:
+          type: string
+          example: Cập nhật ghi chú trận đấu
+
+    MatchResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        ownerId:
+          type: integer
+          format: int64
+          example: 1
+        playerAName:
+          type: string
+          example: Nguyễn Tiến Minh
+        playerBName:
+          type: string
+          example: Lee Chong Wei
+        upperPlayer:
+          $ref: '#/components/schemas/CourtPosition'
+        lowerPlayer:
+          $ref: '#/components/schemas/CourtPosition'
+        matchDate:
+          type: string
+          format: date
+          example: "2026-10-08"
+        title:
+          type: string
+          example: Chung kết đơn nam 2026
+        description:
+          type: string
+          nullable: true
+          example: Trận đấu tập
+        source:
+          $ref: '#/components/schemas/MatchSource'
+        status:
+          $ref: '#/components/schemas/MatchStatus'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-08T18:30:00Z"
+
+    MatchDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/MatchResponse'
+        - type: object
+          properties:
+            video:
+              $ref: '#/components/schemas/VideoResponse'
+            currentAnalysis:
+              $ref: '#/components/schemas/AnalysisResponse'
+
+    PagedMatchResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    # ------------------ VIDEO SCHEMAS ------------------
+    VideoUploadUrlRequest:
+      type: object
+      required:
+        - fileName
+        - fileSize
+      properties:
+        fileName:
+          type: string
+          example: match_final.mp4
+        fileSize:
+          type: integer
+          format: int64
+          example: 157286400
+        mimeType:
+          type: string
+          default: video/mp4
+          example: video/mp4
+
+    VideoUploadUrlResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+          example: http://localhost:9000/badminton-videos/matches/10/video.mp4?X-Amz-Signature=...
+        storagePath:
+          type: string
+          example: matches/10/video.mp4
+        expiresInSeconds:
+          type: integer
+          example: 900
+
+    VideoCompleteRequest:
+      type: object
+      required:
+        - storagePath
+        - fileName
+        - fileSize
+      properties:
+        storagePath:
+          type: string
+          example: matches/10/video.mp4
+        fileName:
+          type: string
+          example: match_final.mp4
+        fileSize:
+          type: integer
+          format: int64
+          example: 157286400
+
+    VideoResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 5
+        matchId:
+          type: integer
+          format: int64
+          example: 10
+        fileName:
+          type: string
+          example: match_final.mp4
+        storagePath:
+          type: string
+          example: matches/10/video.mp4
+        mimeType:
+          type: string
+          example: video/mp4
+        fileSize:
+          type: integer
+          format: int64
+          example: 157286400
+        durationSeconds:
+          type: number
+          format: double
+          example: 1420.50
+        width:
+          type: integer
+          example: 1920
+        height:
+          type: integer
+          example: 1080
+        fps:
+          type: number
+          format: float
+          example: 30.00
+        status:
+          $ref: '#/components/schemas/VideoStatus'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-08T18:35:00Z"
+
+    # ------------------ AI ANALYSIS SCHEMAS ------------------
+    AnalysisJobResponse:
+      type: object
+      properties:
+        analysisId:
+          type: integer
+          format: int64
+          example: 101
+        matchId:
+          type: integer
+          format: int64
+          example: 10
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+        message:
+          type: string
+          example: Yêu cầu phân tích đã được tiếp nhận và đưa vào hàng đợi.
+
+    AnalysisResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 101
+        matchId:
+          type: integer
+          format: int64
+          example: 10
+        videoId:
+          type: integer
+          format: int64
+          example: 5
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+        modelName:
+          type: string
+          example: BadmintonVision
+        modelVersion:
+          type: string
+          example: 1.0.0
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-10-08T18:40:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-10-08T18:42:30Z"
+        errorCode:
+          type: string
+          nullable: true
+          example: null
+        errorMessage:
+          type: string
+          nullable: true
+          example: null
+        courtCorners:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              x:
+                type: integer
+                example: 120
+              y:
+                type: integer
+                example: 340
+        isCurrent:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-08T18:39:55Z"
+
+    PagedAnalysisResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalysisResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    # ------------------ EVENTS, RALLIES & STATS SCHEMAS ------------------
+    StrokeEventResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1001
+        analysisId:
+          type: integer
+          format: int64
+          example: 101
+        eventOrder:
+          type: integer
+          example: 1
+        startFrame:
+          type: integer
+          example: 120
+        hitFrame:
+          type: integer
+          example: 135
+        endFrame:
+          type: integer
+          example: 150
+        timeSeconds:
+          type: number
+          format: double
+          example: 4.500
+        playerSide:
+          $ref: '#/components/schemas/PlayerSide'
+        stroke:
+          $ref: '#/components/schemas/StrokeType'
+        strokeSide:
+          $ref: '#/components/schemas/StrokeSide'
+        confidence:
+          type: number
+          format: float
+          example: 0.942
+
+    RallyResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 50
+        matchId:
+          type: integer
+          format: int64
+          example: 10
+        analysisId:
+          type: integer
+          format: int64
+          example: 101
+        rallyNumber:
+          type: integer
+          example: 1
+        startEventId:
+          type: integer
+          format: int64
+          example: 1001
+        endEventId:
+          type: integer
+          format: int64
+          example: 1008
+        startTime:
+          type: number
+          format: double
+          example: 4.500
+        endTime:
+          type: number
+          format: double
+          example: 18.250
+        duration:
+          type: number
+          format: double
+          example: 13.750
+        totalStrokes:
+          type: integer
+          example: 8
+        boundaryType:
+          $ref: '#/components/schemas/BoundaryType'
+
+    RallyDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/RallyResponse'
+        - type: object
+          properties:
+            strokes:
+              type: array
+              items:
+                $ref: '#/components/schemas/StrokeEventResponse'
+
+    MatchStatisticsResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 20
+        matchId:
+          type: integer
+          format: int64
+          example: 10
+        analysisId:
+          type: integer
+          format: int64
+          example: 101
+        totalStrokes:
+          type: integer
+          example: 156
+        totalRallies:
+          type: integer
+          example: 22
+        avgStrokesPerRally:
+          type: number
+          format: float
+          example: 7.09
+        avgRallyDuration:
+          type: number
+          format: float
+          example: 11.45
+        playerAStrokes:
+          type: integer
+          example: 79
+        playerBStrokes:
+          type: integer
+          example: 77
+        forehandCount:
+          type: integer
+          example: 98
+        backhandCount:
+          type: integer
+          example: 42
+        aroundheadCount:
+          type: integer
+          example: 16
+        unknownSideCount:
+          type: integer
+          example: 0
+        avgConfidence:
+          type: number
+          format: float
+          example: 0.915
+
