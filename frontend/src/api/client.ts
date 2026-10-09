@@ -45,21 +45,30 @@ apiClient.interceptors.response.use(
       if (refreshToken && !originalRequest._retry) {
         originalRequest._retry = true;
         try {
-          const res = await axios.post('/api/auth/refresh-token', { refreshToken });
+          const baseURL = apiClient.defaults.baseURL || '/api';
+          const res = await axios.post(`${baseURL}/auth/refresh-token`, { refreshToken });
           const newAccessToken = res.data.accessToken;
+          const newRefreshToken = res.data.refreshToken;
           localStorage.setItem('access_token', newAccessToken);
+          if (newRefreshToken) {
+            localStorage.setItem('refresh_token', newRefreshToken);
+          }
 
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           }
           return apiClient(originalRequest);
         } catch {
-          // Refresh thất bại -> xóa token và yêu cầu đăng nhập lại
+          // Refresh thất bại -> xóa token và chuyển về đăng nhập
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
           localStorage.removeItem('user_info');
           window.location.href = '/login';
         }
+      } else if (!refreshToken) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user_info');
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

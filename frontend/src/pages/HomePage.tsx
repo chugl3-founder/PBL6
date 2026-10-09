@@ -1,163 +1,227 @@
 import React from 'react';
-import { Play, Search, Video, Zap, Activity, Cpu, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Play, Search, Video, ArrowRight, BarChart3, Crosshair, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const HomePage: React.FC = () => {
   return (
-    <div className="space-y-12 pb-12">
-      {/* Hero Section - Cyberpunk Sports Tech Style */}
-      <div className="relative rounded-3xl overflow-hidden glass-panel border border-slate-800 p-8 sm:p-14">
-        {/* Glow Background Gradient Orbs */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-court/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-court-cyan/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="space-y-20 pb-20 pt-6">
+      {/* 1. HERO SECTION - Brighter Stadium Court Lighting Atmosphere */}
+      <section className="relative min-h-[660px] rounded-3xl overflow-hidden border border-white/20 bg-gradient-to-br from-[#122340] via-[#0f1d35] to-[#0c1626] flex flex-col justify-between p-8 sm:p-14 lg:p-16 shadow-2xl">
+        {/* Real Badminton Court Arena Background Image (Sáng, Tươi tắn & Sống động) */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-45 mix-blend-screen pointer-events-none brightness-110 contrast-105"
+          style={{
+            backgroundImage: `url('/images/arena-court-blue.jpg')`
+          }}
+        />
+        
+        {/* Ambient Stadium Lighting Rays */}
+        <div className="absolute -top-32 right-10 w-[750px] h-[750px] bg-brand/30 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute -bottom-20 -left-20 w-[600px] h-[600px] bg-sky-400/25 rounded-full blur-[120px] pointer-events-none" />
 
-        <div className="relative z-10 max-w-3xl space-y-6">
-          <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-court/10 border border-court/30 text-court text-xs font-semibold uppercase tracking-wider">
-            <Zap className="h-3.5 w-3.5" />
-            <span>AI Computer Vision Analytics Hub</span>
+        <div className="relative z-10 max-w-3xl space-y-6 pt-4">
+          {/* Badge */}
+          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-semibold tracking-wide shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-brand animate-ping" />
+            <span>AI COMPUTER VISION FOR BADMINTON</span>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-            Nền Tảng Phân Tích <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-court to-court-cyan">
-              Cầu Lông Kỹ Thuật Số
-            </span>
+          {/* Heading - BadPro+ Style with Highlight Line */}
+          <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.12]">
+            Next-Level performance <br />
+            analytics for the world of <br />
+            <span className="tech-highlight-line mt-1.5 shadow-glow-blue">badminton.</span>
           </h1>
 
-          <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
-            Tự động bóc tách từng pha cầu (Rallies), nhận diện cú đập Smash tốc độ cao, điểm rơi quả cầu và trực quan hóa bản đồ nhiệt (Landing Heatmap) chính xác đến từng khung hình.
+          <p className="text-slate-200 text-base sm:text-lg leading-relaxed max-w-2xl font-normal">
+            The digital foundation for badminton. Powering every court, player, coach, and tournament with the most precise visual intelligence and shot-by-shot telemetry.
           </p>
 
+          {/* CTAs */}
           <div className="pt-2 flex flex-wrap items-center gap-4">
             <Link
               to="/my-matches"
-              className="px-6 py-3 bg-court hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-neon-court transition-all duration-200 flex items-center gap-2 text-sm"
+              className="rounded-full bg-brand hover:bg-brand-hover text-white font-semibold px-7 py-3.5 text-sm shadow-glow-blue transition-all duration-200 flex items-center gap-2"
             >
               <Video className="h-4 w-4" />
-              <span>Tải lên trận đấu</span>
+              <span>Start Match Analysis</span>
             </Link>
             <a
               href="#public-library"
-              className="px-6 py-3 glass-panel hover:bg-slate-800/80 text-white font-semibold rounded-xl border border-slate-700 hover:border-court/40 transition-all duration-200 text-sm flex items-center gap-2"
+              className="rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold px-6 py-3.5 text-sm border border-white/20 backdrop-blur-md transition-all duration-200 flex items-center gap-2"
             >
-              <span>Xem trận đấu mẫu</span>
-              <ChevronRight className="h-4 w-4 text-slate-400" />
+              <span>Explore Public Library</span>
+              <ArrowRight className="h-4 w-4 text-white/70" />
             </a>
           </div>
+        </div>
 
-          {/* Feature Tech Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-6 border-t border-slate-800/80">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-court/10 text-court border border-court/20">
-                <Activity className="h-4 w-4" />
+        {/* Hero Bottom Telemetry Strip */}
+        <div className="relative z-10 pt-10 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-6 text-sm">
+          <div className="bg-white/5 backdrop-blur-sm p-3.5 rounded-2xl border border-white/10">
+            <div className="font-heading text-2xl font-bold text-white tracking-tight">100%</div>
+            <div className="text-slate-300 text-xs mt-0.5">Automated Rally Slicing</div>
+          </div>
+          <div className="bg-white/5 backdrop-blur-sm p-3.5 rounded-2xl border border-white/10">
+            <div className="font-heading text-2xl font-bold text-sky-400 tracking-tight">&lt; 200ms</div>
+            <div className="text-slate-300 text-xs mt-0.5">API Dispatch Speed</div>
+          </div>
+          <div className="bg-white/5 backdrop-blur-sm p-3.5 rounded-2xl border border-white/10">
+            <div className="font-heading text-2xl font-bold text-white tracking-tight">3D Hawk-Eye</div>
+            <div className="text-slate-300 text-xs mt-0.5">Trajectory & Landing Map</div>
+          </div>
+          <div className="bg-white/5 backdrop-blur-sm p-3.5 rounded-2xl border border-white/10">
+            <div className="font-heading text-2xl font-bold text-sky-400 tracking-tight">S3 Direct</div>
+            <div className="text-slate-300 text-xs mt-0.5">Presigned Multi-GB Upload</div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. FEATURE SPOTLIGHT - Card Grid */}
+      <section className="space-y-8">
+        <div className="text-center max-w-2xl mx-auto space-y-2">
+          <h2 className="font-heading text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            Designed for Elite Players & Enthusiasts
+          </h2>
+          <p className="text-slate-300 text-sm">
+            Everything you need to turn raw match videos into structured, actionable badminton intelligence.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card 1 */}
+          <div className="card-light-blue p-8 space-y-4 flex flex-col justify-between group shadow-lg">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-brand/20 border border-brand/40 flex items-center justify-center text-sky-300">
+                <Crosshair className="h-6 w-6" />
               </div>
-              <div className="text-left">
-                <div className="text-white font-semibold text-xs">Pha cầu (Rallies)</div>
-                <div className="text-slate-400 text-[11px]">Cắt lọc tự động 100%</div>
-              </div>
+              <h3 className="font-heading text-lg font-bold text-white">Shot-by-Shot Telemetry</h3>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Automatically detects smashes, drop shots, clears, net plays, and calculates strike speed and angle distributions.
+              </p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-court-cyan/10 text-court-cyan border border-court-cyan/20">
-                <Cpu className="h-4 w-4" />
-              </div>
-              <div className="text-left">
-                <div className="text-white font-semibold text-xs">Hawk-Eye Sync</div>
-                <div className="text-slate-400 text-[11px]">Mô phỏng 3D điểm rơi</div>
-              </div>
+            <div className="pt-4 text-xs font-semibold text-sky-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+              <span>View telemetry sample</span>
+              <ArrowRight className="h-3.5 w-3.5" />
             </div>
-            <div className="flex items-center gap-3 col-span-2 sm:col-span-1">
-              <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                <ShieldCheck className="h-4 w-4" />
+          </div>
+
+          {/* Card 2 */}
+          <div className="card-light-blue p-8 space-y-4 flex flex-col justify-between group shadow-lg">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-brand/20 border border-brand/40 flex items-center justify-center text-sky-300">
+                <TrendingUp className="h-6 w-6" />
               </div>
-              <div className="text-left">
-                <div className="text-white font-semibold text-xs">Dữ liệu Chuẩn hóa</div>
-                <div className="text-slate-400 text-[11px]">Bảo mật & Trực quan</div>
+              <h3 className="font-heading text-lg font-bold text-white">Court Coverage & Landing</h3>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Interactive 2D & 3D heatmaps illustrating landing clusters, defensive vulnerabilities, and forced errors.
+              </p>
+            </div>
+            <div className="pt-4 text-xs font-semibold text-sky-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+              <span>Inspect court heatmaps</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </div>
+          </div>
+
+          {/* Card 3 */}
+          <div className="card-light-blue p-8 space-y-4 flex flex-col justify-between group shadow-lg">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-brand/20 border border-brand/40 flex items-center justify-center text-sky-300">
+                <BarChart3 className="h-6 w-6" />
               </div>
+              <h3 className="font-heading text-lg font-bold text-white">Rally Navigation & Highlights</h3>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Jump straight to key rallies without scrubbing through dead time between serves and timeouts.
+              </p>
+            </div>
+            <div className="pt-4 text-xs font-semibold text-sky-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+              <span>Test rally timeline</span>
+              <ArrowRight className="h-3.5 w-3.5" />
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Public Match Library Section */}
-      <section id="public-library" className="space-y-6">
+      {/* 3. PUBLIC MATCH LIBRARY */}
+      <section id="public-library" className="space-y-6 pt-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2.5">
-              <span>Trận Đấu Phân Tích Nổi Bật</span>
-              <span className="w-2 h-2 rounded-full bg-court animate-ping" />
+            <h2 className="font-heading text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+              <span>Featured Match Analyses</span>
             </h2>
-            <p className="text-sm text-slate-400 mt-1">Khám phá và xem lại các pha cầu của các trận đấu đã phân tích</p>
+            <p className="text-sm text-slate-300 mt-1">
+              Explore analyzed matches, stroke metrics, and full rally breakdowns
+            </p>
           </div>
           <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-white/50" />
             <input
               type="text"
-              placeholder="Tìm kiếm tay vợt, giải đấu..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-court focus:ring-1 focus:ring-court transition"
+              placeholder="Search players, tournament..."
+              className="w-full pl-10 pr-4 py-2.5 bg-[#14233c] border border-white/15 rounded-full text-sm text-white placeholder-white/40 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition shadow-inner"
             />
           </div>
         </div>
 
-        {/* Demo Match Cards */}
+        {/* Match Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
-            { id: 1, title: 'Chung kết Đơn Nam: Viktor Axelsen vs Shi Yuqi', duration: '52:14', rallies: 48, smashes: 72, court: 'Sân 1' },
-            { id: 2, title: 'Bán kết Toàn Anh: Lee Zii Jia vs Anthony Ginting', duration: '45:30', rallies: 39, smashes: 61, court: 'Sân 2' },
-            { id: 3, title: 'Tập huấn Chuyên sâu CLB: Trận giao hữu Top 1', duration: '31:10', rallies: 24, smashes: 35, court: 'Sân 3' },
+            { id: 1, title: 'BWF Finals 2026: Viktor Axelsen vs Shi Yuqi', duration: '52:14', rallies: 48, smashes: 72, court: 'Court 1' },
+            { id: 2, title: 'All England Open: Lee Zii Jia vs Anthony Ginting', duration: '45:30', rallies: 39, smashes: 61, court: 'Court 2' },
+            { id: 3, title: 'Intensive Training Match: Top Seeds Invitational', duration: '31:10', rallies: 24, smashes: 35, court: 'Court 3' },
           ].map((item) => (
             <div 
               key={item.id} 
-              className="glass-panel glass-panel-hover rounded-2xl overflow-hidden flex flex-col group border border-slate-800"
+              className="card-light-blue overflow-hidden flex flex-col group transition-all duration-300 shadow-xl"
             >
-              {/* Video Thumbnail Mockup */}
-              <div className="aspect-video bg-slate-900/90 flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent z-10" />
-                <Video className="h-10 w-10 text-slate-700 group-hover:scale-110 transition-transform duration-300" />
+              {/* Thumbnail Container */}
+              <div className="aspect-video bg-[#0b1424] flex items-center justify-center relative overflow-hidden">
+                <Video className="h-10 w-10 text-white/30 group-hover:scale-110 transition-transform duration-300" />
                 
                 {/* Court Tag */}
-                <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-md bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-court-cyan">
+                <div className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full bg-slate-900/80 border border-white/15 text-[11px] font-semibold text-white">
                   {item.court}
                 </div>
 
-                {/* Duration Badge */}
-                <div className="absolute bottom-3 right-3 z-20 px-2 py-0.5 rounded bg-black/80 font-mono text-xs text-slate-300">
+                {/* Duration */}
+                <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-slate-950/80 font-mono text-xs text-white">
                   {item.duration}
                 </div>
 
-                {/* Play Button Overlay */}
+                {/* Play Action Hover */}
                 <Link
                   to={`/matches/${item.id}`}
-                  className="absolute z-20 inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40 backdrop-blur-[2px]"
                 >
-                  <div className="p-4 rounded-full bg-court text-slate-950 shadow-neon-court scale-90 group-hover:scale-100 transition-transform">
-                    <Play className="h-6 w-6 fill-slate-950 translate-x-0.5" />
+                  <div className="w-12 h-12 rounded-full bg-brand text-white shadow-glow-blue flex items-center justify-center scale-90 group-hover:scale-100 transition-transform">
+                    <Play className="h-5 w-5 fill-white translate-x-0.5" />
                   </div>
                 </Link>
               </div>
 
-              {/* Card Meta Content */}
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <h3 className="font-bold text-white text-base group-hover:text-court transition-colors line-clamp-2">
+              {/* Card Body */}
+              <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                <h3 className="font-heading font-bold text-white text-base group-hover:text-sky-400 transition-colors line-clamp-2">
                   {item.title}
                 </h3>
 
-                <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 pt-2 border-t border-slate-800/80">
-                  <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800/50">
-                    <span className="text-slate-500 block text-[10px]">Pha cầu (Rallies)</span>
-                    <span className="font-mono font-bold text-court text-sm">{item.rallies}</span>
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-200 pt-2 border-t border-white/10">
+                  <div className="bg-white/10 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-slate-400 block text-[11px]">Rallies Captured</span>
+                    <span className="font-heading font-bold text-white text-sm">{item.rallies}</span>
                   </div>
-                  <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800/50">
-                    <span className="text-slate-500 block text-[10px]">Cú Smash phát hiện</span>
-                    <span className="font-mono font-bold text-stroke-smash text-sm">{item.smashes}</span>
+                  <div className="bg-white/10 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-slate-400 block text-[11px]">Smash Count</span>
+                    <span className="font-heading font-bold text-sky-400 text-sm">{item.smashes}</span>
                   </div>
                 </div>
 
                 <Link
                   to={`/matches/${item.id}`}
-                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white font-medium text-xs flex items-center justify-center gap-1.5 border border-slate-800 transition"
+                  className="w-full py-2.5 rounded-full bg-white/10 hover:bg-brand text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
                 >
-                  <span>Phân tích Replay</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Open Match Analysis</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
             </div>

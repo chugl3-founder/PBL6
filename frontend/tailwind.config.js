@@ -8,72 +8,47 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        background: '#03070a',
+        foreground: '#f8fafc',
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+          DEFAULT: '#0c121e',
+          foreground: '#f8fafc',
         },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
+        surface: {
+          DEFAULT: '#0b101b',
+          elevated: '#0f172a',
+          line: 'rgba(255, 255, 255, 0.08)',
+          muted: 'rgba(255, 255, 255, 0.04)',
         },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
-        },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-
-        // Badminton Court & Hawk-Eye Specialized Tokens
-        court: {
-          DEFAULT: 'hsl(var(--court-primary))',
-          glow: 'hsl(var(--court-primary-glow))',
-          cyan: 'hsl(var(--court-secondary))',
-        },
-        stroke: {
-          smash: 'hsl(var(--smash-red))',
-          drop: 'hsl(var(--drop-amber))',
-          clear: 'hsl(var(--clear-blue))',
-        },
+        // BadPro+ Brand Blue
         brand: {
-          50: '#f0fdf4',
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
-          700: '#15803d',
-          neon: '#10B981',
-          cyan: '#06B6D4',
+          DEFAULT: '#007aff',
+          hover: '#2482ff',
+          deep: '#1877ca',
+          50: '#eff6ff',
+          100: '#dbeafe',
+          500: '#007aff',
+          600: '#0062cc',
+          700: '#1877ca',
+        },
+        court: {
+          blue: '#007aff',
+          light: '#38bdf8',
         }
+      },
+      fontFamily: {
+        heading: ['Montserrat', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        'fig-sm': '4px',
+        'fig-md': '6px',
+        'fig-lg': '8px',
+        'fig-xl': '12px',
       },
       boxShadow: {
-        'neon-court': '0 0 20px -3px rgba(34, 197, 94, 0.35)',
-        'neon-cyan': '0 0 20px -3px rgba(6, 182, 212, 0.35)',
-        'neon-smash': '0 0 20px -3px rgba(244, 63, 94, 0.35)',
-      },
-      animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'fade-in': 'fadeIn 0.3s ease-in-out',
-      },
-      keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0', transform: 'translateY(4px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        }
+        'glow-blue': '0 0 25px -4px rgba(0, 122, 255, 0.35)',
+        'glow-subtle': '0 10px 30px -10px rgba(0, 122, 255, 0.2)',
       }
     },
   },

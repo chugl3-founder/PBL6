@@ -15,6 +15,16 @@
 			"key": "accessToken",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "resetToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "matchId",
+			"value": "1",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -205,6 +215,624 @@
 							"path": [
 								"auth",
 								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AUTH-REF-01: Refresh Token thành công (200 OK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"refresh-token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AUTH-REF-02: Bắt lỗi Refresh Token sai / đã thu hồi (401 Unauthorized)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"invalid_or_revoked_token\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"refresh-token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AUTH-OUT-01: Đăng xuất thành công (200 OK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AUTH-FORGOT-01: Yêu cầu quên mật khẩu thành công (200 OK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"athlete@test.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/forgot-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"forgot-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AUTH-FORGOT-02: Email không tồn tại (404 Not Found)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"not_exist_email@badminton.vn\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/forgot-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"forgot-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AUTH-RESET-01: Đặt lại mật khẩu thành công (200 OK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"NewPassword@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/reset-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"reset-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AUTH-RESET-02: Bắt lỗi Token không hợp lệ / đã dùng (400 Bad Request)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"already_used_or_invalid_token\",\n  \"newPassword\": \"NewPassword@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/reset-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"reset-password"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "02 - User Profile",
+			"item": [
+				{
+					"name": "TC-USER-PRF-01: Lấy hồ sơ cá nhân (200 OK)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-USER-PRF-03: Cập nhật thông tin profile (200 OK)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullName\": \"Lê Quang Liêm Pro\",\n  \"age\": 24,\n  \"gender\": \"MALE\",\n  \"badmintonLevel\": \"PRO\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-USER-AVA-01: Tải lên avatar lên MinIO (200 OK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "avatar",
+									"type": "file",
+									"src": ""
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/me/avatar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"me",
+								"avatar"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "03 - Matches",
+			"item": [
+				{
+					"name": "TC-MATCH-CRE-01: Tạo trận đấu thành công (201 Created)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"playerAName\": \"Nguyễn Tiến Minh\",\n  \"playerBName\": \"Lee Chong Wei\",\n  \"upperPlayer\": \"PLAYER_A\",\n  \"lowerPlayer\": \"PLAYER_B\",\n  \"matchDate\": \"2026-10-09\",\n  \"title\": \"Chung kết Đơn Nam 2026\",\n  \"description\": \"Trận đấu 1 set 21 điểm có AI analysis\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matches",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-MATCH-CRE-02: Bắt lỗi vị trí sân trùng nhau (400 Bad Request)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"playerAName\": \"Player 1\",\n  \"playerBName\": \"Player 2\",\n  \"upperPlayer\": \"PLAYER_A\",\n  \"lowerPlayer\": \"PLAYER_A\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matches",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-MATCH-GET-01: Xem chi tiết trận đấu (200 OK)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-MATCH-UPD-01: Chỉnh sửa trận đấu (200 OK)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Chung kết Đơn Nam 2026 - Bản Cập Nhật\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-MATCH-GET-02: Trận đấu không tồn tại (404 Not Found)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/9999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"9999"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "04 - Videos (VS-06)",
+			"item": [
+				{
+					"name": "TC-VID-URL-01: Lấy S3 Presigned Upload URL thành công (200 OK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fileName\": \"match_sample.mp4\",\n  \"fileSize\": 15728640\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"videos",
+								"upload-url"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-VID-URL-02: Video vượt quá giới hạn 500MB (413 Payload Too Large)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fileName\": \"huge_match.mp4\",\n  \"fileSize\": 629145600\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"videos",
+								"upload-url"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-VID-URL-03: Định dạng file không hợp lệ (400 Bad Request)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fileName\": \"malicious.exe\",\n  \"fileSize\": 10485760\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"videos",
+								"upload-url"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-VID-COM-01: Xác nhận upload hoàn tất (200 OK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"storagePath\": \"matches/1/sample.mp4\",\n  \"fileName\": \"match_sample.mp4\",\n  \"fileSize\": 15728640,\n  \"durationSeconds\": 120.5,\n  \"resolution\": \"1080p\",\n  \"fps\": 30.0\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/complete",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"videos",
+								"complete"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-VID-COM-02: Xác nhận file không tồn tại (400 Bad Request)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"storagePath\": \"matches/1/non_existent.mp4\",\n  \"fileName\": \"non_existent.mp4\",\n  \"fileSize\": 1024\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/complete",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"videos",
+								"complete"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-VID-GET-01: Lấy thông tin video trận đấu (200 OK)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/video",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"video"
 							]
 						}
 					},

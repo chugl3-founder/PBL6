@@ -32,4 +32,36 @@ public class AuthController {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<com.badminton.dto.auth.TokenResponse> refreshToken(
+            @Valid @RequestBody com.badminton.dto.auth.RefreshTokenRequest request
+    ) {
+        com.badminton.dto.auth.TokenResponse response = authService.refreshToken(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<com.badminton.common.dto.MessageResponse> logout(
+            @Valid @RequestBody com.badminton.dto.auth.RefreshTokenRequest request
+    ) {
+        com.badminton.common.dto.MessageResponse response = authService.logout(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<com.badminton.common.dto.MessageResponse> forgotPassword(
+            @Valid @RequestBody com.badminton.dto.auth.ForgotPasswordRequest request
+    ) {
+        com.badminton.common.dto.MessageResponse response = authService.forgotPassword(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<com.badminton.common.dto.MessageResponse> resetPassword(
+            @Valid @RequestBody com.badminton.dto.auth.ResetPasswordRequest request
+    ) {
+        com.badminton.common.dto.MessageResponse response = authService.resetPassword(request);
+        return ResponseEntity.ok(response);
+    }
 }
