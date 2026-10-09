@@ -643,6 +643,84 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "TC-MATCH-LIST-01: Lấy danh sách trận đấu của tôi (200 OK)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches?page=0&size=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-MATCH-DEL-01: Xóa mềm trận đấu thành công (200 OK)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-MATCH-DEL-02: Xóa trận đấu không tồn tại hoặc đã xóa (404 Not Found)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/9999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"9999"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},

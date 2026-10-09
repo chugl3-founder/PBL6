@@ -1,5 +1,6 @@
 package com.badminton.controller;
 
+import com.badminton.common.dto.MessageResponse;
 import com.badminton.dto.match.CreateMatchRequest;
 import com.badminton.dto.match.MatchResponse;
 import com.badminton.dto.match.PagedMatchResponse;
@@ -55,6 +56,15 @@ public class MatchController {
             @Valid @RequestBody UpdateMatchRequest request
     ) {
         MatchResponse response = matchService.updateMatch(id, request, email);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<MessageResponse> softDeleteMatch(
+            @AuthenticationPrincipal String email,
+            @PathVariable Long id
+    ) {
+        MessageResponse response = matchService.softDeleteMatch(id, email);
         return ResponseEntity.ok(response);
     }
 }

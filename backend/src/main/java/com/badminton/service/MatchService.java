@@ -1,6 +1,7 @@
 package com.badminton.service;
 
 import com.badminton.common.dto.ErrorType;
+import com.badminton.common.dto.MessageResponse;
 import com.badminton.common.dto.PaginationMeta;
 import com.badminton.common.exception.ApiException;
 import com.badminton.dto.match.CreateMatchRequest;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Slf4j
@@ -212,6 +214,45 @@ public class MatchService {
         log.info("Đã cập nhật thông tin trận đấu: id={}", updatedMatch.getId());
 
         return mapToMatchResponse(updatedMatch);
+    }
+
+    @Transactional
+    public MessageResponse softDeleteMatch(Long id, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_USER_NOT_FOUND",
+                        "Không tìm thấy tài khoản người dùng."
+                ));
+
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_MATCH_NOT_FOUND",
+                        "Không tìm thấy trận đấu với ID: " + id
+                ));
+
+        boolean isAdmin = "ROLE_ADMIN".equals(user.getRole());
+        boolean isOwner = match.getOwner().getId().equals(user.getId());
+
+        if (!isAdmin && !isOwner) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    ErrorType.SYSTEM,
+                    "AUTH_FORBIDDEN_RESOURCE",
+                    "Bạn không có quyền xóa trận đấu này."
+            );
+        }
+
+        match.setDeletedAt(OffsetDateTime.now());
+        matchRepository.save(match);
+        log.info("Đã xóa mềm trận đấu: id={}, deletedBy={}", id, userEmail);
+
+        return MessageResponse.builder()
+                .message("Trận đấu đã được xóa mềm thành công.")
+                .build();
     }
 
     public MatchResponse mapToMatchResponse(Match match) {

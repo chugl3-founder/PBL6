@@ -10,7 +10,12 @@ import {
   Activity, 
   Layers,
   ChevronRight,
-  Clock
+  Clock,
+  Trash2,
+  AlertTriangle,
+  X,
+  CheckCircle2,
+  ChevronLeft
 } from 'lucide-react';
 import apiClient from '../api/client';
 
@@ -26,22 +31,37 @@ interface MatchItem {
   createdAt: string;
 }
 
+interface PaginationMeta {
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
 export const MyMatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<MatchItem[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const fetchMatches = async (statusFilter?: string) => {
+  // Modal Xóa mềm
+  const [matchToDelete, setMatchToDelete] = useState<MatchItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const fetchMatches = async (statusFilter?: string, page: number = 0) => {
     try {
       setLoading(true);
       setError(null);
-      const params: Record<string, string | number> = { page: 0, size: 20 };
+      const params: Record<string, string | number> = { page, size: 8 };
       if (statusFilter && statusFilter !== 'ALL') {
         params.status = statusFilter;
       }
       const res = await apiClient.get('/matches', { params });
       setMatches(res.data.data || []);
+      setPagination(res.data.pagination || null);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Không thể tải danh sách trận đấu.');
     } finally {
@@ -50,8 +70,32 @@ export const MyMatchesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchMatches(selectedStatus);
+    setCurrentPage(0);
+    fetchMatches(selectedStatus, 0);
   }, [selectedStatus]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 0 && pagination && newPage < pagination.totalPages) {
+      setCurrentPage(newPage);
+      fetchMatches(selectedStatus, newPage);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!matchToDelete) return;
+    try {
+      setIsDeleting(true);
+      await apiClient.delete(`/matches/${matchToDelete.id}`);
+      setMatches((prev) => prev.filter((m) => m.id !== matchToDelete.id));
+      setSuccessMsg(`Đã xóa mềm thành công trận đấu #${matchToDelete.id}`);
+      setMatchToDelete(null);
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Không thể xóa trận đấu.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -107,7 +151,7 @@ export const MyMatchesPage: React.FC = () => {
             Trận đấu của tôi
           </h1>
           <p className="text-slate-300 text-sm max-w-xl">
-            Quản lý kho dữ liệu trận đấu, theo dõi tiến độ tải lên video MinIO và mở báo cáo phân tích chiến thuật chi tiết.
+            Quản lý kho dữ liệu trận đấu, theo dõi tiến độ tải lên video MinIO, xóa mềm an toàn và mở báo cáo phân tích chi tiết.
           </p>
         </div>
 
@@ -122,9 +166,24 @@ export const MyMatchesPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Thông báo Thành công / Lỗi */}
+      {successMsg && (
+        <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm animate-fade-in shadow-lg">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm shadow-lg">
+          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* 2. Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-        <div className="flex items-center gap-1.5 bg-card-bg/80 border border-white/10 p-1 rounded-2xl backdrop-blur-md">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-1.5 bg-card-bg/80 border border-white/10 p-1 rounded-2xl backdrop-blur-md overflow-x-auto scrollbar-none">
           {[
             { id: 'ALL', label: 'Tất cả' },
             { id: 'DRAFT', label: 'Chờ Upload (DRAFT)' },
@@ -145,16 +204,15 @@ export const MyMatchesPage: React.FC = () => {
             </button>
           ))}
         </div>
+
+        {pagination && pagination.totalElements > 0 && (
+          <span className="text-xs text-slate-400">
+            Tổng cộng: <strong className="text-white">{pagination.totalElements}</strong> trận đấu
+          </span>
+        )}
       </div>
 
-      {/* 3. Error state */}
-      {error && (
-        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* 4. Match List Grid */}
+      {/* 3. Match List Grid */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((n) => (
@@ -187,7 +245,7 @@ export const MyMatchesPage: React.FC = () => {
           {matches.map((match) => (
             <div
               key={match.id}
-              className="p-6 rounded-3xl bg-card-bg border border-white/10 hover:border-brand/40 hover:shadow-glow-blue/20 transition-all duration-300 space-y-5 relative group"
+              className="p-6 rounded-3xl bg-card-bg border border-white/10 hover:border-brand/40 hover:shadow-glow-blue/20 transition-all duration-300 space-y-5 relative group flex flex-col justify-between"
             >
               {/* Card Top: Match Title & Status */}
               <div className="flex items-start justify-between gap-3">
@@ -238,13 +296,23 @@ export const MyMatchesPage: React.FC = () => {
               </div>
 
               {/* Card Bottom Actions */}
-              <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+              <div className="pt-3 border-t border-white/5 flex items-center justify-between gap-2">
                 <div className="text-xs text-slate-400 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" />
                   <span>Tạo lúc: {new Date(match.createdAt).toLocaleDateString('vi-VN')}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Nút Xóa Mềm */}
+                  <button
+                    onClick={() => setMatchToDelete(match)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 transition-all"
+                    title="Xóa trận đấu (Soft Delete)"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+
+                  {/* Nút Chức năng theo trạng thái */}
                   {match.status === 'DRAFT' && (
                     <Link
                       to={`/matches/${match.id}`}
@@ -280,6 +348,84 @@ export const MyMatchesPage: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 4. Pagination Controls */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-6">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 0}
+            className="p-2 rounded-xl bg-card-bg border border-white/10 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-xs text-slate-300 px-3 py-1.5 rounded-xl bg-card-bg border border-white/10">
+            Trang <strong className="text-white">{currentPage + 1}</strong> / {pagination.totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= pagination.totalPages - 1}
+            className="p-2 rounded-xl bg-card-bg border border-white/10 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 5. Modal Xác Nhận Xóa Mềm (Soft Delete) */}
+      {matchToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-[#0e1726] border border-white/15 p-6 sm:p-7 shadow-2xl space-y-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex items-start justify-between">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <button
+                onClick={() => setMatchToDelete(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-heading text-xl font-bold text-white">Xác nhận xóa trận đấu</h3>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Bạn có chắc chắn muốn xóa trận đấu{' '}
+                <strong className="text-white">
+                  "{matchToDelete.title || `Trận đấu #${matchToDelete.id}`}"
+                </strong>{' '}
+                không?
+              </p>
+              <p className="text-xs text-slate-400 bg-slate-900/60 p-3 rounded-xl border border-white/5">
+                💡 Trận đấu sẽ được đưa vào thùng rác và ẩn khỏi danh sách của bạn (xóa mềm). Toàn bộ video và dữ liệu liên quan vẫn được lưu trữ an toàn.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setMatchToDelete(null)}
+                disabled={isDeleting}
+                className="px-5 py-2.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/5 border border-white/10 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-5 py-2.5 rounded-full text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/40 transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Đang xóa...' : 'Xác nhận xóa'}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -174,5 +174,22 @@
 
 ---
 
+## 4. Module Trận Đấu: Danh Sách Của Tôi & Xóa Mềm (VS-07)
+
+*Các API liên quan:*
+- `GET /api/matches`: Lấy danh sách trận đấu do chính mình tạo (phân trang, lọc theo status, loại trừ trận đã xóa mềm).
+- `DELETE /api/matches/{id}`: Xóa mềm trận đấu (`deleted_at = CURRENT_TIMESTAMP`). Chỉ chủ sở hữu (Owner) hoặc Admin được phép xóa.
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-MATCH-LIST-01** | Lấy danh sách trận đấu thành công | `GET /api/matches?page=0&size=10` kèm Bearer Token | **200 OK** | Trả về danh sách trận đấu của người dùng kèm metadata phân trang (`page`, `size`, `totalElements`, `totalPages`). Loại bỏ các trận đã bị xóa mềm. | ✅ **PASS** |
+| **TC-MATCH-LIST-02** | Lọc danh sách theo trạng thái | `GET /api/matches?status=READY` | **200 OK** | Chỉ trả về các trận đấu có `status = READY`. | ✅ **PASS** |
+| **TC-MATCH-DEL-01** | Xóa mềm trận đấu thành công | `DELETE /api/matches/{id}` do chính Owner gọi | **200 OK** | Trả về thông điệp "Trận đấu đã được xóa mềm thành công.". Cập nhật `deleted_at = NOW()`, bản ghi vẫn lưu trong CSDL nhưng không còn xuất hiện trong API danh sách. | ✅ **PASS** |
+| **TC-MATCH-DEL-02** | Xóa trận đấu của người khác (Forbidden) | `DELETE /api/matches/{id}` gọi bởi User không phải Owner/Admin | **403 Forbidden** | Bắt lỗi `AUTH_FORBIDDEN_RESOURCE`: "Bạn không có quyền xóa trận đấu này." | ✅ **PASS** |
+| **TC-MATCH-DEL-03** | Xóa trận đấu không tồn tại hoặc đã xóa trước đó | `DELETE /api/matches/9999` hoặc gọi lại ID đã xóa | **404 Not Found** | Bắt lỗi `ERR_MATCH_NOT_FOUND`: "Không tìm thấy trận đấu với ID: ..." | ✅ **PASS** |
+
+---
+
 *(Tài liệu này sẽ được tự động bổ sung liên tục các bảng test case của các user story tiếp theo cho đến khi hoàn thành toàn bộ hệ thống).*
+
 
