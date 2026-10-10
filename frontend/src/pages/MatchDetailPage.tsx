@@ -34,12 +34,28 @@ interface VideoData {
   status: string;
 }
 
+interface AnalysisStatusData {
+  analysisId: number | null;
+  matchId: number;
+  status: string; // NONE, QUEUED, PROCESSING, COMPLETED, FAILED, UNSUPPORTED, CANCELLED
+  progressPercent: number;
+  currentStage: string;
+  modelName?: string;
+  modelVersion?: string;
+  errorMessage?: string | null;
+}
+
 export const MatchDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [match, setMatch] = useState<MatchData | null>(null);
   const [video, setVideo] = useState<VideoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Analysis State
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusData | null>(null);
+  const [dispatchingAnalysis, setDispatchingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Upload state
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -49,6 +65,17 @@ export const MatchDetailPage: React.FC = () => {
   const [uploadSpeed, setUploadSpeed] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const fetchAnalysisStatus = async () => {
+    try {
+      const res = await apiClient.get(`/matches/${id}/analysis/status`);
+      setAnalysisStatus(res.data);
+      return res.data;
+    } catch (err) {
+      console.error('Không thể lấy trạng thái phân tích AI:', err);
+      return null;
+    }
+  };
+
   const fetchMatchDetails = async () => {
     try {
       setLoading(true);
@@ -56,7 +83,7 @@ export const MatchDetailPage: React.FC = () => {
       const res = await apiClient.get(`/matches/${id}`);
       setMatch(res.data);
 
-      // Nếu match đã READY hoặc ANALYZING, thử lấy metadata video
+      // Nếu match đã READY, ANALYZING hoặc COMPLETED, thử lấy metadata video
       if (res.data.status !== 'DRAFT') {
         try {
           const videoRes = await apiClient.get(`/matches/${id}/video`);
@@ -64,12 +91,55 @@ export const MatchDetailPage: React.FC = () => {
         } catch (vErr) {
           // Bỏ qua nếu chưa có video
         }
+
+        // Lấy thông tin phân tích AI
+        await fetchAnalysisStatus();
       }
     } catch (err: any) {
       const serverMsg = err.response?.data?.message;
       setError(serverMsg || 'Không thể tải thông tin trận đấu.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Polling tiến trình phân tích khi status đang là QUEUED hoặc PROCESSING
+  useEffect(() => {
+    let intervalId: any;
+    if (match && (match.status === 'ANALYZING' || analysisStatus?.status === 'QUEUED' || analysisStatus?.status === 'PROCESSING')) {
+      intervalId = setInterval(async () => {
+        const latest = await fetchAnalysisStatus();
+        if (latest && (latest.status === 'COMPLETED' || latest.status === 'FAILED')) {
+          clearInterval(intervalId);
+          // Cập nhật lại trạng thái match
+          const matchRes = await apiClient.get(`/matches/${id}`);
+          setMatch(matchRes.data);
+        }
+      }, 2000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [id, match?.status, analysisStatus?.status]);
+
+  const handleStartAnalysis = async () => {
+    if (!id) return;
+    setDispatchingAnalysis(true);
+    setAnalysisError(null);
+
+    try {
+      await apiClient.post(`/matches/${id}/analysis/dispatch`);
+      // Lập tức chuyển match sang trạng thái ANALYZING
+      if (match) {
+        setMatch({ ...match, status: 'ANALYZING' });
+      }
+      await fetchAnalysisStatus();
+    } catch (err: any) {
+      const serverMsg = err.response?.data?.message;
+      setAnalysisError(serverMsg || 'Không thể khởi động phân tích AI. Vui lòng thử lại.');
+    } finally {
+      setDispatchingAnalysis(false);
     }
   };
 
@@ -537,36 +607,127 @@ export const MatchDetailPage: React.FC = () => {
 
               {/* Step 3 */}
               <div className={`flex items-start gap-3 p-3 rounded-2xl border ${
-                match.status === 'READY'
+                match.status === 'ANALYZED' || match.status === 'COMPLETED'
+                  ? 'bg-emerald-500/10 border-emerald-500/30'
+                  : match.status === 'ANALYZING'
+                  ? 'bg-blue-500/10 border-blue-500/30'
+                  : match.status === 'READY'
                   ? 'bg-brand/10 border-brand/30'
                   : 'bg-white/5 border-white/10 opacity-60'
               }`}>
-                <div className="w-5 h-5 rounded-full bg-white/10 text-white/50 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                  3
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
+                  match.status === 'ANALYZED' || match.status === 'COMPLETED'
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : match.status === 'ANALYZING'
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'bg-white/10 text-white/50'
+                }`}>
+                  {match.status === 'ANALYZED' || match.status === 'COMPLETED' ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : match.status === 'ANALYZING' ? (
+                    <div className="w-2.5 h-2.5 bg-blue-400 rounded-full animate-ping" />
+                  ) : (
+                    '3'
+                  )}
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-white">Bước 3: Phân tích AI & Replay</div>
-                  <div className="text-[11px] text-white/50 mt-0.5">
-                    {match.status === 'READY' 
-                      ? 'Sẵn sàng kích hoạt Mock Engine AI (VS-08)' 
+                  <div className="text-xs font-bold text-white">Bước 3: Phân tích AI CoachAI+ 2.0</div>
+                  <div className="text-[11px] text-white/60 mt-0.5">
+                    {match.status === 'ANALYZED' || match.status === 'COMPLETED'
+                      ? 'Đã trích xuất xong toàn bộ cú đánh, pha cầu & chiến thuật'
+                      : match.status === 'ANALYZING'
+                      ? 'Đang nhận diện động tác & bóc tách điểm số...'
+                      : match.status === 'READY'
+                      ? 'Sẵn sàng kích hoạt Mock Engine AI'
                       : 'Cần tải xong video trước khi kích hoạt phân tích'}
                   </div>
                 </div>
               </div>
+
             </div>
+
+            {/* Error Message for AI Analysis */}
+            {analysisError && (
+              <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{analysisError}</span>
+              </div>
+            )}
+
+            {/* AI Progress Box during ANALYZING */}
+            {match.status === 'ANALYZING' && (
+              <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-blue-300 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                    <span>{analysisStatus?.currentStage || 'Đang kết nối Mock Engine...'}</span>
+                  </span>
+                  <span className="text-white font-mono font-bold">
+                    {analysisStatus?.progressPercent || 15}%
+                  </span>
+                </div>
+
+                <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-brand transition-all duration-500 rounded-full"
+                    style={{ width: `${analysisStatus?.progressPercent || 15}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-white/40">
+                  <span>Mô hình: {analysisStatus?.modelName || 'CoachAI+'} ({analysisStatus?.modelVersion || '2.0_pbl6_coachai'})</span>
+                  <span>Mã phản hồi: HTTP 202 Accepted</span>
+                </div>
+              </div>
+            )}
 
             {/* Next Action CTA if READY */}
             {match.status === 'READY' && (
               <div className="pt-2">
                 <button
                   type="button"
-                  className="w-full h-12 rounded-full bg-gradient-to-r from-brand to-blue-600 hover:from-brand-hover hover:to-blue-500 text-white font-bold shadow-glow-blue transition-all flex items-center justify-center gap-2 text-sm"
+                  onClick={handleStartAnalysis}
+                  disabled={dispatchingAnalysis}
+                  className="w-full h-12 rounded-full bg-gradient-to-r from-brand to-blue-600 hover:from-brand-hover hover:to-blue-500 disabled:opacity-50 text-white font-bold shadow-glow-blue transition-all flex items-center justify-center gap-2 text-sm"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Kích hoạt Phân tích AI (Sắp ra mắt ở VS-08)</span>
+                  {dispatchingAnalysis ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Bắt đầu Phân tích AI</span>
+                    </>
+                  )}
                 </button>
               </div>
             )}
+
+            {/* CTA if ANALYZED / COMPLETED */}
+            {(match.status === 'ANALYZED' || match.status === 'COMPLETED') && (
+              <div className="pt-2 space-y-2.5">
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Trận đấu đã phân tích thành công! Dữ liệu Replay & Thống kê đã sẵn sàng.</span>
+                </div>
+                <Link
+                  to={`/matches/${id}/replay`}
+                  className="w-full h-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                  <FileVideo className="w-4 h-4" />
+                  <span>Vào Xem Video Replay & AI Timeline (VS-09)</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleStartAnalysis}
+                  disabled={dispatchingAnalysis}
+                  className="w-full h-11 rounded-full bg-white/10 hover:bg-white/15 text-white/80 font-medium transition-all flex items-center justify-center gap-2 text-xs"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Phân tích lại (Re-analyze)</span>
+                </button>
+              </div>
+            )}
+
+
           </div>
 
         </div>

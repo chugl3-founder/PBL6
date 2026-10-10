@@ -33,8 +33,8 @@ export const Navbar: React.FC = () => {
   ];
 
   return (
-    <header className="sticky top-4 z-50 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full transition-all">
-      <div className="pill-header rounded-full h-16 px-6 flex items-center justify-between border border-white/10 shadow-2xl">
+    <header className="sticky top-0 z-50 w-full bg-[#0b1322]/90 backdrop-blur-xl border-b border-white/10 shadow-lg transition-all">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo - BadPro+ Style */}
         <Link to="/" className="flex items-center space-x-2.5 group">
           <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center text-white shadow-glow-blue">
