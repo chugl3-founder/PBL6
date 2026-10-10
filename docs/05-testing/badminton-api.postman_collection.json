@@ -1176,6 +1176,212 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "07 - Rallies Navigation (VS-11)",
+			"item": [
+				{
+					"name": "TC-RALLY-LIST-01: Lấy danh sách các đợt cầu (Rallies) của trận đấu (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Returns array of Rallies with scores and sequence\", function () {",
+									"    var rallies = pm.response.json();",
+									"    pm.expect(rallies).to.be.an('array');",
+									"    pm.expect(rallies.length).to.be.above(0);",
+									"    var first = rallies[0];",
+									"    pm.expect(first).to.have.property('rallyNumber');",
+									"    pm.expect(first).to.have.property('startTime');",
+									"    pm.expect(first).to.have.property('endTime');",
+									"    pm.expect(first).to.have.property('duration');",
+									"    pm.expect(first).to.have.property('winnerSide');",
+									"    pm.expect(first).to.have.property('winReason');",
+									"    pm.expect(first).to.have.property('scoreText');",
+									"    pm.expect(first).to.have.property('strokeSequence');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/rallies",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"analysis",
+								"rallies"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-RALLY-LIST-02: Lấy danh sách đợt cầu trận không tồn tại (404 Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matches/99999/analysis/rallies",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"99999",
+								"analysis",
+								"rallies"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "08 - Statistics & Analytics",
+			"item": [
+				{
+					"name": "TC-STATS-01: Lấy thống kê chuyên sâu của trận đấu theo matchId (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Dữ liệu thống kê đầy đủ theo chuẩn VS-12 Gherkin\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('totalStrokes');",
+									"    pm.expect(jsonData).to.have.property('totalRallies');",
+									"    pm.expect(jsonData).to.have.property('avgStrokesPerRally');",
+									"    pm.expect(jsonData).to.have.property('strokeDistribution');",
+									"    pm.expect(jsonData).to.have.property('playerAStrokes');",
+									"    pm.expect(jsonData).to.have.property('playerBStrokes');",
+									"    pm.expect(jsonData).to.have.property('forehandCount');",
+									"    pm.expect(jsonData).to.have.property('backhandCount');",
+									"    pm.expect(jsonData.totalStrokes).to.be.at.least(40);",
+									"    pm.expect(jsonData.totalRallies).to.be.at.least(5);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/statistics",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"analysis",
+								"statistics"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-STATS-02: Lấy thống kê theo analysisId chuẩn OpenAPI (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Kiểm tra analysisId trùng khớp\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('analysisId');",
+									"    pm.expect(jsonData).to.have.property('avgStrokesPerRally');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/ai-analyses/{{analysisId}}/statistics",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"ai-analyses",
+								"{{analysisId}}",
+								"statistics"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-STATS-03: Lấy thống kê trận đấu không tồn tại (404 Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matches/99999/analysis/statistics",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"99999",
+								"analysis",
+								"statistics"
+							]
+						}
+					},
+					"response": []
+				}
+			]
 		}
 	]
 }

@@ -165,12 +165,15 @@ public class MockAiEngineService {
         int currentFrame = 60;
         double currentTime = 2.0;
         int eventOrder = 1;
-        int rallyCount = 4; // Mô phỏng 4 pha cầu tiêu biểu
+        int rallyCount = 5; // Mô phỏng 5 pha cầu tiêu biểu (VS-11 & VS-12)
         int scoreUpper = 0;
         int scoreLower = 0;
 
+        // Phân bổ cú đánh các rally: 6, 8, 8, 8, 10 => Tổng 40 cú đánh (Trung bình 8.0 cú/pha)
+        int[] strokesPerRallyArray = {6, 8, 8, 8, 10};
+
         for (int r = 1; r <= rallyCount; r++) {
-            int strokesInRally = 4 + (r * 2); // 6, 8, 10, 12 cú đánh mỗi rally
+            int strokesInRally = strokesPerRallyArray[r - 1];
             double rallyStartTime = currentTime;
             AiEvent rallyStartEvent = null;
             AiEvent rallyEndEvent = null;

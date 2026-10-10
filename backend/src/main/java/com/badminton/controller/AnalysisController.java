@@ -50,6 +50,28 @@ public class AnalysisController {
         java.util.List<com.badminton.dto.analysis.AiEventResponse> events = analysisService.getMatchEvents(id);
         return ResponseEntity.ok(events);
     }
+
+    /**
+     * VS-11: Lấy danh sách các đợt cầu (Rallies) của trận đấu
+     */
+    @GetMapping("/rallies")
+    public ResponseEntity<java.util.List<com.badminton.dto.analysis.RallyResponse>> getMatchRallies(
+            @PathVariable Long id
+    ) {
+        java.util.List<com.badminton.dto.analysis.RallyResponse> rallies = analysisService.getMatchRallies(id);
+        return ResponseEntity.ok(rallies);
+    }
+
+    /**
+     * VS-12: Lấy dữ liệu thống kê chuyên sâu toàn diện của trận đấu
+     */
+    @GetMapping("/statistics")
+    public ResponseEntity<com.badminton.dto.analysis.MatchStatisticsResponse> getMatchStatistics(
+            @PathVariable Long id
+    ) {
+        com.badminton.dto.analysis.MatchStatisticsResponse statistics = analysisService.getMatchStatistics(id);
+        return ResponseEntity.ok(statistics);
+    }
 }
 
 

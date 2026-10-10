@@ -6,12 +6,14 @@ import {
   Layers, Volume2, Volume1, VolumeX,
   Zap, Target, ChevronRight,
   RotateCcw, RotateCw, SkipBack, SkipForward,
-  Gauge, Maximize, Eye, Keyboard, X
+  Gauge, Maximize, Eye, Keyboard, X, Trophy, BarChart3
 } from 'lucide-react';
 import apiClient from '../api/client';
 import { Court2DViewer, AiEventData } from '../components/court/Court2DViewer';
 import { TimelineMarkers } from '../components/replay/TimelineMarkers';
 import { StrokeDetailCard } from '../components/replay/StrokeDetailCard';
+import { RalliesExplorer, RallyData } from '../components/replay/RalliesExplorer';
+import { StatisticsDashboard, MatchStatisticsData } from '../components/replay/StatisticsDashboard';
 
 interface MatchData {
   id: number;
@@ -39,6 +41,10 @@ export const MatchReplayPage: React.FC = () => {
   const [video, setVideo] = useState<VideoData | null>(null);
   const [events, setEvents] = useState<AiEventData[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<AiEventData | null>(null);
+  const [rallies, setRallies] = useState<RallyData[]>([]);
+  const [selectedRally, setSelectedRally] = useState<RallyData | null>(null);
+  const [statistics, setStatistics] = useState<MatchStatisticsData | null>(null);
+  const [activeTab, setActiveTab] = useState<'STROKES' | 'RALLIES' | 'STATISTICS'>('STROKES');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,6 +120,25 @@ export const MatchReplayPage: React.FC = () => {
 
         if (eventsRes.data.length > 0) {
           setSelectedEvent(eventsRes.data[0]);
+        }
+
+        // 4. Lấy danh sách Rallies (VS-11)
+        try {
+          const ralliesRes = await apiClient.get(`/matches/${id}/analysis/rallies`);
+          setRallies(ralliesRes.data);
+          if (ralliesRes.data.length > 0) {
+            setSelectedRally(ralliesRes.data[0]);
+          }
+        } catch (rErr) {
+          console.warn('Chưa có dữ liệu Rallies:', rErr);
+        }
+
+        // 5. Lấy dữ liệu thống kê chuyên sâu toàn diện (VS-12)
+        try {
+          const statsRes = await apiClient.get(`/matches/${id}/analysis/statistics`);
+          setStatistics(statsRes.data);
+        } catch (sErr) {
+          console.warn('Chưa có dữ liệu Thống kê:', sErr);
         }
       } catch (err: any) {
         console.error('Lỗi khi tải dữ liệu Replay:', err);
@@ -287,6 +312,26 @@ export const MatchReplayPage: React.FC = () => {
       setIsPlaying(true);
     }
     showOsd('Soi chậm 0.5x');
+  };
+
+  // VS-11: Tua video và phát một đợt cầu (Rally)
+  const handlePlayRally = (rally: RallyData) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = rally.startTime;
+    setCurrentTime(rally.startTime);
+    setSelectedRally(rally);
+
+    // Đồng bộ cú đánh đầu tiên của rally này
+    const firstEvt = events.find((e) => Math.abs(e.timeSeconds - rally.startTime) <= 0.8);
+    if (firstEvt) {
+      setSelectedEvent(firstEvt);
+    }
+
+    if (!isPlaying) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+    showOsd(`Phát pha cầu #${rally.rallyNumber}`);
   };
 
   // Xử lý kéo thanh trượt seeker
@@ -812,102 +857,169 @@ export const MatchReplayPage: React.FC = () => {
         {/* CỘT PHẢI (4 cols): DANH SÁCH CÚ ĐÁNH DỌC (VERTICAL STROKES LIST) */}
         <div className="lg:col-span-4 space-y-4">
           <div className="rounded-3xl bg-[#0b1220]/80 border border-white/10 p-5 backdrop-blur-xl shadow-2xl flex flex-col h-[980px]">
-            {/* Header danh sách */}
-            <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-brand" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Danh Sách Cú Đánh
-                </h2>
+            {/* Header Tabs chuyển đổi giữa Cú đánh, Pha cầu & Thống kê (VS-11, VS-12) */}
+            <div className="flex items-center gap-1.5 p-1 bg-white/5 rounded-2xl border border-white/10 mb-3">
+              <button
+                type="button"
+                onClick={() => setActiveTab('STROKES')}
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'STROKES'
+                    ? 'bg-brand text-white shadow-glow-blue'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span className="truncate">Cú đánh ({filteredEvents.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('RALLIES')}
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'RALLIES'
+                    ? 'bg-brand text-white shadow-glow-blue'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                <span className="truncate">Pha cầu ({rallies.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('STATISTICS')}
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'STATISTICS'
+                    ? 'bg-brand text-white shadow-glow-blue'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="truncate">Thống kê</span>
+              </button>
+            </div>
+
+            {activeTab === 'STROKES' && (
+              /* List cuộn dọc các cú đánh */
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 scrollbar-thin">
+                {filteredEvents.map((evt) => {
+                  const isActive = selectedEvent?.id === evt.id;
+                  const isLowConf = evt.confidence < 0.60;
+                  const badgeClass = getStrokeBadgeClass(evt.stroke);
+
+                  return (
+                    <div
+                      key={evt.id}
+                      onClick={() => handleSeekToEvent(evt)}
+                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                        isActive
+                          ? 'bg-brand/20 border-brand shadow-glow-blue ring-1 ring-brand/40'
+                          : isLowConf
+                          ? 'bg-amber-500/5 border-amber-500/25 hover:bg-amber-500/10'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Số thứ tự */}
+                        <div
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono text-xs font-bold shrink-0 ${
+                            isActive 
+                              ? 'bg-brand text-white' 
+                              : isLowConf
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-white/10 text-white/60'
+                          }`}
+                        >
+                          #{evt.eventOrder}
+                        </div>
+
+                        {/* Thông tin cú đánh */}
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
+                              {evt.stroke}
+                            </span>
+                            <span className="text-[11px] text-white/50">{evt.strokeSide}</span>
+                          </div>
+                          <div className="text-[11px] text-white/70 flex items-center gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full ${evt.playerSide === 'UPPER' ? 'bg-blue-400' : 'bg-amber-400'}`} />
+                            <span className="font-semibold">{evt.playerSide === 'UPPER' ? match.playerAName : match.playerBName}</span>
+                            <span className="text-white/30">•</span>
+                            <span className="font-mono text-white/50">{evt.timeSeconds.toFixed(1)}s</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Vận tốc & Tương tác */}
+                      <div className="text-right flex items-center gap-2">
+                        <div className="hidden sm:block">
+                          <div className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end">
+                            <Zap className="w-3 h-3 text-amber-400" />
+                            <span>{evt.averageShuttleSpeedImagePerSecond ? `${evt.averageShuttleSpeedImagePerSecond.toFixed(0)}` : 'N/A'}</span>
+                          </div>
+                          {isLowConf ? (
+                            <div 
+                              title="Độ tin cậy AI thấp (< 60%)" 
+                              className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/40"
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
+                              <span>{(evt.confidence * 100).toFixed(0)}%</span>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-emerald-400 font-mono">
+                              {(evt.confidence * 100).toFixed(0)}%
+                            </div>
+                          )}
+                        </div>
+                        <ChevronRight className={`w-4 h-4 transition-transform ${isActive ? 'text-brand translate-x-0.5' : 'text-white/30'}`} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <span className="text-xs font-mono text-white/40 bg-white/5 px-2 py-0.5 rounded-full">
-                {filteredEvents.length} pha
-              </span>
-            </div>
+            )}
 
-            {/* List cuộn dọc các cú đánh */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 scrollbar-thin">
-              {filteredEvents.map((evt) => {
-                const isActive = selectedEvent?.id === evt.id;
-                const isLowConf = evt.confidence < 0.60;
-                const badgeClass = getStrokeBadgeClass(evt.stroke);
+            {activeTab === 'RALLIES' && (
+              /* VS-11: Rallies Explorer */
+              <RalliesExplorer
+                rallies={rallies}
+                currentTimeSeconds={currentTime}
+                selectedRallyId={selectedRally?.id}
+                playerAName={match.playerAName}
+                playerBName={match.playerBName}
+                upperPlayer={match.upperPlayer}
+                onPlayRally={handlePlayRally}
+              />
+            )}
 
-                return (
-                  <div
-                    key={evt.id}
-                    onClick={() => handleSeekToEvent(evt)}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-                      isActive
-                        ? 'bg-brand/20 border-brand shadow-glow-blue ring-1 ring-brand/40'
-                        : isLowConf
-                        ? 'bg-amber-500/5 border-amber-500/25 hover:bg-amber-500/10'
-                        : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* Số thứ tự */}
-                      <div
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono text-xs font-bold shrink-0 ${
-                          isActive 
-                            ? 'bg-brand text-white' 
-                            : isLowConf
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-white/10 text-white/60'
-                        }`}
-                      >
-                        #{evt.eventOrder}
-                      </div>
-
-                      {/* Thông tin cú đánh */}
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
-                            {evt.stroke}
-                          </span>
-                          <span className="text-[11px] text-white/50">{evt.strokeSide}</span>
-                        </div>
-                        <div className="text-[11px] text-white/70 flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${evt.playerSide === 'UPPER' ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                          <span className="font-semibold">{evt.playerSide === 'UPPER' ? match.playerAName : match.playerBName}</span>
-                          <span className="text-white/30">•</span>
-                          <span className="font-mono text-white/50">{evt.timeSeconds.toFixed(1)}s</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Vận tốc & Tương tác */}
-                    <div className="text-right flex items-center gap-2">
-                      <div className="hidden sm:block">
-                        <div className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end">
-                          <Zap className="w-3 h-3 text-amber-400" />
-                          <span>{evt.averageShuttleSpeedImagePerSecond ? `${evt.averageShuttleSpeedImagePerSecond.toFixed(0)}` : 'N/A'}</span>
-                        </div>
-                        {isLowConf ? (
-                          <div 
-                            title="Độ tin cậy AI thấp (< 60%)" 
-                            className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/40"
-                          >
-                            <AlertTriangle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
-                            <span>{(evt.confidence * 100).toFixed(0)}%</span>
-                          </div>
-                        ) : (
-                          <div className="text-[10px] text-emerald-400 font-mono">
-                            {(evt.confidence * 100).toFixed(0)}%
-                          </div>
-                        )}
-                      </div>
-                      <ChevronRight className={`w-4 h-4 transition-transform ${isActive ? 'text-brand translate-x-0.5' : 'text-white/30'}`} />
-                    </div>
+            {activeTab === 'STATISTICS' && (
+              /* VS-12: Statistics Dashboard */
+              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+                {statistics ? (
+                  <StatisticsDashboard 
+                    stats={statistics} 
+                    playerAName={match.playerAName}
+                    playerBName={match.playerBName}
+                    compact={true}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-64 text-center text-white/50 space-y-3">
+                    <BarChart3 className="w-10 h-10 text-white/20 animate-pulse" />
+                    <p className="text-xs">Đang tải dữ liệu thống kê chuyên sâu...</p>
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
+            )}
 
             {/* Footer tóm tắt */}
             <div className="border-t border-white/10 pt-3 mt-3 flex items-center justify-between text-[11px] text-white/50">
               <span className="flex items-center gap-1">
                 <Eye className="w-3.5 h-3.5 text-brand" />
-                <span>Nhấp chọn để tua trực tiếp</span>
+                <span>
+                  {activeTab === 'STROKES'
+                    ? 'Nhấp chọn để tua trực tiếp cú đánh'
+                    : activeTab === 'RALLIES'
+                    ? 'Nhấp chọn để phát trọn vẹn pha cầu'
+                    : 'Số liệu tổng hợp & phân tích CoachAI+ 2.0'}
+                </span>
               </span>
               <Target className="w-3.5 h-3.5 text-emerald-400" />
             </div>

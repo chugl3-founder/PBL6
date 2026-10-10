@@ -31,6 +31,8 @@ public class AnalysisService {
     private final UserRepository userRepository;
     private final AiAnalysisRepository aiAnalysisRepository;
     private final com.badminton.repository.AiEventRepository aiEventRepository;
+    private final com.badminton.repository.RallyRepository rallyRepository;
+    private final com.badminton.repository.MatchStatisticRepository matchStatisticRepository;
     private final MockAiEngineService mockAiEngineService;
 
     @Transactional
@@ -194,6 +196,163 @@ public class AnalysisService {
                     .build();
         }).collect(java.util.stream.Collectors.toList());
 
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<com.badminton.dto.analysis.RallyResponse> getMatchRallies(Long matchId) {
+        Match match = matchRepository.findById(matchId)
+                .filter(m -> m.getDeletedAt() == null)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+
+        AiAnalysis analysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
+                .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Trận đấu chưa có dữ liệu phân tích")));
+
+        java.util.List<com.badminton.entity.Rally> rallies = rallyRepository.findByAnalysisIdOrderByRallyNumberAsc(analysis.getId());
+
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        return rallies.stream().map(r -> {
+            java.util.List<String> strokeSeq = parseJsonList(mapper, r.getStrokeSequence(), String.class);
+
+            return com.badminton.dto.analysis.RallyResponse.builder()
+                    .id(r.getId())
+                    .rallyNumber(r.getRallyNumber())
+                    .startEventId(r.getStartEvent() != null ? r.getStartEvent().getId() : null)
+                    .endEventId(r.getEndEvent() != null ? r.getEndEvent().getId() : null)
+                    .startTime(r.getStartTime())
+                    .endTime(r.getEndTime())
+                    .duration(r.getDuration())
+                    .totalStrokes(r.getTotalStrokes())
+                    .boundaryType(r.getBoundaryType())
+                    .serverSide(r.getServerSide())
+                    .winnerSide(r.getWinnerSide())
+                    .winReason(r.getWinReason())
+                    .scoreUpper(r.getScoreUpper())
+                    .scoreLower(r.getScoreLower())
+                    .scoreText(r.getScoreText())
+                    .strokeSequence(strokeSeq)
+                    .isComplete(r.getIsComplete())
+                    .build();
+        }).collect(java.util.stream.Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public com.badminton.dto.analysis.MatchStatisticsResponse getMatchStatistics(Long matchId) {
+        Match match = matchRepository.findById(matchId)
+                .filter(m -> m.getDeletedAt() == null)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+
+        AiAnalysis analysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
+                .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Trận đấu chưa có dữ liệu phân tích")));
+
+        return buildStatisticsResponse(analysis);
+    }
+
+    @Transactional(readOnly = true)
+    public com.badminton.dto.analysis.MatchStatisticsResponse getStatisticsByAnalysisId(Long analysisId) {
+        AiAnalysis analysis = aiAnalysisRepository.findById(analysisId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích"));
+
+        return buildStatisticsResponse(analysis);
+    }
+
+    private com.badminton.dto.analysis.MatchStatisticsResponse buildStatisticsResponse(AiAnalysis analysis) {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        // 1. Tìm hoặc tổng hợp MatchStatistic
+        java.util.List<com.badminton.entity.AiEvent> events = aiEventRepository.findByAnalysisIdOrderByEventOrderAsc(analysis.getId());
+        java.util.List<com.badminton.entity.Rally> rallies = rallyRepository.findByAnalysisIdOrderByRallyNumberAsc(analysis.getId());
+
+        java.util.Optional<com.badminton.entity.MatchStatistic> statsOpt = matchStatisticRepository.findByAnalysisId(analysis.getId());
+
+        com.badminton.entity.MatchStatistic stats;
+        if (statsOpt.isPresent()) {
+            stats = statsOpt.get();
+        } else {
+            // Aggregate tự động nếu chưa có bản ghi
+            int totalStrokes = events.size();
+            int totalRallies = rallies.size();
+            double avgStrokes = totalRallies > 0 ? (double) totalStrokes / totalRallies : 0.0;
+            double avgDuration = rallies.stream()
+                    .filter(r -> r.getDuration() != null)
+                    .mapToDouble(r -> r.getDuration().doubleValue())
+                    .average().orElse(0.0);
+
+            int playerAStrokes = (int) events.stream().filter(e -> "UPPER".equalsIgnoreCase(e.getPlayerSide())).count();
+            int playerBStrokes = totalStrokes - playerAStrokes;
+            int forehands = (int) events.stream().filter(e -> "FOREHAND".equalsIgnoreCase(e.getStrokeSide())).count();
+            int backhands = (int) events.stream().filter(e -> "BACKHAND".equalsIgnoreCase(e.getStrokeSide())).count();
+            int aroundheads = totalStrokes - forehands - backhands;
+            double avgConf = events.stream()
+                    .filter(e -> e.getConfidence() != null)
+                    .mapToDouble(e -> e.getConfidence().doubleValue())
+                    .average().orElse(0.0);
+
+            stats = com.badminton.entity.MatchStatistic.builder()
+                    .match(analysis.getMatch())
+                    .analysis(analysis)
+                    .totalStrokes(totalStrokes)
+                    .totalRallies(totalRallies)
+                    .avgStrokesPerRally(java.math.BigDecimal.valueOf(avgStrokes).setScale(2, java.math.RoundingMode.HALF_UP))
+                    .avgRallyDuration(java.math.BigDecimal.valueOf(avgDuration).setScale(2, java.math.RoundingMode.HALF_UP))
+                    .playerAStrokes(playerAStrokes)
+                    .playerBStrokes(playerBStrokes)
+                    .forehandCount(forehands)
+                    .backhandCount(backhands)
+                    .aroundheadCount(aroundheads)
+                    .unknownSideCount(0)
+                    .avgConfidence(java.math.BigDecimal.valueOf(avgConf).setScale(3, java.math.RoundingMode.HALF_UP))
+                    .build();
+            stats = matchStatisticRepository.save(stats);
+        }
+
+        // 2. Tính phân bố chi tiết cú đánh (strokeDistribution)
+        java.util.Map<String, Integer> strokeDistribution = new java.util.HashMap<>();
+        for (com.badminton.entity.AiEvent evt : events) {
+            String stroke = evt.getStroke();
+            if (stroke != null) {
+                strokeDistribution.put(stroke, strokeDistribution.getOrDefault(stroke, 0) + 1);
+            }
+        }
+
+        // 3. Parse CoachAI+ 2.0 metrics
+        Object summaryData = parseJsonObject(mapper, analysis.getSummaryData());
+        Object radarChart = parseJsonObject(mapper, analysis.getRadarChart());
+        Object coachInsights = parseJsonObject(mapper, analysis.getCoachInsights());
+        Object tacticalPatterns = parseJsonObject(mapper, analysis.getTacticalPatterns());
+
+        return com.badminton.dto.analysis.MatchStatisticsResponse.builder()
+                .id(stats.getId())
+                .matchId(analysis.getMatch().getId())
+                .analysisId(analysis.getId())
+                .totalStrokes(stats.getTotalStrokes())
+                .totalRallies(stats.getTotalRallies())
+                .avgStrokesPerRally(stats.getAvgStrokesPerRally())
+                .avgRallyDuration(stats.getAvgRallyDuration())
+                .playerAStrokes(stats.getPlayerAStrokes())
+                .playerBStrokes(stats.getPlayerBStrokes())
+                .forehandCount(stats.getForehandCount())
+                .backhandCount(stats.getBackhandCount())
+                .aroundheadCount(stats.getAroundheadCount())
+                .unknownSideCount(stats.getUnknownSideCount())
+                .avgConfidence(stats.getAvgConfidence())
+                .strokeDistribution(strokeDistribution)
+                .summaryData(summaryData)
+                .radarChart(radarChart)
+                .coachInsights(coachInsights)
+                .tacticalPatterns(tacticalPatterns)
+                .build();
+    }
+
+    private Object parseJsonObject(com.fasterxml.jackson.databind.ObjectMapper mapper, String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return mapper.readValue(json, Object.class);
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private <T> java.util.List<T> parseJsonList(com.fasterxml.jackson.databind.ObjectMapper mapper, String json, Class<T> clazz) {

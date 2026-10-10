@@ -218,6 +218,32 @@
 
 ---
 
+## 7. Module Pha Cầu: Gom Nhóm & Điều Hướng Trực Quan (VS-11)
+
+*Các API liên quan:*
+- `GET /api/matches/{id}/analysis/rallies`: Lấy toàn bộ danh sách các đợt cầu (`Rallies`) của trận đấu kèm thời lượng, tỷ số, bên thắng và chuỗi cú đánh.
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-RALLY-LIST-01** | Lấy danh sách pha cầu thành công | `GET /api/matches/{id}/analysis/rallies` | **200 OK** | Trả về mảng `RallyResponse` gồm `rallyNumber`, `startTime`, `endTime`, `duration`, `totalStrokes`, `winnerSide`, `winReason`, `scoreText`, `strokeSequence`. | ✅ **PASS** |
+| **TC-RALLY-LIST-02** | Lấy danh sách pha cầu trận không tồn tại | `GET /api/matches/99999/analysis/rallies` | **404 Not Found** | Bắt lỗi `ERR_MATCH_NOT_FOUND`: "Không tìm thấy trận đấu". | ✅ **PASS** |
+
+---
+
+## 8. Module Thống Kê Trận Đấu Chuyên Sâu (VS-12)
+
+*Các API liên quan:*
+- `GET /api/matches/{id}/analysis/statistics`: Lấy dữ liệu thống kê chuyên sâu toàn diện của trận đấu theo Match ID (FR-M06-09).
+- `GET /api/ai-analyses/{id}/statistics`: Lấy dữ liệu thống kê theo Analysis ID chuẩn đặc tả OpenAPI 3.0.
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-STATS-01** | Lấy thống kê trận đấu theo Match ID thành công | `GET /api/matches/{id}/analysis/statistics` | **200 OK** | Trả về `MatchStatisticsResponse` chứa `totalStrokes: 40`, `totalRallies: 5`, `avgStrokesPerRally: 8.00`, `avgRallyDuration`, phân bố cú đánh `strokeDistribution` (Smash, Clear, Drop...), số cú đánh Player A & B, tỷ lệ thuận tay/trái tay (`forehandCount`, `backhandCount`), và dữ liệu `summaryData`, `coachInsights`. | ✅ **PASS** |
+| **TC-STATS-02** | Lấy thống kê theo Analysis ID (OpenAPI standard) | `GET /api/ai-analyses/{id}/statistics` | **200 OK** | Trả về `MatchStatisticsResponse` tương ứng với ID phiên phân tích AI. | ✅ **PASS** |
+| **TC-STATS-03** | Lấy thống kê của trận đấu không tồn tại | `GET /api/matches/99999/analysis/statistics` | **404 Not Found** | Bắt lỗi `ERR_MATCH_NOT_FOUND`: "Không tìm thấy trận đấu". | ✅ **PASS** |
+
+---
+
 *(Tài liệu này được tự động cập nhật liên tục đồng bộ cùng Postman Collection `badminton-api.postman_collection.json`).*
 
 
