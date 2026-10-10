@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   Play, Pause, ArrowLeft, Clock, 
-  Sparkles, AlertCircle, 
+  Sparkles, AlertCircle, AlertTriangle,
   Layers, Volume2, Volume1, VolumeX,
   Zap, Target, ChevronRight,
   RotateCcw, RotateCw, SkipBack, SkipForward,
@@ -11,6 +11,7 @@ import {
 import apiClient from '../api/client';
 import { Court2DViewer, AiEventData } from '../components/court/Court2DViewer';
 import { TimelineMarkers } from '../components/replay/TimelineMarkers';
+import { StrokeDetailCard } from '../components/replay/StrokeDetailCard';
 
 interface MatchData {
   id: number;
@@ -271,6 +272,21 @@ export const MatchReplayPage: React.FC = () => {
       videoRef.current.play();
       setIsPlaying(true);
     }
+  };
+
+  // Phát lại chậm 0.5x cho cú đánh được chọn
+  const handlePlaySlow = (timeSeconds: number) => {
+    if (!videoRef.current) return;
+    const startSec = Math.max(0, timeSeconds - 0.3);
+    videoRef.current.currentTime = startSec;
+    videoRef.current.playbackRate = 0.5;
+    setPlaybackRate(0.5);
+    setCurrentTime(startSec);
+    if (!isPlaying) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+    showOsd('Soi chậm 0.5x');
   };
 
   // Xử lý kéo thanh trượt seeker
@@ -762,7 +778,26 @@ export const MatchReplayPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 3. SÂN 2D NẰM NGANG (HORIZONTAL 2D RADAR COURT) */}
+          {/* 3. THẺ CHI TIẾT CÚ ĐÁNH & CẢNH BÁO ĐỘ TIN CẬY THẤP (VS-10) */}
+          <StrokeDetailCard
+            event={selectedEvent}
+            playerAName={match.playerAName}
+            playerBName={match.playerBName}
+            upperPlayer={match.upperPlayer}
+            onSeek={(t) => {
+              if (videoRef.current) {
+                videoRef.current.currentTime = t;
+                setCurrentTime(t);
+                if (!isPlaying) {
+                  videoRef.current.play();
+                  setIsPlaying(true);
+                }
+              }
+            }}
+            onPlaySlow={handlePlaySlow}
+          />
+
+          {/* 4. SÂN 2D NẰM NGANG (HORIZONTAL 2D RADAR COURT) */}
           <div>
             <Court2DViewer
               currentEvent={selectedEvent}
@@ -776,7 +811,7 @@ export const MatchReplayPage: React.FC = () => {
 
         {/* CỘT PHẢI (4 cols): DANH SÁCH CÚ ĐÁNH DỌC (VERTICAL STROKES LIST) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="rounded-3xl bg-[#0b1220]/80 border border-white/10 p-5 backdrop-blur-xl shadow-2xl flex flex-col h-[860px]">
+          <div className="rounded-3xl bg-[#0b1220]/80 border border-white/10 p-5 backdrop-blur-xl shadow-2xl flex flex-col h-[980px]">
             {/* Header danh sách */}
             <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
               <div className="flex items-center gap-2">
@@ -794,6 +829,7 @@ export const MatchReplayPage: React.FC = () => {
             <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 scrollbar-thin">
               {filteredEvents.map((evt) => {
                 const isActive = selectedEvent?.id === evt.id;
+                const isLowConf = evt.confidence < 0.60;
                 const badgeClass = getStrokeBadgeClass(evt.stroke);
 
                 return (
@@ -803,6 +839,8 @@ export const MatchReplayPage: React.FC = () => {
                     className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                       isActive
                         ? 'bg-brand/20 border-brand shadow-glow-blue ring-1 ring-brand/40'
+                        : isLowConf
+                        ? 'bg-amber-500/5 border-amber-500/25 hover:bg-amber-500/10'
                         : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
                     }`}
                   >
@@ -810,7 +848,11 @@ export const MatchReplayPage: React.FC = () => {
                       {/* Số thứ tự */}
                       <div
                         className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono text-xs font-bold shrink-0 ${
-                          isActive ? 'bg-brand text-white' : 'bg-white/10 text-white/60'
+                          isActive 
+                            ? 'bg-brand text-white' 
+                            : isLowConf
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            : 'bg-white/10 text-white/60'
                         }`}
                       >
                         #{evt.eventOrder}
@@ -840,9 +882,19 @@ export const MatchReplayPage: React.FC = () => {
                           <Zap className="w-3 h-3 text-amber-400" />
                           <span>{evt.averageShuttleSpeedImagePerSecond ? `${evt.averageShuttleSpeedImagePerSecond.toFixed(0)}` : 'N/A'}</span>
                         </div>
-                        <div className="text-[10px] text-emerald-400 font-mono">
-                          {(evt.confidence * 100).toFixed(0)}%
-                        </div>
+                        {isLowConf ? (
+                          <div 
+                            title="Độ tin cậy AI thấp (< 60%)" 
+                            className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/40"
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
+                            <span>{(evt.confidence * 100).toFixed(0)}%</span>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-emerald-400 font-mono">
+                            {(evt.confidence * 100).toFixed(0)}%
+                          </div>
+                        )}
                       </div>
                       <ChevronRight className={`w-4 h-4 transition-transform ${isActive ? 'text-brand translate-x-0.5' : 'text-white/30'}`} />
                     </div>

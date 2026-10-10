@@ -193,6 +193,16 @@ public class MockAiEngineService {
                 int hittingArea = playerSide.equals("UPPER") ? ((s % 3) + 1) : ((s % 3) + 7);
                 int landingArea = playerSide.equals("UPPER") ? ((s % 3) + 7) : ((s % 3) + 1);
 
+                // VS-10: Giả lập cú đánh khó nhận diện với confidence < 0.60 (ví dụ 0.52) để kiểm thử cảnh báo độ tin cậy thấp
+                double strokeConfidence;
+                if (r == 1 && s == 3) {
+                    strokeConfidence = 0.52; // Kịch bản Gherkin VS-10: confidence = 0.52
+                } else if (r == 2 && s == 4) {
+                    strokeConfidence = 0.58;
+                } else {
+                    strokeConfidence = 0.85 + (s % 15) * 0.01;
+                }
+
                 AiEvent event = AiEvent.builder()
                         .analysis(analysis)
                         .eventOrder(eventOrder++)
@@ -203,7 +213,7 @@ public class MockAiEngineService {
                         .playerSide(playerSide)
                         .stroke(stroke)
                         .strokeSide(strokeSide)
-                        .confidence(BigDecimal.valueOf(0.85 + (s % 15) * 0.01).setScale(3, RoundingMode.HALF_UP))
+                        .confidence(BigDecimal.valueOf(strokeConfidence).setScale(3, RoundingMode.HALF_UP))
                         .refinedFrame(currentFrame + 12)
                         .contactOffset(0)
                         .hitScore(BigDecimal.valueOf(0.9200))

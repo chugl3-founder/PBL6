@@ -16,7 +16,11 @@ export interface AiEventData {
   hittingArea3x3?: number;
   landingArea3x3Proxy?: number;
   averageShuttleSpeedImagePerSecond?: number;
+  averageWristSpeedImagePerSecond?: number;
   attackStateRule?: string;
+  ballRound?: number;
+  top2?: string[] | null;
+  flightTimeToNextHitSeconds?: number;
 }
 
 interface Court2DViewerProps {
