@@ -1382,6 +1382,623 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "09 - AI Analysis Retry & Cancel (VS-13)",
+			"item": [
+				{
+					"name": "TC-AI-CANCEL-01: Hủy tiến trình phân tích AI đang chạy (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trạng thái chuyển sang CANCELLED\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('CANCELLED');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"ai-analyses",
+								"{{analysisId}}",
+								"cancel"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AI-CANCEL-02: Bắt lỗi hủy khi phân tích không ở trạng thái QUEUED/PROCESSING (400 Bad Request)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"Bắt đúng mã lỗi CANNOT_CANCEL\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.code).to.eql('CANNOT_CANCEL');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"ai-analyses",
+								"{{analysisId}}",
+								"cancel"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AI-RETRY-01: Thử lại phân tích bị thất bại (202 Accepted)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202 Accepted\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"pm.test(\"Sinh phiên phân tích mới trạng thái QUEUED\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('analysisId');",
+									"    pm.expect(jsonData.status).to.eql('QUEUED');",
+									"    pm.collectionVariables.set('analysisId', jsonData.analysisId.toString());",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/retry",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"ai-analyses",
+								"{{analysisId}}",
+								"retry"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AI-RETRY-02: Bắt lỗi retry khi phân tích không bị FAILED (400 Bad Request)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"Bắt đúng mã lỗi CANNOT_RETRY\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.code).to.eql('CANNOT_RETRY');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/retry",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"ai-analyses",
+								"{{analysisId}}",
+								"retry"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "10 - Public Match Library & Admin Curation (VS-14)",
+			"item": [
+				{
+					"name": "TC-PUB-01: Lấy danh sách trận đấu công khai (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trả về danh sách trận đấu công khai có thumbnail và video YouTube\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.be.an('array');",
+									"    pm.expect(jsonData.data.length).to.be.above(0);",
+									"    var match = jsonData.data[0];",
+									"    pm.expect(match.status).to.eql('PUBLISHED');",
+									"    pm.expect(match).to.have.property('thumbnailUrl');",
+									"    pm.expect(match).to.have.property('youtubeVideoId');",
+									"    pm.expect(match).to.have.property('totalStrokes');",
+									"    pm.expect(match).to.have.property('totalRallies');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/public-matches?page=0&size=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"public-matches"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-PUB-02: Tìm kiếm trận đấu công khai theo từ khóa Axelsen (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Kết quả tìm kiếm khớp với tên Viktor Axelsen\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.be.an('array');",
+									"    jsonData.data.forEach(function (m) {",
+									"        var text = (m.title + ' ' + m.playerAName + ' ' + m.playerBName).toLowerCase();",
+									"        pm.expect(text).to.include('axelsen');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/public-matches?search=Axelsen&page=0&size=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"public-matches"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "Axelsen"
+								},
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-PUB-03: Xem chi tiết trận đấu công khai (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Thông tin trận đấu công khai đầy đủ\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.eql(11);",
+									"    pm.expect(jsonData.status).to.eql('PUBLISHED');",
+									"    pm.expect(jsonData.youtubeVideoId).to.not.be.empty;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/public-matches/11",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"public-matches",
+								"11"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-PUB-04: Lấy thông tin video YouTube trận đấu công khai (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Nguồn video là YOUTUBE và có youtubeVideoId\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.videoSourceType).to.eql('YOUTUBE');",
+									"    pm.expect(jsonData.youtubeVideoId).to.eql('boQC4J4E1ZQ');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/public-matches/11/video",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"public-matches",
+								"11",
+								"video"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-PUB-05: Lấy danh sách AI Events / Cú đánh của trận đấu công khai (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trả về danh sách cú đánh với tọa độ sân và loại cú đánh\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"    pm.expect(jsonData.length).to.be.above(0);",
+									"    var firstStroke = jsonData[0];",
+									"    pm.expect(firstStroke).to.have.property('stroke');",
+									"    pm.expect(firstStroke).to.have.property('playerSide');",
+									"    pm.expect(firstStroke).to.have.property('courtX');",
+									"    pm.expect(firstStroke).to.have.property('courtY');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/public-matches/11/events",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"public-matches",
+								"11",
+								"events"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-PUB-06: Lấy danh sách Rallies của trận đấu công khai (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trả về danh sách pha cầu với thời gian và số cú đánh\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"    pm.expect(jsonData.length).to.be.above(0);",
+									"    var firstRally = jsonData[0];",
+									"    pm.expect(firstRally).to.have.property('rallyNumber');",
+									"    pm.expect(firstRally).to.have.property('strokeCount');",
+									"    pm.expect(firstRally).to.have.property('startTime');",
+									"    pm.expect(firstRally).to.have.property('endTime');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/public-matches/11/rallies",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"public-matches",
+								"11",
+								"rallies"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-PUB-07: Lấy Thống kê chi tiết trận đấu công khai (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Dữ liệu thống kê đầy đủ cả 2 người chơi và phân bố cú đánh\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('totalStrokes');",
+									"    pm.expect(jsonData).to.have.property('totalRallies');",
+									"    pm.expect(jsonData).to.have.property('strokeDistribution');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/public-matches/11/statistics",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"public-matches",
+								"11",
+								"statistics"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-ADM-PUB-01: Admin lấy toàn bộ danh sách trận đấu quản lý (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trả về danh sách trận đấu cho Admin\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/matches?page=0&size=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"matches"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-ADM-PUB-02: Admin xuất bản trận đấu vào Thư viện công khai (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trận đấu chuyển sang trạng thái PUBLISHED\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('PUBLISHED');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/matches/11/publish",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"matches",
+								"11",
+								"publish"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-ADM-PUB-03: Admin hủy xuất bản trận đấu khỏi Thư viện (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trận đấu chuyển trạng thái READY (không còn PUBLISHED)\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('READY');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/matches/11/unpublish",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"matches",
+								"11",
+								"unpublish"
+							]
+						}
+					},
+					"response": []
+				}
+			]
 		}
 	]
 }

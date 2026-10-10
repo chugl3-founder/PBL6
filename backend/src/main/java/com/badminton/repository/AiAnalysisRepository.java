@@ -15,5 +15,9 @@ public interface AiAnalysisRepository extends JpaRepository<AiAnalysis, Long> {
     List<AiAnalysis> findByMatchIdOrderByCreatedAtDesc(Long matchId);
 
     Optional<AiAnalysis> findTopByMatchIdOrderByCreatedAtDesc(Long matchId);
+
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("UPDATE AiAnalysis a SET a.isCurrent = false WHERE a.match.id = :matchId")
+    void demoteAllCurrentByMatchId(@org.springframework.data.repository.query.Param("matchId") Long matchId);
 }
 

@@ -72,6 +72,32 @@ public class AnalysisController {
         com.badminton.dto.analysis.MatchStatisticsResponse statistics = analysisService.getMatchStatistics(id);
         return ResponseEntity.ok(statistics);
     }
+
+    /**
+     * VS-13: Thử lại phiên phân tích AI bị FAILED
+     */
+    @PostMapping("/retry")
+    public ResponseEntity<AnalysisDispatchResponse> retryAnalysis(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long analysisId,
+            @AuthenticationPrincipal String email
+    ) {
+        AnalysisDispatchResponse response = analysisService.retryAnalysis(id, analysisId, email);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
+
+    /**
+     * VS-13: Hủy phiên phân tích AI đang chạy (QUEUED hoặc PROCESSING)
+     */
+    @PostMapping("/cancel")
+    public ResponseEntity<AnalysisStatusResponse> cancelAnalysis(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long analysisId,
+            @AuthenticationPrincipal String email
+    ) {
+        AnalysisStatusResponse response = analysisService.cancelAnalysis(id, analysisId, email);
+        return ResponseEntity.ok(response);
+    }
 }
 
 

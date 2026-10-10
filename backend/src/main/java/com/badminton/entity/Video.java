@@ -35,8 +35,18 @@ public class Video {
     @Builder.Default
     private String mimeType = "video/mp4";
 
-    @Column(name = "file_size", nullable = false)
+    @Column(name = "file_size")
     private Long fileSize;
+
+    @Column(name = "video_source_type", length = 20)
+    @Builder.Default
+    private String videoSourceType = "MINIO_UPLOAD"; // MINIO_UPLOAD, YOUTUBE
+
+    @Column(name = "youtube_url", length = 500)
+    private String youtubeUrl;
+
+    @Column(name = "youtube_video_id", length = 50)
+    private String youtubeVideoId;
 
     @Column(name = "duration_seconds", precision = 10, scale = 2)
     private BigDecimal durationSeconds;

@@ -244,6 +244,49 @@
 
 ---
 
+## 9. Module Luồng Thử Lại (Retry) & Hủy (Cancel) Phân Tích AI (VS-13)
+
+*Các API liên quan:*
+- `POST /api/matches/{id}/ai-analyses/{analysisId}/cancel`: Hủy tiến trình phân tích AI đang chạy (QUEUED hoặc PROCESSING).
+- `POST /api/matches/{id}/ai-analyses/{analysisId}/retry`: Khởi tạo lại phiên phân tích mới sau khi phiên trước bị thất bại (FAILED).
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-AI-CANCEL-01** | Hủy tiến trình phân tích AI đang chạy | `POST /api/matches/{id}/ai-analyses/{analysisId}/cancel` | **200 OK** | Trả về `AnalysisStatusResponse` với `status: CANCELLED`, ngắt Mock AI Engine và chuyển trạng thái Match về `READY`. | ✅ **PASS** |
+| **TC-AI-CANCEL-02** | Bắt lỗi hủy khi phân tích không ở trạng thái QUEUED/PROCESSING | `POST /api/matches/{id}/ai-analyses/{analysisId}/cancel` trên phân tích đã COMPLETED hoặc CANCELLED | **400 Bad Request** | Bắt đúng mã lỗi `CANNOT_CANCEL`: "Chỉ có thể hủy phiên phân tích đang ở trạng thái QUEUED hoặc PROCESSING". | ✅ **PASS** |
+| **TC-AI-RETRY-01** | Thử lại phân tích sau khi thất bại | `POST /api/matches/{id}/ai-analyses/{analysisId}/retry` trên phân tích bị `status: FAILED` | **202 Accepted** | Sinh bản ghi `AiAnalysis` mới với `is_current: true`, chuyển bản ghi cũ thành `is_current: false`, trả về `status: QUEUED` dưới 200ms và kích hoạt lại Mock AI Engine. | ✅ **PASS** |
+| **TC-AI-RETRY-02** | Bắt lỗi thử lại khi phân tích không bị FAILED | `POST /api/matches/{id}/ai-analyses/{analysisId}/retry` trên phân tích đang `PROCESSING` hoặc `COMPLETED` | **400 Bad Request** | Bắt đúng mã lỗi `CANNOT_RETRY`: "Chỉ có thể thử lại khi phiên phân tích ở trạng thái FAILED". | ✅ **PASS** |
+
+## 10. Module Thư Viện Trận Đấu Công Khai & Quản Trị Trận Đấu (VS-14)
+
+*Các API liên quan:*
+- `GET /api/public-matches`: Duyệt danh sách trận đấu công khai phân trang (Guest & All).
+- `GET /api/public-matches?search={keyword}`: Tìm kiếm trận đấu công khai theo tên tuyển thủ hoặc giải đấu.
+- `GET /api/public-matches/{id}`: Xem thông tin chi tiết một trận đấu công khai.
+- `GET /api/public-matches/{id}/video`: Lấy nguồn video (YouTube Video ID / URL) của trận đấu công khai.
+- `GET /api/public-matches/{id}/events`: Lấy dữ liệu telemetry các cú đánh (`Strokes`) của trận đấu công khai.
+- `GET /api/public-matches/{id}/rallies`: Lấy danh sách pha cầu (`Rallies`) của trận đấu công khai.
+- `GET /api/public-matches/{id}/statistics`: Lấy bảng thống kê chi tiết toàn diện của trận đấu công khai.
+- `GET /api/admin/matches`: Admin xem danh sách toàn bộ trận đấu (yêu cầu `ROLE_ADMIN`).
+- `POST /api/admin/matches/{id}/publish`: Admin phê duyệt & xuất bản trận đấu vào Thư viện công khai (yêu cầu `ROLE_ADMIN`).
+- `POST /api/admin/matches/{id}/unpublish`: Admin gỡ trận đấu khỏi Thư viện công khai (yêu cầu `ROLE_ADMIN`).
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-PUB-01** | Lấy danh sách trận đấu công khai (Guest không cần Token) | `GET /api/public-matches?page=0&size=10` | **200 OK** | Trả về danh sách trận đấu có `status: "PUBLISHED"`, đầy đủ `thumbnailUrl` (YouTube hqdefault), `youtubeVideoId`, `durationSeconds`, `totalStrokes`, `totalRallies`. | ✅ **PASS** |
+| **TC-PUB-02** | Tìm kiếm trận đấu công khai theo từ khóa | `GET /api/public-matches?search=Axelsen&page=0&size=10` | **200 OK** | Trả về các trận đấu có `title` hoặc tên tuyển thủ chứa từ khóa "Axelsen". | ✅ **PASS** |
+| **TC-PUB-03** | Xem chi tiết trận đấu công khai theo ID | `GET /api/public-matches/11` | **200 OK** | Trả về thông tin trận đấu `#11` (Kento Momota vs Viktor Axelsen), `status: "PUBLISHED"`. | ✅ **PASS** |
+| **TC-PUB-04** | Lấy thông tin video YouTube trận đấu công khai | `GET /api/public-matches/11/video` | **200 OK** | Trả về `videoSourceType: "YOUTUBE"`, `youtubeVideoId: "boQC4J4E1ZQ"`, `videoUrl`. | ✅ **PASS** |
+| **TC-PUB-05** | Lấy danh sách cú đánh (AI events) trận đấu công khai | `GET /api/public-matches/11/events` | **200 OK** | Trả về 756 cú đánh có tọa độ sân (`courtX`, `courtY`), loại cú đánh (`stroke`), độ tin cậy AI (`confidence`). | ✅ **PASS** |
+| **TC-PUB-06** | Lấy danh sách pha cầu (Rallies) trận đấu công khai | `GET /api/public-matches/11/rallies` | **200 OK** | Trả về 46 pha cầu có thời gian bắt đầu/kết thúc, số cú đánh và bên ghi điểm. | ✅ **PASS** |
+| **TC-PUB-07** | Lấy thống kê chi tiết trận đấu công khai | `GET /api/public-matches/11/statistics` | **200 OK** | Trả về thống kê chuyên sâu: `totalStrokes: 756`, `totalRallies: 46`, phân bố cú đánh Smash/Clear/Drop/Net, tốc độ và tỷ lệ lỗi. | ✅ **PASS** |
+| **TC-ADM-PUB-01** | Admin lấy danh sách toàn bộ trận đấu trong hệ thống | `GET /api/admin/matches?page=0&size=20` với Bearer Token `ROLE_ADMIN` | **200 OK** | Trả về danh sách toàn bộ các trận đấu trong hệ thống (gồm PUBLISHED, READY, DRAFT, COMPLETED). | ✅ **PASS** |
+| **TC-ADM-PUB-02** | Admin xuất bản trận đấu vào Thư viện công khai | `POST /api/admin/matches/11/publish` với Bearer Token `ROLE_ADMIN` | **200 OK** | Cập nhật trận đấu sang trạng thái `PUBLISHED`, xuất hiện ngay trong thư viện trang chủ. | ✅ **PASS** |
+| **TC-ADM-PUB-03** | Admin hủy xuất bản trận đấu khỏi Thư viện | `POST /api/admin/matches/11/unpublish` với Bearer Token `ROLE_ADMIN` | **200 OK** | Cập nhật trận đấu về trạng thái `READY`, không còn xuất hiện trong thư viện công khai. | ✅ **PASS** |
+| **TC-ADM-PUB-04** | Người dùng thường hoặc Guest truy cập Admin Match API bị chặn | `GET /api/admin/matches` không có Token hoặc Token `ROLE_USER` | **403 Forbidden** | Bắt lỗi phân quyền Spring Security: "Access Denied". | ✅ **PASS** |
+
+---
+
 *(Tài liệu này được tự động cập nhật liên tục đồng bộ cùng Postman Collection `badminton-api.postman_collection.json`).*
 
 

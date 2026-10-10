@@ -27,10 +27,20 @@ export const Navbar: React.FC = () => {
     }
   };
 
-  const navLinks = [
-    { label: 'Platform & Analysis', to: '/' },
-    { label: 'Public Matches', to: '/#public-library' },
-  ];
+  const handlePublicMatchesClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (location.pathname === '/' || location.pathname === '/public-matches') {
+      const el = document.getElementById('public-library');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else {
+      navigate('/#public-library');
+      setTimeout(() => {
+        document.getElementById('public-library')?.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full bg-[#0b1322]/90 backdrop-blur-xl border-b border-white/10 shadow-lg transition-all">
@@ -50,22 +60,23 @@ export const Navbar: React.FC = () => {
 
         {/* Center Navigation Links */}
         <nav className="hidden md:flex items-center space-x-1">
-          {navLinks.map((link) => {
-            const isActive = location.pathname === link.to;
-            return (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  isActive 
-                    ? 'text-white bg-white/10' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
+          <Link
+            to="/"
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              location.pathname === '/'
+                ? 'text-white bg-white/10' 
+                : 'text-white/70 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            Platform & Analysis
+          </Link>
+          <button
+            type="button"
+            onClick={handlePublicMatchesClick}
+            className="px-4 py-2 rounded-full text-sm font-medium transition-colors text-white/70 hover:text-white hover:bg-white/5 cursor-pointer"
+          >
+            Public Matches
+          </button>
 
           {token && (
             <>

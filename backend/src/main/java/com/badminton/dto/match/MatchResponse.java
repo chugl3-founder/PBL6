@@ -24,6 +24,11 @@ public class MatchResponse {
     private String description;
     private String source;
     private String status;
+    private String thumbnailUrl;
+    private String youtubeVideoId;
+    private java.math.BigDecimal durationSeconds;
+    private Integer totalStrokes;
+    private Integer totalRallies;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

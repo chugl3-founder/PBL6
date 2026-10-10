@@ -221,6 +221,27 @@ public class VideoService {
         return mapToVideoResponse(video);
     }
 
+    @Transactional(readOnly = true)
+    public VideoResponse getPublicVideoByMatchId(Long matchId) {
+        Match match = matchRepository.findByIdAndStatusAndDeletedAtIsNull(matchId, "PUBLISHED")
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_MATCH_NOT_FOUND",
+                        "Không tìm thấy trận đấu công khai với ID: " + matchId
+                ));
+
+        Video video = videoRepository.findByMatchId(matchId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_VIDEO_NOT_FOUND",
+                        "Trận đấu này chưa có thông tin video."
+                ));
+
+        return mapToVideoResponse(video);
+    }
+
     private User findUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ApiException(
@@ -257,19 +278,23 @@ public class VideoService {
 
     public VideoResponse mapToVideoResponse(Video video) {
         String videoUrl;
-        try {
-            videoUrl = minioPresignerClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.GET)
-                            .bucket(videoBucket)
-                            .object(video.getStoragePath())
-                            .region("us-east-1")
-                            .expiry(7, TimeUnit.DAYS)
-                            .build()
-            );
-        } catch (Exception e) {
-            log.warn("Không thể sinh Presigned GET URL cho video, dùng direct public URL: {}", e.getMessage());
-            videoUrl = minioPublicUrl + "/" + videoBucket + "/" + video.getStoragePath();
+        if ("YOUTUBE".equalsIgnoreCase(video.getVideoSourceType())) {
+            videoUrl = video.getYoutubeUrl();
+        } else {
+            try {
+                videoUrl = minioPresignerClient.getPresignedObjectUrl(
+                        GetPresignedObjectUrlArgs.builder()
+                                .method(Method.GET)
+                                .bucket(videoBucket)
+                                .object(video.getStoragePath())
+                                .region("us-east-1")
+                                .expiry(7, TimeUnit.DAYS)
+                                .build()
+                );
+            } catch (Exception e) {
+                log.warn("Không thể sinh Presigned GET URL cho video, dùng direct public URL: {}", e.getMessage());
+                videoUrl = minioPublicUrl + "/" + videoBucket + "/" + video.getStoragePath();
+            }
         }
 
         return VideoResponse.builder()
@@ -278,6 +303,9 @@ public class VideoService {
                 .fileName(video.getFileName())
                 .storagePath(video.getStoragePath())
                 .videoUrl(videoUrl)
+                .videoSourceType(video.getVideoSourceType() != null ? video.getVideoSourceType() : "MINIO_UPLOAD")
+                .youtubeUrl(video.getYoutubeUrl())
+                .youtubeVideoId(video.getYoutubeVideoId())
                 .mimeType(video.getMimeType())
                 .fileSize(video.getFileSize())
                 .durationSeconds(video.getDurationSeconds())

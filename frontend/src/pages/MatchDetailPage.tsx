@@ -4,7 +4,8 @@ import axios from 'axios';
 import { 
   Trophy, Calendar, ArrowLeft, CheckCircle2, Clock, 
   UploadCloud, AlertCircle, RefreshCw, FileVideo, 
-  HardDrive, Sparkles, Check, ExternalLink
+  HardDrive, Sparkles, Check, ExternalLink,
+  AlertTriangle, Ban, RotateCcw
 } from 'lucide-react';
 import apiClient from '../api/client';
 
@@ -42,6 +43,7 @@ interface AnalysisStatusData {
   currentStage: string;
   modelName?: string;
   modelVersion?: string;
+  errorCode?: string | null;
   errorMessage?: string | null;
 }
 
@@ -55,6 +57,9 @@ export const MatchDetailPage: React.FC = () => {
   // Analysis State
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusData | null>(null);
   const [dispatchingAnalysis, setDispatchingAnalysis] = useState(false);
+  const [cancellingAnalysis, setCancellingAnalysis] = useState(false);
+  const [retryingAnalysis, setRetryingAnalysis] = useState(false);
+  const [cancelSuccessMsg, setCancelSuccessMsg] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Upload state
@@ -109,7 +114,7 @@ export const MatchDetailPage: React.FC = () => {
     if (match && (match.status === 'ANALYZING' || analysisStatus?.status === 'QUEUED' || analysisStatus?.status === 'PROCESSING')) {
       intervalId = setInterval(async () => {
         const latest = await fetchAnalysisStatus();
-        if (latest && (latest.status === 'COMPLETED' || latest.status === 'FAILED')) {
+        if (latest && (latest.status === 'COMPLETED' || latest.status === 'FAILED' || latest.status === 'CANCELLED')) {
           clearInterval(intervalId);
           // Cập nhật lại trạng thái match
           const matchRes = await apiClient.get(`/matches/${id}`);
@@ -127,6 +132,7 @@ export const MatchDetailPage: React.FC = () => {
     if (!id) return;
     setDispatchingAnalysis(true);
     setAnalysisError(null);
+    setCancelSuccessMsg(null);
 
     try {
       await apiClient.post(`/matches/${id}/analysis/dispatch`);
@@ -140,6 +146,49 @@ export const MatchDetailPage: React.FC = () => {
       setAnalysisError(serverMsg || 'Không thể khởi động phân tích AI. Vui lòng thử lại.');
     } finally {
       setDispatchingAnalysis(false);
+    }
+  };
+
+  const handleCancelAnalysis = async () => {
+    if (!id) return;
+    if (!window.confirm('Bạn có chắc chắn muốn hủy phiên phân tích AI đang chạy?')) return;
+
+    setCancellingAnalysis(true);
+    setAnalysisError(null);
+
+    try {
+      const cancelRes = await apiClient.post(`/matches/${id}/analysis/cancel`);
+      setAnalysisStatus(cancelRes.data);
+      if (match) {
+        setMatch({ ...match, status: 'READY' });
+      }
+      setCancelSuccessMsg('Đã hủy phiên phân tích AI thành công.');
+      setTimeout(() => setCancelSuccessMsg(null), 4000);
+    } catch (err: any) {
+      const serverMsg = err.response?.data?.message;
+      setAnalysisError(serverMsg || 'Không thể hủy phiên phân tích. Vui lòng thử lại.');
+    } finally {
+      setCancellingAnalysis(false);
+    }
+  };
+
+  const handleRetryAnalysis = async () => {
+    if (!id) return;
+    setRetryingAnalysis(true);
+    setAnalysisError(null);
+    setCancelSuccessMsg(null);
+
+    try {
+      await apiClient.post(`/matches/${id}/analysis/retry`);
+      if (match) {
+        setMatch({ ...match, status: 'ANALYZING' });
+      }
+      await fetchAnalysisStatus();
+    } catch (err: any) {
+      const serverMsg = err.response?.data?.message;
+      setAnalysisError(serverMsg || 'Không thể thử lại phân tích AI. Vui lòng thử lại.');
+    } finally {
+      setRetryingAnalysis(false);
     }
   };
 
@@ -646,6 +695,14 @@ export const MatchDetailPage: React.FC = () => {
 
             </div>
 
+            {/* Thông báo hủy thành công */}
+            {cancelSuccessMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{cancelSuccessMsg}</span>
+              </div>
+            )}
+
             {/* Error Message for AI Analysis */}
             {analysisError && (
               <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300">
@@ -654,7 +711,7 @@ export const MatchDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* AI Progress Box during ANALYZING */}
+            {/* AI Progress Box during ANALYZING kèm nút Cancel (VS-13) */}
             {match.status === 'ANALYZING' && (
               <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 space-y-3">
                 <div className="flex items-center justify-between text-xs">
@@ -677,6 +734,70 @@ export const MatchDetailPage: React.FC = () => {
                   <span>Mô hình: {analysisStatus?.modelName || 'CoachAI+'} ({analysisStatus?.modelVersion || '2.0_pbl6_coachai'})</span>
                   <span>Mã phản hồi: HTTP 202 Accepted</span>
                 </div>
+
+                {/* Nút hủy phân tích AI (VS-13) */}
+                <div className="pt-2 flex items-center justify-between border-t border-white/5">
+                  <span className="text-[11px] text-white/50">Tiến trình phân tích đang chạy...</span>
+                  <button
+                    type="button"
+                    onClick={handleCancelAnalysis}
+                    disabled={cancellingAnalysis}
+                    className="px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {cancellingAnalysis ? (
+                      <div className="w-3.5 h-3.5 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Ban className="w-3.5 h-3.5" />
+                    )}
+                    <span>Hủy phân tích</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Banner báo lỗi & Nút thử lại phân tích (Retry) khi FAILED (VS-13) */}
+            {(analysisStatus?.status === 'FAILED' || analysisStatus?.status === 'UNSUPPORTED') && match.status !== 'ANALYZING' && (
+              <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0 mt-0.5">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm text-rose-300">Phân tích AI thất bại</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-200 border border-rose-500/30">
+                        {analysisStatus?.errorCode || 'UNSUPPORTED_VIDEO_ANGLE'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-rose-200/80 leading-relaxed">
+                      {analysisStatus?.errorMessage || 'Góc quay video không chuẩn hoặc người chơi bị che khuất trong nhiều khung hình liên tiếp.'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRetryAnalysis}
+                  disabled={retryingAnalysis}
+                  className="w-full h-11 rounded-full bg-gradient-to-r from-rose-500 to-amber-600 hover:from-rose-600 hover:to-amber-700 text-white font-bold shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-2 text-xs disabled:opacity-50"
+                >
+                  {retryingAnalysis ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Thử lại phân tích AI (Retry)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Thông báo phiên trước đó đã bị hủy */}
+            {analysisStatus?.status === 'CANCELLED' && match.status !== 'ANALYZING' && (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
+                <Ban className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Phiên phân tích trước đó đã được hủy thành công. Bạn có thể nhấn bắt đầu lại bên dưới.</span>
               </div>
             )}
 

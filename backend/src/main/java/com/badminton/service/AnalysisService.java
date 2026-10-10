@@ -55,11 +55,8 @@ public class AnalysisService {
             throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_READY", "Video chưa sẵn sàng để phân tích");
         }
 
-        // Đánh dấu các bản ghi phân tích cũ là isCurrent = false
-        aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId).ifPresent(oldAnalysis -> {
-            oldAnalysis.setIsCurrent(false);
-            aiAnalysisRepository.save(oldAnalysis);
-        });
+        // Đánh dấu toàn bộ các bản ghi phân tích cũ của trận đấu thành isCurrent = false
+        aiAnalysisRepository.demoteAllCurrentByMatchId(matchId);
 
         // Tạo bản ghi AI Analysis mới với trạng thái QUEUED
         AiAnalysis analysis = AiAnalysis.builder()
@@ -353,6 +350,125 @@ public class AnalysisService {
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    @Transactional
+    public AnalysisDispatchResponse retryAnalysis(Long matchId, Long analysisId, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
+
+        Match match = matchRepository.findById(matchId)
+                .filter(m -> m.getDeletedAt() == null)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+
+        if (!match.getOwner().getId().equals(user.getId()) && !"ROLE_ADMIN".equals(user.getRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
+        }
+
+        AiAnalysis oldAnalysis;
+        if (analysisId != null) {
+            oldAnalysis = aiAnalysisRepository.findById(analysisId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích"));
+        } else {
+            oldAnalysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
+                    .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
+                            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích để thử lại")));
+        }
+
+        if (!oldAnalysis.getMatch().getId().equals(matchId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ANALYSIS_MATCH_MISMATCH", "Phiên phân tích không thuộc về trận đấu này");
+        }
+
+        if (!"FAILED".equalsIgnoreCase(oldAnalysis.getStatus()) && !"UNSUPPORTED".equalsIgnoreCase(oldAnalysis.getStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ANALYSIS_NOT_FAILED", "Chỉ có thể thử lại phiên phân tích khi đang ở trạng thái FAILED hoặc UNSUPPORTED");
+        }
+
+        // Đánh dấu toàn bộ các bản ghi phân tích cũ của trận đấu thành isCurrent = false
+        aiAnalysisRepository.demoteAllCurrentByMatchId(matchId);
+
+        // Tạo phiên phân tích mới với status QUEUED
+        AiAnalysis newAnalysis = AiAnalysis.builder()
+                .match(match)
+                .video(oldAnalysis.getVideo())
+                .status("QUEUED")
+                .modelName("CoachAI+")
+                .modelVersion("2.0_pbl6_coachai")
+                .isCurrent(true)
+                .build();
+
+        AiAnalysis savedNewAnalysis = aiAnalysisRepository.saveAndFlush(newAnalysis);
+
+        match.setStatus("ANALYZING");
+        matchRepository.saveAndFlush(match);
+
+        mockAiEngineService.runMockAnalysis(savedNewAnalysis.getId());
+        log.info("Đã khởi tạo lại (retry) phiên phân tích AI cho Match ID: {}, New Analysis ID: {}", matchId, savedNewAnalysis.getId());
+
+        return AnalysisDispatchResponse.builder()
+                .analysisId(savedNewAnalysis.getId())
+                .matchId(matchId)
+                .status("QUEUED")
+                .message("Đã khởi tạo lại phiên phân tích AI và đưa vào hàng đợi xử lý.")
+                .queuedAt(OffsetDateTime.now())
+                .build();
+    }
+
+    @Transactional
+    public AnalysisStatusResponse cancelAnalysis(Long matchId, Long analysisId, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
+
+        Match match = matchRepository.findById(matchId)
+                .filter(m -> m.getDeletedAt() == null)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+
+        if (!match.getOwner().getId().equals(user.getId()) && !"ROLE_ADMIN".equals(user.getRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
+        }
+
+        AiAnalysis analysis;
+        if (analysisId != null) {
+            analysis = aiAnalysisRepository.findById(analysisId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích"));
+        } else {
+            analysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
+                    .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
+                            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích để hủy")));
+        }
+
+        if (!analysis.getMatch().getId().equals(matchId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ANALYSIS_MATCH_MISMATCH", "Phiên phân tích không thuộc về trận đấu này");
+        }
+
+        if (!"QUEUED".equalsIgnoreCase(analysis.getStatus()) && !"PROCESSING".equalsIgnoreCase(analysis.getStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "CANNOT_CANCEL", "Chỉ có thể hủy phiên phân tích đang ở trạng thái QUEUED hoặc PROCESSING");
+        }
+
+        // Thông báo Mock Engine ngắt luồng
+        mockAiEngineService.cancelAnalysis(analysis.getId());
+
+        // Cập nhật trạng thái CANCELLED
+        analysis.setStatus("CANCELLED");
+        analysis.setCompletedAt(OffsetDateTime.now());
+        analysis.setErrorMessage("Phiên phân tích đã bị hủy bởi người dùng.");
+        aiAnalysisRepository.saveAndFlush(analysis);
+
+        match.setStatus("READY");
+        matchRepository.saveAndFlush(match);
+        log.info("Đã hủy phiên phân tích AI cho Match ID: {}, Analysis ID: {}", matchId, analysis.getId());
+
+        return AnalysisStatusResponse.builder()
+                .analysisId(analysis.getId())
+                .matchId(matchId)
+                .status("CANCELLED")
+                .progressPercent(0)
+                .currentStage("cancelled: Đã hủy phiên phân tích bởi người dùng")
+                .modelName(analysis.getModelName())
+                .modelVersion(analysis.getModelVersion())
+                .startedAt(analysis.getStartedAt())
+                .completedAt(analysis.getCompletedAt())
+                .errorMessage("Phiên phân tích đã bị hủy bởi người dùng.")
+                .build();
     }
 
     private <T> java.util.List<T> parseJsonList(com.fasterxml.jackson.databind.ObjectMapper mapper, String json, Class<T> clazz) {

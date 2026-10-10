@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { 
   Play, Pause, ArrowLeft, Clock, 
   Sparkles, AlertCircle, AlertTriangle,
   Layers, Volume2, Volume1, VolumeX,
   Zap, Target, ChevronRight,
   RotateCcw, RotateCw, SkipBack, SkipForward,
-  Gauge, Maximize, Eye, Keyboard, X, Trophy, BarChart3
+  Gauge, Maximize, Eye, Keyboard, X, Trophy, BarChart3,
+  LogIn, UserPlus
 } from 'lucide-react';
 import apiClient from '../api/client';
 import { Court2DViewer, AiEventData } from '../components/court/Court2DViewer';
@@ -32,11 +33,16 @@ interface VideoData {
   fileName: string;
   storagePath: string;
   videoUrl: string;
+  videoSourceType?: string;
+  youtubeUrl?: string;
+  youtubeVideoId?: string;
   durationSeconds?: number;
 }
 
 export const MatchReplayPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const isPublic = location.pathname.includes('/public-matches');
   const [match, setMatch] = useState<MatchData | null>(null);
   const [video, setVideo] = useState<VideoData | null>(null);
   const [events, setEvents] = useState<AiEventData[]>([]);
@@ -51,6 +57,9 @@ export const MatchReplayPage: React.FC = () => {
   // Video playback state
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+  const ytPlayerRef = useRef<any>(null);
+  const ytIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -60,6 +69,13 @@ export const MatchReplayPage: React.FC = () => {
   const [playbackRate, setPlaybackRate] = useState<number>(1.0);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [filterStroke, setFilterStroke] = useState<string>('ALL');
+  const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
+
+  // Tự động cuộn danh sách cú đánh bên phải theo cú đánh đang phát
+  const strokesContainerRef = useRef<HTMLDivElement>(null);
+  const [autoScrollStrokes, setAutoScrollStrokes] = useState<boolean>(true);
+
+  const isYouTube = video?.videoSourceType === 'YOUTUBE' || Boolean(video?.youtubeVideoId);
 
   // Hover controls & Auto-hide
   const [isControlsVisible, setIsControlsVisible] = useState(true);
@@ -107,15 +123,21 @@ export const MatchReplayPage: React.FC = () => {
         setError(null);
 
         // 1. Lấy thông tin trận đấu
-        const matchRes = await apiClient.get(`/matches/${id}`);
+        const matchEndpoint = isPublic ? `/public-matches/${id}` : `/matches/${id}`;
+        const matchRes = await apiClient.get(matchEndpoint);
         setMatch(matchRes.data);
 
         // 2. Lấy thông tin video & URL phát
-        const videoRes = await apiClient.get(`/matches/${id}/video`);
+        const videoEndpoint = isPublic ? `/public-matches/${id}/video` : `/matches/${id}/video`;
+        const videoRes = await apiClient.get(videoEndpoint);
         setVideo(videoRes.data);
+        if (videoRes.data?.durationSeconds) {
+          setDuration(Number(videoRes.data.durationSeconds));
+        }
 
         // 3. Lấy danh sách AI events phục vụ timeline & 2D radar
-        const eventsRes = await apiClient.get(`/matches/${id}/analysis/events`);
+        const eventsEndpoint = isPublic ? `/public-matches/${id}/events` : `/matches/${id}/analysis/events`;
+        const eventsRes = await apiClient.get(eventsEndpoint);
         setEvents(eventsRes.data);
 
         if (eventsRes.data.length > 0) {
@@ -124,7 +146,8 @@ export const MatchReplayPage: React.FC = () => {
 
         // 4. Lấy danh sách Rallies (VS-11)
         try {
-          const ralliesRes = await apiClient.get(`/matches/${id}/analysis/rallies`);
+          const ralliesEndpoint = isPublic ? `/public-matches/${id}/rallies` : `/matches/${id}/analysis/rallies`;
+          const ralliesRes = await apiClient.get(ralliesEndpoint);
           setRallies(ralliesRes.data);
           if (ralliesRes.data.length > 0) {
             setSelectedRally(ralliesRes.data[0]);
@@ -135,7 +158,8 @@ export const MatchReplayPage: React.FC = () => {
 
         // 5. Lấy dữ liệu thống kê chuyên sâu toàn diện (VS-12)
         try {
-          const statsRes = await apiClient.get(`/matches/${id}/analysis/statistics`);
+          const statsEndpoint = isPublic ? `/public-matches/${id}/statistics` : `/matches/${id}/analysis/statistics`;
+          const statsRes = await apiClient.get(statsEndpoint);
           setStatistics(statsRes.data);
         } catch (sErr) {
           console.warn('Chưa có dữ liệu Thống kê:', sErr);
@@ -151,12 +175,141 @@ export const MatchReplayPage: React.FC = () => {
     if (id) {
       fetchData();
     }
-  }, [id]);
+  }, [id, isPublic]);
 
-  // Đồng bộ Video TimeUpdate với Timeline & 2D Court
+  // Khởi tạo YouTube IFrame Player
+  useEffect(() => {
+    if (loading || !isYouTube || !video?.youtubeVideoId) return;
+
+    let isMounted = true;
+    let pollTimer: any = null;
+
+    const setupPlayer = () => {
+      const container = document.getElementById('youtube-player-frame');
+      if (!container) {
+        pollTimer = setTimeout(setupPlayer, 100);
+        return;
+      }
+
+      const YT = (window as any).YT;
+      if (!YT || !YT.Player) {
+        pollTimer = setTimeout(setupPlayer, 100);
+        return;
+      }
+
+      if (ytPlayerRef.current) {
+        try { ytPlayerRef.current.destroy(); } catch (e) {}
+        ytPlayerRef.current = null;
+      }
+
+      ytPlayerRef.current = new YT.Player('youtube-player-frame', {
+        videoId: video.youtubeVideoId,
+        playerVars: {
+          autoplay: 0,
+          controls: 1,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1,
+          enablejsapi: 1,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: (event: any) => {
+            if (!isMounted) return;
+            const dur = event.target.getDuration();
+            if (dur) setDuration(dur);
+            event.target.setVolume(volume * 100);
+            if (isMuted) event.target.mute();
+          },
+          onStateChange: (event: any) => {
+            if (!isMounted) return;
+            // 1 = PLAYING, 2 = PAUSED, 0 = ENDED
+            if (event.data === 1) {
+              setIsPlaying(true);
+            } else if (event.data === 2 || event.data === 0) {
+              setIsPlaying(false);
+            }
+          }
+        }
+      });
+    };
+
+    if ((window as any).YT && (window as any).YT.Player) {
+      setupPlayer();
+    } else {
+      if (!document.getElementById('youtube-iframe-api')) {
+        const tag = document.createElement('script');
+        tag.id = 'youtube-iframe-api';
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.body.appendChild(tag);
+      }
+      const prevCallback = (window as any).onYouTubeIframeAPIReady;
+      (window as any).onYouTubeIframeAPIReady = () => {
+        if (prevCallback) prevCallback();
+        if (isMounted) setupPlayer();
+      };
+      pollTimer = setTimeout(setupPlayer, 200);
+    }
+
+    return () => {
+      isMounted = false;
+      if (pollTimer) clearTimeout(pollTimer);
+      if (ytPlayerRef.current) {
+        try { ytPlayerRef.current.destroy(); } catch (e) {}
+        ytPlayerRef.current = null;
+      }
+    };
+  }, [loading, isYouTube, video?.youtubeVideoId]);
+
+  // Vòng lặp đồng bộ thời gian từ YouTube Player sang Timeline & 2D Court
+  useEffect(() => {
+    if (!isYouTube) return;
+
+    if (isPlaying) {
+      ytIntervalRef.current = setInterval(() => {
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+          const curr = ytPlayerRef.current.getCurrentTime();
+          if (typeof curr === 'number' && !isNaN(curr)) {
+            // Giới hạn preview 5 phút (300 giây) đối với Khách vãng lai
+            const isGuest = isPublic && !localStorage.getItem('access_token');
+            if (isGuest && curr >= 300) {
+              ytPlayerRef.current.pauseVideo();
+              setIsPlaying(false);
+              setShowGuestLimitModal(true);
+              return;
+            }
+
+            setCurrentTime(curr);
+            const active = events.find((e) => Math.abs(e.timeSeconds - curr) <= 0.8);
+            if (active && (!selectedEvent || selectedEvent.id !== active.id)) {
+              setSelectedEvent(active);
+            }
+          }
+        }
+      }, 150);
+    } else {
+      if (ytIntervalRef.current) clearInterval(ytIntervalRef.current);
+    }
+
+    return () => {
+      if (ytIntervalRef.current) clearInterval(ytIntervalRef.current);
+    };
+  }, [isPlaying, isYouTube, isPublic, events, selectedEvent]);
+
+  // Đồng bộ Video TimeUpdate với Timeline & 2D Court (cho Video MP4 MinIO)
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
     const curr = videoRef.current.currentTime;
+
+    // Giới hạn preview 5 phút (300 giây) đối với Khách vãng lai
+    const isGuest = isPublic && !localStorage.getItem('access_token');
+    if (isGuest && curr >= 300) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+      setShowGuestLimitModal(true);
+      return;
+    }
+
     setCurrentTime(curr);
 
     // Tìm event gần nhất với curr (trong khoảng +/- 0.8 giây)
@@ -174,7 +327,47 @@ export const MatchReplayPage: React.FC = () => {
     }
   };
 
+  // Tự động cuộn danh sách cú đánh bên phải theo cú đánh đang phát
+  useEffect(() => {
+    if (activeTab === 'STROKES' && autoScrollStrokes && selectedEvent && strokesContainerRef.current) {
+      const container = strokesContainerRef.current;
+      const el = document.getElementById(`stroke-item-${selectedEvent.id}`);
+      if (el) {
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+
+        // Khoảng cách tương đối từ đỉnh của el đến đỉnh của container
+        const relativeTop = elRect.top - containerRect.top;
+        // Tính toán để căn cú đánh vào chính giữa khung cuộn
+        const targetScrollTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (elRect.height / 2);
+
+        container.scrollTo({
+          top: Math.max(0, targetScrollTop),
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [selectedEvent?.id, activeTab, autoScrollStrokes]);
+
   const togglePlay = () => {
+    if (isYouTube && ytPlayerRef.current) {
+      if (isPlaying) {
+        ytPlayerRef.current.pauseVideo();
+        setIsPlaying(false);
+        setIsControlsVisible(true);
+        showOsd('Tạm dừng');
+      } else {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+        showOsd('Đang phát');
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = setTimeout(() => {
+          setIsControlsVisible(false);
+        }, 2500);
+      }
+      return;
+    }
+
     if (!videoRef.current) return;
     if (isPlaying) {
       videoRef.current.pause();
@@ -185,7 +378,6 @@ export const MatchReplayPage: React.FC = () => {
       videoRef.current.play();
       setIsPlaying(true);
       showOsd('Đang phát');
-      // Thiết lập auto-hide sau 2.5s
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       controlsTimeoutRef.current = setTimeout(() => {
         setIsControlsVisible(false);
@@ -197,7 +389,11 @@ export const MatchReplayPage: React.FC = () => {
   const handleVolumeChange = (newVol: number) => {
     const clamped = Math.max(0, Math.min(1, Math.round(newVol * 100) / 100));
     setVolume(clamped);
-    if (videoRef.current) {
+    if (isYouTube && ytPlayerRef.current) {
+      ytPlayerRef.current.setVolume(clamped * 100);
+      if (clamped === 0) ytPlayerRef.current.mute();
+      else ytPlayerRef.current.unMute();
+    } else if (videoRef.current) {
       videoRef.current.volume = clamped;
       videoRef.current.muted = clamped === 0;
     }
@@ -214,6 +410,24 @@ export const MatchReplayPage: React.FC = () => {
   };
 
   const toggleMute = () => {
+    if (isYouTube && ytPlayerRef.current) {
+      if (isMuted || volume === 0) {
+        const restore = prevVolume > 0 ? prevVolume : 0.8;
+        ytPlayerRef.current.unMute();
+        ytPlayerRef.current.setVolume(restore * 100);
+        setVolume(restore);
+        setIsMuted(false);
+        showOsd(`Bật tiếng: ${Math.round(restore * 100)}%`);
+      } else {
+        setPrevVolume(volume);
+        ytPlayerRef.current.mute();
+        setVolume(0);
+        setIsMuted(true);
+        showOsd('Đã tắt tiếng');
+      }
+      return;
+    }
+
     if (!videoRef.current) return;
     if (isMuted || volume === 0) {
       const restore = prevVolume > 0 ? prevVolume : 0.8;
@@ -234,6 +448,15 @@ export const MatchReplayPage: React.FC = () => {
 
   // Tua tới / Tua lui
   const handleSkip = (seconds: number) => {
+    if (isYouTube && ytPlayerRef.current) {
+      const curr = ytPlayerRef.current.getCurrentTime() || currentTime;
+      const newTime = Math.max(0, Math.min(duration, curr + seconds));
+      ytPlayerRef.current.seekTo(newTime, true);
+      setCurrentTime(newTime);
+      showOsd(seconds > 0 ? `Tua tới +${seconds}s` : `Tua lùi ${seconds}s`);
+      return;
+    }
+
     if (!videoRef.current) return;
     const newTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
     videoRef.current.currentTime = newTime;
@@ -261,6 +484,14 @@ export const MatchReplayPage: React.FC = () => {
 
   // Điều chỉnh tốc độ phát
   const handleChangeSpeed = (speed: number) => {
+    if (isYouTube && ytPlayerRef.current) {
+      ytPlayerRef.current.setPlaybackRate(speed);
+      setPlaybackRate(speed);
+      setShowSpeedMenu(false);
+      showOsd(`Tốc độ: ${speed}x`);
+      return;
+    }
+
     if (!videoRef.current) return;
     videoRef.current.playbackRate = speed;
     setPlaybackRate(speed);
@@ -289,6 +520,17 @@ export const MatchReplayPage: React.FC = () => {
   };
 
   const handleSeekToEvent = (event: AiEventData) => {
+    if (isYouTube && ytPlayerRef.current) {
+      ytPlayerRef.current.seekTo(event.timeSeconds, true);
+      setCurrentTime(event.timeSeconds);
+      setSelectedEvent(event);
+      if (!isPlaying) {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      return;
+    }
+
     if (!videoRef.current) return;
     videoRef.current.currentTime = event.timeSeconds;
     setCurrentTime(event.timeSeconds);
@@ -301,8 +543,21 @@ export const MatchReplayPage: React.FC = () => {
 
   // Phát lại chậm 0.5x cho cú đánh được chọn
   const handlePlaySlow = (timeSeconds: number) => {
-    if (!videoRef.current) return;
     const startSec = Math.max(0, timeSeconds - 0.3);
+    if (isYouTube && ytPlayerRef.current) {
+      ytPlayerRef.current.seekTo(startSec, true);
+      ytPlayerRef.current.setPlaybackRate(0.5);
+      setPlaybackRate(0.5);
+      setCurrentTime(startSec);
+      if (!isPlaying) {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      showOsd('Soi chậm 0.5x');
+      return;
+    }
+
+    if (!videoRef.current) return;
     videoRef.current.currentTime = startSec;
     videoRef.current.playbackRate = 0.5;
     setPlaybackRate(0.5);
@@ -316,6 +571,20 @@ export const MatchReplayPage: React.FC = () => {
 
   // VS-11: Tua video và phát một đợt cầu (Rally)
   const handlePlayRally = (rally: RallyData) => {
+    if (isYouTube && ytPlayerRef.current) {
+      ytPlayerRef.current.seekTo(rally.startTime, true);
+      setCurrentTime(rally.startTime);
+      setSelectedRally(rally);
+      const firstEvt = events.find((e) => Math.abs(e.timeSeconds - rally.startTime) <= 0.8);
+      if (firstEvt) setSelectedEvent(firstEvt);
+      if (!isPlaying) {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      showOsd(`Phát pha cầu #${rally.rallyNumber}`);
+      return;
+    }
+
     if (!videoRef.current) return;
     videoRef.current.currentTime = rally.startTime;
     setCurrentTime(rally.startTime);
@@ -337,7 +606,10 @@ export const MatchReplayPage: React.FC = () => {
   // Xử lý kéo thanh trượt seeker
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
-    if (videoRef.current) {
+    if (isYouTube && ytPlayerRef.current) {
+      ytPlayerRef.current.seekTo(val, true);
+      setCurrentTime(val);
+    } else if (videoRef.current) {
       videoRef.current.currentTime = val;
       setCurrentTime(val);
     }
@@ -493,11 +765,11 @@ export const MatchReplayPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
         <div className="space-y-1">
           <Link
-            to={`/matches/${id}`}
+            to={isPublic ? "/#public-library" : `/matches/${id}`}
             className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại Quản lý trận đấu</span>
+            <span>{isPublic ? 'Quay lại Thư viện công khai' : 'Quay lại Quản lý trận đấu'}</span>
           </Link>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
@@ -507,7 +779,7 @@ export const MatchReplayPage: React.FC = () => {
             </h1>
             <span className="px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
-              <span>COACHAI+ 2.0 REPLAY</span>
+              <span>{isYouTube ? 'BWF TOURNAMENT REPLAY' : 'COACHAI+ 2.0 REPLAY'}</span>
             </span>
           </div>
         </div>
@@ -544,7 +816,14 @@ export const MatchReplayPage: React.FC = () => {
             onMouseLeave={handleMouseLeave}
             className="relative rounded-3xl overflow-hidden bg-black border border-white/10 shadow-2xl aspect-video group select-none flex flex-col justify-end"
           >
-            {video?.videoUrl ? (
+            {isYouTube ? (
+              <div className="w-full h-full relative overflow-hidden bg-black flex items-center justify-center">
+                <div 
+                  id="youtube-player-frame" 
+                  className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full" 
+                />
+              </div>
+            ) : video?.videoUrl ? (
               <video
                 ref={videoRef}
                 src={video.videoUrl}
@@ -570,8 +849,8 @@ export const MatchReplayPage: React.FC = () => {
               </div>
             )}
 
-            {/* Center Play Button Watermark when Paused (Hover to see) */}
-            {!isPlaying && video?.videoUrl && (
+            {/* Center Play Button Watermark when Paused (Hover to see for MP4 videos) */}
+            {!isPlaying && video?.videoUrl && !isYouTube && (
               <div 
                 onClick={togglePlay}
                 className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-black/20 group-hover:bg-black/30 transition-colors"
@@ -898,83 +1177,117 @@ export const MatchReplayPage: React.FC = () => {
             </div>
 
             {activeTab === 'STROKES' && (
-              /* List cuộn dọc các cú đánh */
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 scrollbar-thin">
-                {filteredEvents.map((evt) => {
-                  const isActive = selectedEvent?.id === evt.id;
-                  const isLowConf = evt.confidence < 0.60;
-                  const badgeClass = getStrokeBadgeClass(evt.stroke);
+              <>
+                {/* Thanh tiện ích Tự động cuộn theo video */}
+                <div className="flex items-center justify-between pb-2 px-1 text-xs text-white/60">
+                  <span className="text-[11px] text-white/50">
+                    {filteredEvents.length} cú đánh đã nhận diện
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextState = !autoScrollStrokes;
+                      setAutoScrollStrokes(nextState);
+                      showOsd(nextState ? 'Bật tự cuộn theo cú đánh' : 'Tắt tự cuộn theo cú đánh');
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all ${
+                      autoScrollStrokes
+                        ? 'bg-brand/20 text-brand border border-brand/40 shadow-glow-blue'
+                        : 'bg-white/5 text-white/40 hover:text-white/70 border border-white/10'
+                    }`}
+                    title={autoScrollStrokes ? 'Đang tự động cuộn danh sách theo cú đánh đang phát' : 'Nhấp để bật tự động cuộn'}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${autoScrollStrokes ? 'bg-brand animate-ping' : 'bg-white/30'}`} />
+                    <span>{autoScrollStrokes ? 'Tự cuộn: BẬT' : 'Tự cuộn: TẮT'}</span>
+                  </button>
+                </div>
 
-                  return (
-                    <div
-                      key={evt.id}
-                      onClick={() => handleSeekToEvent(evt)}
-                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-                        isActive
-                          ? 'bg-brand/20 border-brand shadow-glow-blue ring-1 ring-brand/40'
-                          : isLowConf
-                          ? 'bg-amber-500/5 border-amber-500/25 hover:bg-amber-500/10'
-                          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Số thứ tự */}
-                        <div
-                          className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono text-xs font-bold shrink-0 ${
-                            isActive 
-                              ? 'bg-brand text-white' 
-                              : isLowConf
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                              : 'bg-white/10 text-white/60'
-                          }`}
-                        >
-                          #{evt.eventOrder}
+                {/* List cuộn dọc các cú đánh */}
+                <div 
+                  ref={strokesContainerRef}
+                  className="flex-1 overflow-y-auto space-y-2 pr-1.5 scrollbar-thin"
+                >
+                  {filteredEvents.map((evt) => {
+                    const isActive = selectedEvent?.id === evt.id;
+                    const isLowConf = evt.confidence < 0.60;
+                    const badgeClass = getStrokeBadgeClass(evt.stroke);
+
+                    return (
+                      <div
+                        key={evt.id}
+                        id={`stroke-item-${evt.id}`}
+                        onClick={() => handleSeekToEvent(evt)}
+                        className={`p-3 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center justify-between ${
+                          isActive
+                            ? 'bg-brand/25 border-brand shadow-glow-blue ring-2 ring-brand/50 scale-[1.01]'
+                            : isLowConf
+                            ? 'bg-amber-500/5 border-amber-500/25 hover:bg-amber-500/10'
+                            : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Số thứ tự & Indicator phát */}
+                          <div
+                            className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono text-xs font-bold shrink-0 transition-transform ${
+                              isActive 
+                                ? 'bg-brand text-white shadow-glow-blue scale-105' 
+                                : isLowConf
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-white/10 text-white/60'
+                            }`}
+                          >
+                            {isActive ? (
+                              <Play className="w-3.5 h-3.5 fill-current animate-pulse text-white" />
+                            ) : (
+                              `#${evt.eventOrder}`
+                            )}
+                          </div>
+
+                          {/* Thông tin cú đánh */}
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
+                                {evt.stroke}
+                              </span>
+                              <span className="text-[11px] text-white/50">{evt.strokeSide}</span>
+                            </div>
+                            <div className="text-[11px] text-white/70 flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${evt.playerSide === 'UPPER' ? 'bg-blue-400' : 'bg-amber-400'}`} />
+                              <span className="font-semibold">{evt.playerSide === 'UPPER' ? match.playerAName : match.playerBName}</span>
+                              <span className="text-white/30">•</span>
+                              <span className="font-mono text-white/50">{evt.timeSeconds.toFixed(1)}s</span>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Thông tin cú đánh */}
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
-                              {evt.stroke}
-                            </span>
-                            <span className="text-[11px] text-white/50">{evt.strokeSide}</span>
+                        {/* Vận tốc & Tương tác */}
+                        <div className="text-right flex items-center gap-2">
+                          <div className="hidden sm:block">
+                            <div className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end">
+                              <Zap className="w-3 h-3 text-amber-400" />
+                              <span>{evt.averageShuttleSpeedImagePerSecond ? `${evt.averageShuttleSpeedImagePerSecond.toFixed(0)}` : 'N/A'}</span>
+                            </div>
+                            {isLowConf ? (
+                              <div 
+                                title="Độ tin cậy AI thấp (< 60%)" 
+                                className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/40"
+                              >
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
+                                <span>{(evt.confidence * 100).toFixed(0)}%</span>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-emerald-400 font-mono">
+                                {(evt.confidence * 100).toFixed(0)}%
+                              </div>
+                            )}
                           </div>
-                          <div className="text-[11px] text-white/70 flex items-center gap-1.5">
-                            <span className={`w-1.5 h-1.5 rounded-full ${evt.playerSide === 'UPPER' ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                            <span className="font-semibold">{evt.playerSide === 'UPPER' ? match.playerAName : match.playerBName}</span>
-                            <span className="text-white/30">•</span>
-                            <span className="font-mono text-white/50">{evt.timeSeconds.toFixed(1)}s</span>
-                          </div>
+                          <ChevronRight className={`w-4 h-4 transition-transform ${isActive ? 'text-brand translate-x-0.5' : 'text-white/30'}`} />
                         </div>
                       </div>
-
-                      {/* Vận tốc & Tương tác */}
-                      <div className="text-right flex items-center gap-2">
-                        <div className="hidden sm:block">
-                          <div className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end">
-                            <Zap className="w-3 h-3 text-amber-400" />
-                            <span>{evt.averageShuttleSpeedImagePerSecond ? `${evt.averageShuttleSpeedImagePerSecond.toFixed(0)}` : 'N/A'}</span>
-                          </div>
-                          {isLowConf ? (
-                            <div 
-                              title="Độ tin cậy AI thấp (< 60%)" 
-                              className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/40"
-                            >
-                              <AlertTriangle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
-                              <span>{(evt.confidence * 100).toFixed(0)}%</span>
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-emerald-400 font-mono">
-                              {(evt.confidence * 100).toFixed(0)}%
-                            </div>
-                          )}
-                        </div>
-                        <ChevronRight className={`w-4 h-4 transition-transform ${isActive ? 'text-brand translate-x-0.5' : 'text-white/30'}`} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
 
             {activeTab === 'RALLIES' && (
@@ -1112,6 +1425,48 @@ export const MatchReplayPage: React.FC = () => {
                 Đã hiểu
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guest 5-Minute Preview Limit Modal */}
+      {showGuestLimitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-gradient-to-b from-[#14233c] to-[#0d1627] border border-white/20 rounded-3xl p-6 sm:p-7 shadow-2xl text-white space-y-6 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 mx-auto flex items-center justify-center">
+              <Clock className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-heading text-xl font-bold text-white">Hết Thời Lượng Xem Thử</h3>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                Khách vãng lai được xem trước tối đa <strong>5 phút (300 giây)</strong> trận đấu công khai. Vui lòng đăng nhập hoặc đăng ký tài khoản để tiếp tục xem toàn bộ video và trải nghiệm telemetry phân tích không giới hạn.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <Link
+                to="/login"
+                className="w-full py-3 rounded-full bg-brand hover:bg-brand-hover text-white text-xs font-bold transition-all shadow-glow-blue flex items-center justify-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Đăng nhập ngay</span>
+              </Link>
+              <Link
+                to="/register"
+                className="w-full py-3 rounded-full bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-colors border border-white/15 flex items-center justify-center gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Tạo tài khoản</span>
+              </Link>
+            </div>
+
+            <button
+              onClick={() => setShowGuestLimitModal(false)}
+              className="text-xs text-white/40 hover:text-white transition-colors"
+            >
+              Đóng thông báo
+            </button>
           </div>
         </div>
       )}

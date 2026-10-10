@@ -18,6 +18,9 @@ public class VideoResponse {
     private String fileName;
     private String storagePath;
     private String videoUrl;
+    private String videoSourceType;
+    private String youtubeUrl;
+    private String youtubeVideoId;
     private String mimeType;
     private Long fileSize;
     private BigDecimal durationSeconds;

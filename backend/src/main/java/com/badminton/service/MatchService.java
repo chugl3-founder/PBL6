@@ -33,6 +33,9 @@ public class MatchService {
 
     private final MatchRepository matchRepository;
     private final UserRepository userRepository;
+    private final com.badminton.repository.VideoRepository videoRepository;
+    private final com.badminton.repository.AiAnalysisRepository aiAnalysisRepository;
+    private final com.badminton.repository.MatchStatisticRepository matchStatisticRepository;
 
     @Transactional
     public MatchResponse createMatch(CreateMatchRequest request, String userEmail) {
@@ -255,7 +258,74 @@ public class MatchService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public PagedMatchResponse getPublicMatches(String search, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        String cleanSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+
+        Page<Match> matchPage;
+        if (cleanSearch != null) {
+            matchPage = matchRepository.searchPublicMatches(cleanSearch, pageable);
+        } else {
+            matchPage = matchRepository.findByStatusAndDeletedAtIsNull("PUBLISHED", pageable);
+        }
+
+        List<MatchResponse> data = matchPage.getContent().stream()
+                .map(this::mapToMatchResponse)
+                .toList();
+
+        PaginationMeta pagination = PaginationMeta.builder()
+                .page(matchPage.getNumber())
+                .size(matchPage.getSize())
+                .totalElements(matchPage.getTotalElements())
+                .totalPages(matchPage.getTotalPages())
+                .build();
+
+        return PagedMatchResponse.builder()
+                .data(data)
+                .pagination(pagination)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public MatchResponse getPublicMatchDetail(Long id) {
+        Match match = matchRepository.findByIdAndStatusAndDeletedAtIsNull(id, "PUBLISHED")
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_MATCH_NOT_FOUND",
+                        "Không tìm thấy trận đấu công khai với ID: " + id
+                ));
+
+        return mapToMatchResponse(match);
+    }
+
     public MatchResponse mapToMatchResponse(Match match) {
+        String thumbnailUrl = null;
+        String youtubeVideoId = null;
+        java.math.BigDecimal durationSeconds = null;
+        Integer totalStrokes = null;
+        Integer totalRallies = null;
+
+        var videoOpt = videoRepository.findByMatchId(match.getId());
+        if (videoOpt.isPresent()) {
+            var v = videoOpt.get();
+            youtubeVideoId = v.getYoutubeVideoId();
+            durationSeconds = v.getDurationSeconds();
+            if (youtubeVideoId != null && !youtubeVideoId.isBlank()) {
+                thumbnailUrl = "https://img.youtube.com/vi/" + youtubeVideoId + "/hqdefault.jpg";
+            }
+        }
+
+        var analysisOpt = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(match.getId());
+        if (analysisOpt.isPresent()) {
+            var statOpt = matchStatisticRepository.findByAnalysisId(analysisOpt.get().getId());
+            if (statOpt.isPresent()) {
+                totalStrokes = statOpt.get().getTotalStrokes();
+                totalRallies = statOpt.get().getTotalRallies();
+            }
+        }
+
         return MatchResponse.builder()
                 .id(match.getId())
                 .ownerId(match.getOwner().getId())
@@ -268,8 +338,62 @@ public class MatchService {
                 .description(match.getDescription())
                 .source(match.getSource())
                 .status(match.getStatus())
+                .thumbnailUrl(thumbnailUrl)
+                .youtubeVideoId(youtubeVideoId)
+                .durationSeconds(durationSeconds)
+                .totalStrokes(totalStrokes)
+                .totalRallies(totalRallies)
                 .createdAt(match.getCreatedAt())
                 .updatedAt(match.getUpdatedAt())
+                .build();
+    }
+
+    @Transactional
+    public MatchResponse publishMatch(Long id) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ERR_MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+
+        match.setStatus("PUBLISHED");
+        Match saved = matchRepository.save(match);
+        log.info("Admin đã xuất bản trận đấu công khai: id={}", id);
+        return mapToMatchResponse(saved);
+    }
+
+    @Transactional
+    public MatchResponse unpublishMatch(Long id) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ERR_MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+
+        match.setStatus("READY");
+        Match saved = matchRepository.save(match);
+        log.info("Admin đã hủy xuất bản trận đấu: id={}", id);
+        return mapToMatchResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public PagedMatchResponse getAllMatchesForAdmin(String status, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Match> matchPage;
+        if (status != null && !status.isBlank()) {
+            matchPage = matchRepository.findByStatusAndDeletedAtIsNull(status.toUpperCase(), pageable);
+        } else {
+            matchPage = matchRepository.findAll(pageable);
+        }
+
+        List<MatchResponse> data = matchPage.getContent().stream()
+                .map(this::mapToMatchResponse)
+                .toList();
+
+        PaginationMeta pagination = PaginationMeta.builder()
+                .page(matchPage.getNumber())
+                .size(matchPage.getSize())
+                .totalElements(matchPage.getTotalElements())
+                .totalPages(matchPage.getTotalPages())
+                .build();
+
+        return PagedMatchResponse.builder()
+                .data(data)
+                .pagination(pagination)
                 .build();
     }
 }

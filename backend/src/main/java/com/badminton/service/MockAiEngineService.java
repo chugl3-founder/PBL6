@@ -47,9 +47,18 @@ public class MockAiEngineService {
         return stageMap.getOrDefault(analysisId, "hit_scan");
     }
 
+    private final Set<Long> cancelledAnalyses = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public void cancelAnalysis(Long analysisId) {
+        cancelledAnalyses.add(analysisId);
+        progressMap.remove(analysisId);
+        stageMap.put(analysisId, "cancelled: Đã hủy phiên phân tích bởi người dùng");
+    }
+
     @Async
     public void runMockAnalysis(Long analysisId) {
         log.info("[MockAiEngine] Bắt đầu tiến trình phân tích mô phỏng cho Analysis ID: {}", analysisId);
+        cancelledAnalyses.remove(analysisId);
         
         // Đợi 200ms để đảm bảo transaction của thread gọi (AnalysisService) đã commit hoàn tất vào DB
         try {
@@ -75,6 +84,7 @@ public class MockAiEngineService {
         Long matchId = match != null ? match.getId() : null;
 
         try {
+            if (cancelledAnalyses.contains(analysisId)) return;
 
             // Giai đoạn 1: Khởi động & Quét phát hiện tiếp xúc cầu (hit_scan)
             analysis.setStatus("PROCESSING");
@@ -85,23 +95,36 @@ public class MockAiEngineService {
             progressMap.put(analysisId, 15);
             Thread.sleep(1500);
 
+            if (cancelledAnalyses.contains(analysisId)) return;
+
+            // Kịch bản kiểm thử: Nếu tiêu đề chứa 'fail', mô phỏng lỗi UNSUPPORTED_VIDEO_ANGLE (VS-13)
+            if (match != null && match.getTitle() != null && match.getTitle().toLowerCase().contains("fail")) {
+                log.warn("[MockAiEngine] Kích hoạt kịch bản kiểm thử lỗi UNSUPPORTED_VIDEO_ANGLE cho Analysis ID: {}", analysisId);
+                handleFailure(analysis, matchId, "UNSUPPORTED_VIDEO_ANGLE", "Góc quay video không chuẩn hoặc người chơi bị che khuất trong nhiều khung hình liên tiếp.");
+                return;
+            }
+
             progressMap.put(analysisId, 35);
             Thread.sleep(1500);
+            if (cancelledAnalyses.contains(analysisId)) return;
 
             // Giai đoạn 2: Trích xuất tư thế & Phân loại cú đánh (pose_and_classification)
             stageMap.put(analysisId, "pose_and_classification: Nhận diện loại cú đánh & vị trí đấu thủ");
             progressMap.put(analysisId, 55);
             Thread.sleep(1500);
+            if (cancelledAnalyses.contains(analysisId)) return;
 
             // Giai đoạn 3: Phân đoạn pha cầu (rally_segmentation)
             stageMap.put(analysisId, "rally_segmentation: Phân đoạn các pha cầu & tính điểm số");
             progressMap.put(analysisId, 75);
             Thread.sleep(1500);
+            if (cancelledAnalyses.contains(analysisId)) return;
 
             // Giai đoạn 4: Phân tích chiến thuật & Chỉ số CoachAI+ (tactical_analysis)
             stageMap.put(analysisId, "tactical_analysis: Tổng hợp radar 5 trục, ma trận phản xạ & insights");
             progressMap.put(analysisId, 90);
             Thread.sleep(1000);
+            if (cancelledAnalyses.contains(analysisId)) return;
 
             // Sinh dữ liệu thực tế chuẩn CoachAI+ 2.0
             generateMockAiData(analysis, match);
