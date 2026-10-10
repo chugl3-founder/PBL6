@@ -25,6 +25,11 @@
 			"key": "matchId",
 			"value": "1",
 			"type": "string"
+		},
+		{
+			"key": "analysisId",
+			"value": "1",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -911,6 +916,260 @@
 								"matches",
 								"{{matchId}}",
 								"video"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "05 - AI Analysis & Dispatch (VS-08)",
+			"item": [
+				{
+					"name": "TC-AI-DISP-01: Yêu cầu phân tích AI thành công (202 Accepted)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202 Accepted\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"pm.test(\"Contains analysisId and status is QUEUED/PROCESSING\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('analysisId');",
+									"    pm.expect(jsonData.status).to.be.oneOf(['QUEUED', 'PROCESSING']);",
+									"    pm.collectionVariables.set('analysisId', jsonData.analysisId.toString());",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/dispatch",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"analysis",
+								"dispatch"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AI-DISP-02: Bắt lỗi phân tích trận đấu không tồn tại (404 Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/99999/analysis/dispatch",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"99999",
+								"analysis",
+								"dispatch"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AI-STAT-01: Polling trạng thái tiến trình phân tích AI (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Response has status, progressPercent, currentStage\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData).to.have.property('progressPercent');",
+									"    pm.expect(jsonData.progressPercent).to.be.at.least(0);",
+									"    pm.expect(jsonData.progressPercent).to.be.at.most(100);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"analysis",
+								"status"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "06 - Replay & AI Events Telemetry (VS-09 & VS-10)",
+			"item": [
+				{
+					"name": "TC-AI-EVT-01: Lấy danh sách sự kiện cú đánh kèm tọa độ 2D phục vụ Replay (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Returns list of AiEvents with 2D court coordinates\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"    pm.expect(jsonData.length).to.be.above(0);",
+									"    var first = jsonData[0];",
+									"    pm.expect(first).to.have.property('stroke');",
+									"    pm.expect(first).to.have.property('strokeSide');",
+									"    pm.expect(first).to.have.property('timeSeconds');",
+									"    pm.expect(first).to.have.property('playerPositionCourt');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/events",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"analysis",
+								"events"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AI-EVT-02: Kiểm tra dữ liệu Telemetry & Cảnh báo Độ tin cậy thấp VS-10 (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Contains telemetry (speed, 3x3 zones) and low confidence events\", function () {",
+									"    var events = pm.response.json();",
+									"    pm.expect(events).to.be.an('array');",
+									"    var hasTelemetry = events.some(e => e.hittingArea3x3 !== null && e.landingArea3x3Proxy !== null);",
+									"    pm.expect(hasTelemetry).to.be.true;",
+									"    var hasLowConfidence = events.some(e => e.confidence < 0.60);",
+									"    pm.expect(hasLowConfidence, 'Phải có ít nhất 1 sự kiện confidence < 0.60 để kiểm thử cảnh báo VS-10').to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/events",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"{{matchId}}",
+								"analysis",
+								"events"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-AI-EVT-03: Lấy danh sách cú đánh trận không tồn tại (404 Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matches/99999/analysis/events",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matches",
+								"99999",
+								"analysis",
+								"events"
 							]
 						}
 					},

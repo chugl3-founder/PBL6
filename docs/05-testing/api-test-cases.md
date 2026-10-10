@@ -190,6 +190,34 @@
 
 ---
 
-*(Tài liệu này sẽ được tự động bổ sung liên tục các bảng test case của các user story tiếp theo cho đến khi hoàn thành toàn bộ hệ thống).*
+## 5. Module Phân Tích AI: Điều Phối Bất Đồng Bộ & Polling (VS-08)
+
+*Các API liên quan:*
+- `POST /api/matches/{id}/analysis/dispatch`: Điều phối phân tích AI, phản hồi ngay lập tức `HTTP 202 Accepted` (< 200ms) theo chuẩn NFR-PER-02, NFR-AI-01.
+- `GET /api/matches/{id}/analysis/status`: Polling tiến trình phân tích AI (tỷ lệ %, giai đoạn xử lý).
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-AI-DISP-01** | Bắt đầu phân tích AI thành công | `POST /api/matches/{id}/analysis/dispatch` kèm Bearer Token | **202 Accepted** | Trả về `AnalysisDispatchResponse` chứa `analysisId`, `matchId`, `status: QUEUED`, phản hồi dưới 200ms. Tiến trình mô phỏng chạy ngầm sinh dữ liệu. | ✅ **PASS** |
+| **TC-AI-DISP-02** | Bắt lỗi phân tích trận đấu không tồn tại | `POST /api/matches/99999/analysis/dispatch` | **404 Not Found** | Bắt lỗi `ERR_MATCH_NOT_FOUND`: "Không tìm thấy trận đấu với ID: 99999". | ✅ **PASS** |
+| **TC-AI-DISP-03** | Phân tích khi chưa có video tải lên | `POST /api/matches/{id}/analysis/dispatch` cho trận `status = DRAFT` | **400 Bad Request** | Bắt lỗi `ERR_VIDEO_REQUIRED`: "Trận đấu chưa có video hoặc video chưa sẵn sàng để phân tích." | ✅ **PASS** |
+| **TC-AI-STAT-01** | Polling tiến trình phân tích AI | `GET /api/matches/{id}/analysis/status` | **200 OK** | Trả về `AnalysisStatusResponse` gồm `progressPercent` (0..100%), `currentStage`, `status: PROCESSING/COMPLETED`. | ✅ **PASS** |
+
+---
+
+## 6. Module Replay & AI Events Telemetry (VS-09 & VS-10)
+
+*Các API liên quan:*
+- `GET /api/matches/{id}/analysis/events`: Lấy toàn bộ danh sách các cú đánh kèm tọa độ 2D chuẩn hóa và phân vùng 3x3 phục vụ Replay, Sân 2D & Thẻ chi tiết cú đánh.
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-AI-EVT-01** | Lấy danh sách cú đánh 2D cho Replay | `GET /api/matches/{id}/analysis/events` | **200 OK** | Trả về mảng `AiEventResponse` gồm `stroke`, `strokeSide`, `timeSeconds`, tọa độ `playerPositionCourt [x, y]`, `landingPositionCourtProxy [x, y]`. | ✅ **PASS** |
+| **TC-AI-EVT-02** | Kiểm tra dữ liệu Telemetry & Cảnh báo độ tin cậy thấp (VS-10) | `GET /api/matches/{id}/analysis/events` | **200 OK** | Dữ liệu chứa thông số vận tốc `averageShuttleSpeedImagePerSecond`, `averageWristSpeedImagePerSecond`, phân vùng `hittingArea3x3`, `landingArea3x3Proxy`, và tồn tại sự kiện có `confidence < 0.60` (ví dụ `0.52`) để kích hoạt cảnh báo AI. | ✅ **PASS** |
+| **TC-AI-EVT-03** | Lấy danh sách cú đánh trận không tồn tại | `GET /api/matches/99999/analysis/events` | **404 Not Found** | Bắt lỗi `ERR_MATCH_NOT_FOUND` hoặc danh sách rỗng nếu chưa phân tích. | ✅ **PASS** |
+
+---
+
+*(Tài liệu này được tự động cập nhật liên tục đồng bộ cùng Postman Collection `badminton-api.postman_collection.json`).*
 
 
