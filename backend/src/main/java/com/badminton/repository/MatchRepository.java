@@ -35,4 +35,10 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             @org.springframework.data.repository.query.Param("search") String search,
             Pageable pageable
     );
+
+    long countByDeletedAtIsNull();
+
+    long countByDeletedAtIsNotNull();
+
+    long countByStatusAndDeletedAtIsNull(String status);
 }

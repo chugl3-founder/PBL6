@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
+import { AdminLayout } from '../components/layout/AdminLayout';
 import { AuthGuard } from '../components/guard/AuthGuard';
 import { RoleGuard } from '../components/guard/RoleGuard';
 
@@ -20,6 +21,22 @@ import { MatchDetailPage } from '../pages/MatchDetailPage';
 export const AppRouter: React.FC = () => {
   return (
     <Routes>
+      {/* GIAO DIỆN QUẢN TRỊ VIÊN ĐỘC LẬP HOÀN TOÀN VỚI CLIENT */}
+      <Route
+        path="/admin"
+        element={
+          <RoleGuard allowedRoles={['ROLE_ADMIN']}>
+            <AdminLayout />
+          </RoleGuard>
+        }
+      >
+        <Route index element={<AdminDashboardPage />} />
+        <Route path="matches" element={<AdminDashboardPage />} />
+        <Route path="users" element={<AdminDashboardPage />} />
+        <Route path="ai-monitor" element={<AdminDashboardPage />} />
+      </Route>
+
+      {/* GIAO DIỆN NGƯỜI DÙNG & KHÁCH (CLIENT PORTAL) */}
       <Route path="/" element={<MainLayout />}>
         {/* Public Routes (Guest & All) */}
         <Route index element={<HomePage />} />
@@ -69,40 +86,6 @@ export const AppRouter: React.FC = () => {
             <AuthGuard>
               <MatchReplayPage />
             </AuthGuard>
-          }
-        />
-
-        {/* Protected Admin Routes */}
-        <Route
-          path="admin"
-          element={
-            <RoleGuard allowedRoles={['ROLE_ADMIN']}>
-              <AdminDashboardPage />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="admin/matches"
-          element={
-            <RoleGuard allowedRoles={['ROLE_ADMIN']}>
-              <AdminDashboardPage />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="admin/users"
-          element={
-            <RoleGuard allowedRoles={['ROLE_ADMIN']}>
-              <AdminDashboardPage />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="admin/ai-monitor"
-          element={
-            <RoleGuard allowedRoles={['ROLE_ADMIN']}>
-              <AdminDashboardPage />
-            </RoleGuard>
           }
         />
 

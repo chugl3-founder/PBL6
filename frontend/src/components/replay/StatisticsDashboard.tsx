@@ -397,7 +397,260 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         </div>
       </div>
 
-      {/* 3. COACHAI+ 2.0 RADAR & TACTICAL INSIGHTS */}
+      {/* 3. BIỂU ĐỒ CỘT DỌC & BẢNG PHÂN TÍCH ĐỊNH LƯỢNG CHI TIẾT CÚ ĐÁNH */}
+      {slices.length > 0 && (() => {
+        const maxCount = Math.max(...slices.map(s => s.count), 1);
+        return (
+          <div className={`grid ${compact ? 'grid-cols-1 gap-4' : 'grid-cols-1 lg:grid-cols-12 gap-5'}`}>
+            {/* Biểu đồ Cột dọc (Vertical Column Chart) */}
+            <div className={`${compact ? '' : 'lg:col-span-6'} p-4 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
+              <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-emerald-400" />
+                  <h3 className="font-bold text-xs lg:text-sm text-white">Biểu Đồ Cột Tần Suất Cú Đánh</h3>
+                </div>
+                <span className="text-[10px] text-white/40 font-mono">Đơn vị: số cú đánh</span>
+              </div>
+
+              <div className="h-44 flex items-end justify-between gap-2 pt-6 pb-2 px-2 border-b border-white/10">
+                {slices.map((sl) => {
+                  const heightPct = Math.max(Math.round((sl.count / maxCount) * 100), 8);
+                  return (
+                    <div
+                      key={sl.stroke}
+                      className="flex-1 flex flex-col items-center justify-end h-full group"
+                    >
+                      <span className="text-[10px] font-mono font-bold text-white mb-1 opacity-85 group-hover:opacity-100">
+                        {sl.count}
+                      </span>
+                      <div
+                        className="w-full max-w-[34px] rounded-t-xl transition-all duration-500 group-hover:brightness-125"
+                        style={{
+                          height: `${heightPct}%`,
+                          backgroundColor: sl.color,
+                          boxShadow: `0 0 12px ${sl.color}40`,
+                        }}
+                        title={`${STROKE_VIETNAMESE[sl.stroke.toUpperCase()] || sl.stroke}: ${sl.count} cú (${sl.percentage}%)`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2 px-1">
+                {slices.map((sl) => (
+                  <div key={sl.stroke} className="flex-1 text-center truncate">
+                    <span className="text-[9px] font-mono font-semibold text-white/70 uppercase">
+                      {sl.stroke.replace('_', ' ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bảng thống kê định lượng chi tiết theo loại cú đánh */}
+            <div className={`${compact ? '' : 'lg:col-span-6'} p-4 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
+              <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-sky-400" />
+                  <h3 className="font-bold text-xs lg:text-sm text-white">Bảng Phân Tích Định Lượng Cú Đánh</h3>
+                </div>
+                <span className="text-[10px] text-white/40 font-mono">Chi tiết tỷ trọng</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[11px]">
+                  <thead>
+                    <tr className="border-b border-white/10 text-white/50 uppercase text-[10px]">
+                      <th className="pb-2">Loại Cú Đánh</th>
+                      <th className="pb-2 text-right">Số Lượng</th>
+                      <th className="pb-2 text-right">Tỷ Lệ</th>
+                      <th className="pb-2 pl-3">Thanh Tỷ Trọng</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {slices.map((sl) => (
+                      <tr key={sl.stroke} className="hover:bg-white/[0.03]">
+                        <td className="py-2 font-medium text-white flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sl.color }} />
+                          <span className="truncate">{STROKE_VIETNAMESE[sl.stroke.toUpperCase()] || sl.stroke}</span>
+                        </td>
+                        <td className="py-2 text-right font-mono font-bold text-white">{sl.count}</td>
+                        <td className="py-2 text-right font-mono text-sky-300">{sl.percentage}%</td>
+                        <td className="py-2 pl-3 w-24">
+                          <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${sl.percentage}%`, backgroundColor: sl.color }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 4. BIỂU ĐỒ RADAR NGŨ GIÁC 5 TRỤC ĐỐI ĐẦU (5-AXIS PENTAGON RADAR CHART) */}
+      {stats.radarChart?.axes && stats.radarChart.axes.length >= 3 && (() => {
+        const axes = stats.radarChart!.axes;
+        const upperVals = stats.radarChart!.upper || [];
+        const lowerVals = stats.radarChart!.lower || [];
+        const numAxes = axes.length;
+        const center = 110;
+        const maxR = 75;
+
+        const axisNameVi: Record<string, string> = {
+          attack: 'Tấn công',
+          defense: 'Phòng thủ',
+          net_play: 'Kiểm soát lưới',
+          consistency: 'Độ ổn định',
+          variation: 'Biến hóa',
+        };
+
+        const getPoint = (idx: number, val: number) => {
+          const angle = (Math.PI * 2 * idx) / numAxes - Math.PI / 2;
+          const r = (Math.min(Math.max(val, 0), 100) / 100) * maxR;
+          return {
+            x: center + r * Math.cos(angle),
+            y: center + r * Math.sin(angle),
+          };
+        };
+
+        const upperPolygon = axes.map((_, i) => {
+          const pt = getPoint(i, upperVals[i] ?? 70);
+          return `${pt.x},${pt.y}`;
+        }).join(' ');
+
+        const lowerPolygon = axes.map((_, i) => {
+          const pt = getPoint(i, lowerVals[i] ?? 70);
+          return `${pt.x},${pt.y}`;
+        }).join(' ');
+
+        return (
+          <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
+            <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                <h3 className="font-bold text-xs lg:text-sm text-white">
+                  Biểu Đồ Radar 5 Trục Chỉ Số Chiến Thuật
+                </h3>
+              </div>
+              <div className="flex items-center gap-3 text-[11px]">
+                <span className="flex items-center gap-1.5 text-sky-400 font-semibold">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-sky-400 inline-block" />
+                  {playerAName}
+                </span>
+                <span className="flex items-center gap-1.5 text-amber-400 font-semibold">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" />
+                  {playerBName}
+                </span>
+              </div>
+            </div>
+
+            <div className={`grid ${compact ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-12 gap-4'} items-center`}>
+              <div className={`${compact ? '' : 'md:col-span-6'} flex justify-center`}>
+                <svg viewBox="0 0 220 220" className="w-52 h-52">
+                  {/* Lưới đa giác đồng tâm (25%, 50%, 75%, 100%) */}
+                  {[25, 50, 75, 100].map((lv) => {
+                    const pts = axes
+                      .map((_, i) => {
+                        const p = getPoint(i, lv);
+                        return `${p.x},${p.y}`;
+                      })
+                      .join(' ');
+                    return (
+                      <polygon
+                        key={lv}
+                        points={pts}
+                        fill="none"
+                        stroke="rgba(255,255,255,0.12)"
+                        strokeWidth="1"
+                      />
+                    );
+                  })}
+
+                  {/* Trục nối từ tâm ra đỉnh */}
+                  {axes.map((ax, i) => {
+                    const outer = getPoint(i, 100);
+                    const labelPt = getPoint(i, 122);
+                    return (
+                      <g key={ax}>
+                        <line
+                          x1={center}
+                          y1={center}
+                          x2={outer.x}
+                          y2={outer.y}
+                          stroke="rgba(255,255,255,0.15)"
+                          strokeWidth="1"
+                        />
+                        <text
+                          x={labelPt.x}
+                          y={labelPt.y}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          fill="#cbd5e1"
+                          fontSize="8.5"
+                          fontWeight="bold"
+                        >
+                          {axisNameVi[ax] || ax}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Đa giác Player A (Upper) */}
+                  <polygon
+                    points={upperPolygon}
+                    fill="rgba(56, 189, 248, 0.28)"
+                    stroke="#38bdf8"
+                    strokeWidth="2"
+                  />
+
+                  {/* Đa giác Player B (Lower) */}
+                  <polygon
+                    points={lowerPolygon}
+                    fill="rgba(251, 191, 36, 0.25)"
+                    stroke="#fbbf24"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </div>
+
+              {/* Bảng điểm 5 trục đối đầu */}
+              <div className={`${compact ? '' : 'md:col-span-6'} overflow-x-auto`}>
+                <table className="w-full text-left text-[11px]">
+                  <thead>
+                    <tr className="border-b border-white/10 text-white/50 uppercase text-[10px]">
+                      <th className="pb-1.5">Chỉ Số</th>
+                      <th className="pb-1.5 text-right text-sky-400">{playerAName}</th>
+                      <th className="pb-1.5 text-right text-amber-400">{playerBName}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {axes.map((ax, i) => (
+                      <tr key={ax}>
+                        <td className="py-1.5 font-medium text-white/90">{axisNameVi[ax] || ax}</td>
+                        <td className="py-1.5 text-right font-mono font-bold text-sky-300">
+                          {upperVals[i] ?? 70}/100
+                        </td>
+                        <td className="py-1.5 text-right font-mono font-bold text-amber-300">
+                          {lowerVals[i] ?? 70}/100
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 5. COACHAI+ 2.0 RADAR & TACTICAL INSIGHTS */}
       {stats.coachInsights?.insights && stats.coachInsights.insights.length > 0 && (
         <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-gradient-to-r from-blue-950/40 via-[#111c30]/90 to-cyan-950/40 border border-brand/20 shadow-xl`}>
           <div className="flex items-center gap-2 mb-3">
@@ -430,7 +683,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         </div>
       )}
 
-      {/* 4. TACTICAL PATTERNS (2-GRAM COMBINATIONS) */}
+      {/* 6. TACTICAL PATTERNS (2-GRAM COMBINATIONS) */}
       {stats.tacticalPatterns?.top_transitions_2gram && stats.tacticalPatterns.top_transitions_2gram.length > 0 && (
         <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
           <div className="flex items-center gap-2 mb-3">

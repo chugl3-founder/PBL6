@@ -1341,6 +1341,33 @@ export const MatchReplayPage: React.FC = () => {
 
       </div>
 
+      {/* KHU VỰC PHÂN TÍCH & THỐNG KÊ CHUYÊN SÂU TOÀN MÀN HÌNH (FULL-WIDTH ANALYTICS DASHBOARD) */}
+      {statistics && (
+        <section className="rounded-3xl bg-[#0b1220]/85 border border-white/10 p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2.5">
+                <BarChart3 className="w-5 h-5 text-cyan-400" />
+                <span>Báo Cáo Thống Kê & Biểu Đồ Phân Tích Chuyên Sâu Trận Đấu</span>
+              </h2>
+              <p className="text-xs text-white/50 mt-0.5">
+                Tổng hợp biểu đồ tròn, biểu đồ cột tần suất, biểu đồ radar 5 trục chiến thuật và bảng định lượng cú đánh giữa {match.playerAName} và {match.playerBName}
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-brand/15 border border-brand/30 text-sky-300 text-xs font-bold self-start sm:self-auto">
+              CoachAI+ 2.0 Analytics
+            </span>
+          </div>
+
+          <StatisticsDashboard
+            stats={statistics}
+            playerAName={match.playerAName}
+            playerBName={match.playerBName}
+            compact={false}
+          />
+        </section>
+      )}
+
       {/* MODAL HƯỚNG DẪN PHÍM TẮT ĐIỀU KHIỂN (KEYBOARD SHORTCUTS GUIDE) */}
       {showShortcutsModal && (
         <div 

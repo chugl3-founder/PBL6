@@ -341,6 +341,18 @@
 
 ---
 
+## 14. Module Bảng Chỉ Số Quản Trị Tổng Quan (VS-19)
+
+*Các API liên quan:*
+- `GET /api/admin/dashboard`: Admin truy xuất bộ chỉ số tổng quan toàn hệ thống (tổng số người dùng, số trận đấu, số trận công khai, tỷ lệ phân tích AI thành công và phân bố trạng thái).
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-ADM-DSH-01** | Người dùng thường (`ROLE_USER`) truy cập `/api/admin/dashboard` bị chặn | `GET /api/admin/dashboard` (Bearer Token `ROLE_USER`) | **403 Forbidden** | Bắt lỗi phân quyền Spring Security: từ chối truy cập API chỉ số quản trị. | ✅ **PASS** |
+| **TC-ADM-DSH-02** | Admin lấy toàn bộ chỉ số tổng quan hệ thống | `GET /api/admin/dashboard` (Bearer Token `ROLE_ADMIN`) | **200 OK** | Trả về `AdminDashboardResponse` với đầy đủ `totalUsers`, `totalMatches`, `publishedMatches`, `aiSuccessRate`, `matchStatusBreakdown` và `aiStatusBreakdown`. | ✅ **PASS** |
+
+---
+
 *(Tài liệu này được tự động cập nhật liên tục đồng bộ cùng Postman Collection `badminton-api.postman_collection.json`).*
 
 
