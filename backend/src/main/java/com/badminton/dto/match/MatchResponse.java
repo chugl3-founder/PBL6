@@ -15,6 +15,7 @@ import java.time.OffsetDateTime;
 public class MatchResponse {
     private Long id;
     private Long ownerId;
+    private String ownerEmail;
     private String playerAName;
     private String playerBName;
     private String upperPlayer;
@@ -29,7 +30,7 @@ public class MatchResponse {
     private java.math.BigDecimal durationSeconds;
     private Integer totalStrokes;
     private Integer totalRallies;
+    private OffsetDateTime deletedAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }
-

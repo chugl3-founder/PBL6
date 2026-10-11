@@ -1966,9 +1966,9 @@
 									"pm.test(\"Status code is 200 OK\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
-									"pm.test(\"Trận đấu chuyển trạng thái READY (không còn PUBLISHED)\", function () {",
+									"pm.test(\"Trận đấu chuyển trạng thái ANALYZED (không còn PUBLISHED)\", function () {",
 									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.status).to.eql('READY');",
+									"    pm.expect(jsonData.status).to.eql('ANALYZED');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -1993,6 +1993,194 @@
 								"matches",
 								"11",
 								"unpublish"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "11. Admin Match Management: Delete & Restore (VS-16)",
+			"item": [
+				{
+					"name": "TC-ADM-MAT-01: Admin xem chi tiết trận đấu bất kỳ (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trả về đầy đủ thông tin trận đấu và ownerEmail\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('ownerEmail');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/matches/11",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"matches",
+								"11"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-ADM-MAT-02: Admin xóa mềm trận đấu vi phạm (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Trả về thông báo xóa mềm thành công\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('xóa mềm');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/matches/11",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"matches",
+								"11"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-ADM-MAT-03: Admin lọc danh sách trận đấu trong Thùng rác (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Danh sách thùng rác chứa trận đấu có deletedAt != null\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/matches?status=DELETED&includeDeleted=true&page=0&size=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"matches"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "DELETED"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "true"
+								},
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TC-ADM-MAT-04: Admin khôi phục trận đấu từ Thùng rác (200 OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Khôi phục thành công, deletedAt trở về null\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.deletedAt).to.be.null;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/matches/11/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"matches",
+								"11",
+								"restore"
 							]
 						}
 					},

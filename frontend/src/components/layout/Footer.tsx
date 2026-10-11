@@ -17,16 +17,16 @@ export const Footer: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-6 text-sm">
-            <Link to="/" className="hover:text-white transition-colors">Platform</Link>
-            <Link to="/#public-library" className="hover:text-white transition-colors">Match Analysis</Link>
-            <Link to="/login" className="hover:text-white transition-colors">Sign in</Link>
-            <Link to="/register" className="hover:text-white transition-colors">Create account</Link>
+            <Link to="/" className="hover:text-white transition-colors">Trang chủ</Link>
+            <Link to="/public-matches" className="hover:text-white transition-colors">Thư viện công khai</Link>
+            <Link to="/login" className="hover:text-white transition-colors">Đăng nhập</Link>
+            <Link to="/register" className="hover:text-white transition-colors">Đăng ký tài khoản</Link>
           </div>
         </div>
 
         <div className="pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/40">
           <p>© 2026 BadmintonAI Platform. PBL6 - Trường Đại học Bách Khoa, Đại học Đà Nẵng.</p>
-          <p>Federation-grade match intelligence & computer vision telemetry.</p>
+          <p>Nền tảng phân tích chiến thuật & thị giác máy tính chuyên sâu cho Cầu lông.</p>
         </div>
       </div>
     </footer>

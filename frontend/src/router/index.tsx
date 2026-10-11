@@ -5,6 +5,7 @@ import { AuthGuard } from '../components/guard/AuthGuard';
 import { RoleGuard } from '../components/guard/RoleGuard';
 
 import { HomePage } from '../pages/HomePage';
+import { PublicMatchesPage } from '../pages/PublicMatchesPage';
 import { LoginPage } from '../pages/LoginPage';
 import { RegisterPage } from '../pages/RegisterPage';
 import { MyMatchesPage } from '../pages/MyMatchesPage';
@@ -22,7 +23,7 @@ export const AppRouter: React.FC = () => {
       <Route path="/" element={<MainLayout />}>
         {/* Public Routes (Guest & All) */}
         <Route index element={<HomePage />} />
-        <Route path="public-matches" element={<HomePage />} />
+        <Route path="public-matches" element={<PublicMatchesPage />} />
         <Route path="public-matches/:id/replay" element={<MatchReplayPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />

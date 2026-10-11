@@ -329,6 +329,7 @@ public class MatchService {
         return MatchResponse.builder()
                 .id(match.getId())
                 .ownerId(match.getOwner().getId())
+                .ownerEmail(match.getOwner().getEmail())
                 .playerAName(match.getPlayerAName())
                 .playerBName(match.getPlayerBName())
                 .upperPlayer(match.getUpperPlayer())
@@ -343,6 +344,7 @@ public class MatchService {
                 .durationSeconds(durationSeconds)
                 .totalStrokes(totalStrokes)
                 .totalRallies(totalRallies)
+                .deletedAt(match.getDeletedAt())
                 .createdAt(match.getCreatedAt())
                 .updatedAt(match.getUpdatedAt())
                 .build();
@@ -351,7 +353,27 @@ public class MatchService {
     @Transactional
     public MatchResponse publishMatch(Long id) {
         Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ERR_MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_MATCH_NOT_FOUND",
+                        "Không tìm thấy trận đấu với ID: " + id
+                ));
+
+        boolean hasCompletedAnalysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(id)
+                .map(a -> "COMPLETED".equalsIgnoreCase(a.getStatus()))
+                .orElse(false);
+
+        if (!"ANALYZED".equalsIgnoreCase(match.getStatus())
+                && !"PUBLISHED".equalsIgnoreCase(match.getStatus())
+                && !hasCompletedAnalysis) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    ErrorType.VALIDATION,
+                    "ERR_MATCH_NOT_ANALYZED",
+                    "Trận đấu chưa hoàn tất phân tích AI. Chỉ có thể xuất bản các trận đấu đã có dữ liệu phân tích."
+            );
+        }
 
         match.setStatus("PUBLISHED");
         Match saved = matchRepository.save(match);
@@ -362,22 +384,87 @@ public class MatchService {
     @Transactional
     public MatchResponse unpublishMatch(Long id) {
         Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ERR_MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_MATCH_NOT_FOUND",
+                        "Không tìm thấy trận đấu với ID: " + id
+                ));
 
-        match.setStatus("READY");
+        match.setStatus("ANALYZED");
         Match saved = matchRepository.save(match);
         log.info("Admin đã hủy xuất bản trận đấu: id={}", id);
         return mapToMatchResponse(saved);
     }
 
     @Transactional(readOnly = true)
-    public PagedMatchResponse getAllMatchesForAdmin(String status, int page, int size) {
+    public MatchResponse getMatchByIdForAdmin(Long id) {
+        Match match = matchRepository.findById(id)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_MATCH_NOT_FOUND",
+                        "Không tìm thấy trận đấu với ID: " + id
+                ));
+        return mapToMatchResponse(match);
+    }
+
+    @Transactional
+    public MessageResponse adminDeleteMatch(Long id) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_MATCH_NOT_FOUND",
+                        "Không tìm thấy trận đấu hoặc trận đấu đã bị xóa."
+                ));
+
+        if ("PUBLISHED".equalsIgnoreCase(match.getStatus())) {
+            match.setStatus("ANALYZED");
+        }
+        match.setDeletedAt(OffsetDateTime.now());
+        matchRepository.save(match);
+        log.info("Admin đã xóa mềm trận đấu: id={}", id);
+
+        return MessageResponse.builder()
+                .message("Đã xóa mềm trận đấu thành công.")
+                .build();
+    }
+
+    @Transactional
+    public MatchResponse restoreMatch(Long id) {
+        Match match = matchRepository.findById(id)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_MATCH_NOT_FOUND",
+                        "Không tìm thấy trận đấu với ID: " + id
+                ));
+
+        match.setDeletedAt(null);
+        Match saved = matchRepository.save(match);
+        log.info("Admin đã khôi phục trận đấu: id={}", id);
+        return mapToMatchResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public PagedMatchResponse getAllMatchesForAdmin(String status, boolean includeDeleted, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Match> matchPage;
-        if (status != null && !status.isBlank()) {
-            matchPage = matchRepository.findByStatusAndDeletedAtIsNull(status.toUpperCase(), pageable);
+        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
+            if ("DELETED".equalsIgnoreCase(status)) {
+                matchPage = matchRepository.findByDeletedAtIsNotNull(pageable);
+            } else if (includeDeleted) {
+                matchPage = matchRepository.findByStatus(status.toUpperCase(), pageable);
+            } else {
+                matchPage = matchRepository.findByStatusAndDeletedAtIsNull(status.toUpperCase(), pageable);
+            }
         } else {
-            matchPage = matchRepository.findAll(pageable);
+            if (includeDeleted) {
+                matchPage = matchRepository.findAll(pageable);
+            } else {
+                matchPage = matchRepository.findByDeletedAtIsNull(pageable);
+            }
         }
 
         List<MatchResponse> data = matchPage.getContent().stream()

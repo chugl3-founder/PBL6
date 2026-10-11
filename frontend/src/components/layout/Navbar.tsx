@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, LogOut, Video, Shield, User, PlusCircle } from 'lucide-react';
+import { Activity, LogOut, Video, Shield, User, PlusCircle, Globe } from 'lucide-react';
 import apiClient from '../../api/client';
 
 export const Navbar: React.FC = () => {
@@ -27,21 +27,6 @@ export const Navbar: React.FC = () => {
     }
   };
 
-  const handlePublicMatchesClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (location.pathname === '/' || location.pathname === '/public-matches') {
-      const el = document.getElementById('public-library');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
-    } else {
-      navigate('/#public-library');
-      setTimeout(() => {
-        document.getElementById('public-library')?.scrollIntoView({ behavior: 'smooth' });
-      }, 150);
-    }
-  };
-
   return (
     <header className="sticky top-0 z-50 w-full bg-[#0b1322]/90 backdrop-blur-xl border-b border-white/10 shadow-lg transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -59,24 +44,29 @@ export const Navbar: React.FC = () => {
         </Link>
 
         {/* Center Navigation Links */}
-        <nav className="hidden md:flex items-center space-x-1">
+        <nav className="hidden md:flex items-center space-x-1.5">
           <Link
             to="/"
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
               location.pathname === '/'
-                ? 'text-white bg-white/10' 
+                ? 'text-white bg-white/10'
                 : 'text-white/70 hover:text-white hover:bg-white/5'
             }`}
           >
-            Platform & Analysis
+            Trang chủ
           </Link>
-          <button
-            type="button"
-            onClick={handlePublicMatchesClick}
-            className="px-4 py-2 rounded-full text-sm font-medium transition-colors text-white/70 hover:text-white hover:bg-white/5 cursor-pointer"
+
+          <Link
+            to="/public-matches"
+            className={`flex items-center space-x-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              location.pathname.startsWith('/public-matches')
+                ? 'text-white bg-white/10 border border-white/15'
+                : 'text-white/70 hover:text-white hover:bg-white/5'
+            }`}
           >
-            Public Matches
-          </button>
+            <Globe className="h-4 w-4 text-sky-400" />
+            <span>Thư viện công khai</span>
+          </Link>
 
           {token && (
             <>
@@ -108,10 +98,14 @@ export const Navbar: React.FC = () => {
           {isAdmin && (
             <Link
               to="/admin"
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-purple-400 bg-purple-950/40 border border-purple-800/40 hover:bg-purple-900/30 transition-colors"
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                location.pathname.startsWith('/admin')
+                  ? 'text-white bg-purple-600 shadow-lg'
+                  : 'text-purple-400 bg-purple-950/40 border border-purple-800/40 hover:bg-purple-900/30'
+              }`}
             >
               <Shield className="h-3.5 w-3.5" />
-              <span>Admin Panel</span>
+              <span>Quản trị hệ thống</span>
             </Link>
           )}
         </nav>
@@ -150,13 +144,13 @@ export const Navbar: React.FC = () => {
                 to="/login"
                 className="text-sm font-semibold text-white/75 hover:text-white px-3.5 py-1.5 transition-colors"
               >
-                Sign in
+                Đăng nhập
               </Link>
               <Link
                 to="/register"
                 className="rounded-full bg-brand hover:bg-brand-hover px-4 py-2 text-sm font-semibold text-white shadow-glow-blue transition-all duration-200"
               >
-                Get Started
+                Đăng ký ngay
               </Link>
             </div>
           )}

@@ -282,11 +282,32 @@
 | **TC-PUB-07** | Lấy thống kê chi tiết trận đấu công khai | `GET /api/public-matches/11/statistics` | **200 OK** | Trả về thống kê chuyên sâu: `totalStrokes: 756`, `totalRallies: 46`, phân bố cú đánh Smash/Clear/Drop/Net, tốc độ và tỷ lệ lỗi. | ✅ **PASS** |
 | **TC-ADM-PUB-01** | Admin lấy danh sách toàn bộ trận đấu trong hệ thống | `GET /api/admin/matches?page=0&size=20` với Bearer Token `ROLE_ADMIN` | **200 OK** | Trả về danh sách toàn bộ các trận đấu trong hệ thống (gồm PUBLISHED, READY, DRAFT, COMPLETED). | ✅ **PASS** |
 | **TC-ADM-PUB-02** | Admin xuất bản trận đấu vào Thư viện công khai | `POST /api/admin/matches/11/publish` với Bearer Token `ROLE_ADMIN` | **200 OK** | Cập nhật trận đấu sang trạng thái `PUBLISHED`, xuất hiện ngay trong thư viện trang chủ. | ✅ **PASS** |
-| **TC-ADM-PUB-03** | Admin hủy xuất bản trận đấu khỏi Thư viện | `POST /api/admin/matches/11/unpublish` với Bearer Token `ROLE_ADMIN` | **200 OK** | Cập nhật trận đấu về trạng thái `READY`, không còn xuất hiện trong thư viện công khai. | ✅ **PASS** |
+| **TC-ADM-PUB-03** | Admin hủy xuất bản trận đấu khỏi Thư viện | `POST /api/admin/matches/11/unpublish` với Bearer Token `ROLE_ADMIN` | **200 OK** | Cập nhật trận đấu về trạng thái `ANALYZED`, không còn xuất hiện trong thư viện công khai. | ✅ **PASS** |
 | **TC-ADM-PUB-04** | Người dùng thường hoặc Guest truy cập Admin Match API bị chặn | `GET /api/admin/matches` không có Token hoặc Token `ROLE_USER` | **403 Forbidden** | Bắt lỗi phân quyền Spring Security: "Access Denied". | ✅ **PASS** |
 
 ---
 
+## 11. Module Quản Lý Trận Đấu Admin: Kiểm Duyệt, Xóa Mềm & Khôi Phục (VS-16)
+
+*Các API liên quan:*
+- `GET /api/admin/matches?status={status}&includeDeleted={bool}`: Admin lọc danh sách trận đấu toàn hệ thống (bao gồm cả thùng rác đã xóa mềm).
+- `GET /api/admin/matches/{id}`: Admin xem chi tiết trận đấu bất kỳ.
+- `DELETE /api/admin/matches/{id}`: Admin xóa mềm trận đấu vi phạm (`deleted_at = NOW()`).
+- `POST /api/admin/matches/{id}/restore`: Admin khôi phục trận đấu từ thùng rác (`deleted_at = NULL`).
+- `POST /api/admin/matches/{id}/publish`: Admin phê duyệt xuất bản trận đấu đã phân tích (`ANALYZED` $\rightarrow$ `PUBLISHED`).
+- `POST /api/admin/matches/{id}/unpublish`: Admin gỡ trận đấu khỏi thư viện công khai (`PUBLISHED` $\rightarrow$ `ANALYZED`).
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-ADM-MAT-01** | Admin xem chi tiết trận đấu bất kỳ | `GET /api/admin/matches/11` (Bearer Token `ROLE_ADMIN`) | **200 OK** | Trả về `MatchResponse` đầy đủ kèm `ownerEmail`, `status`, `deletedAt`. | ✅ **PASS** |
+| **TC-ADM-MAT-02** | Admin xóa mềm trận đấu vi phạm | `DELETE /api/admin/matches/{id}` (Bearer Token `ROLE_ADMIN`) | **200 OK** | Trả về `MessageResponse`: "Đã xóa mềm trận đấu thành công.", đặt `deleted_at` khác null và gỡ trạng thái `PUBLISHED` nếu có. | ✅ **PASS** |
+| **TC-ADM-MAT-03** | Admin lọc danh sách các trận đấu trong Thùng rác | `GET /api/admin/matches?status=DELETED&includeDeleted=true` | **200 OK** | Trả về danh sách các trận đấu có `deletedAt != null`. | ✅ **PASS** |
+| **TC-ADM-MAT-04** | Admin khôi phục trận đấu từ Thùng rác | `POST /api/admin/matches/{id}/restore` (Bearer Token `ROLE_ADMIN`) | **200 OK** | Trả về `MatchResponse` với `deletedAt: null`, trận đấu hiển thị trở lại trong danh sách hoạt động. | ✅ **PASS** |
+| **TC-ADM-MAT-05** | Chặn xuất bản trận đấu chưa phân tích AI (`DRAFT`) | `POST /api/admin/matches/{draftId}/publish` | **400 Bad Request** | Bắt lỗi `ERR_MATCH_NOT_ANALYZED`: "Trận đấu chưa hoàn tất phân tích AI. Chỉ có thể xuất bản các trận đấu đã có dữ liệu phân tích." | ✅ **PASS** |
+
+---
+
 *(Tài liệu này được tự động cập nhật liên tục đồng bộ cùng Postman Collection `badminton-api.postman_collection.json`).*
+
 
 

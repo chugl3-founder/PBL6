@@ -132,7 +132,7 @@ export const ProfilePage: React.FC = () => {
               ) : (
                 <div className="flex flex-col items-center text-white/40">
                   <UserIcon className="w-16 h-16" />
-                  <span className="text-[10px] mt-1 font-mono tracking-wider">NO PHOTO</span>
+                  <span className="text-[10px] mt-1 font-mono tracking-wider">CHƯA CÓ ẢNH</span>
                 </div>
               )}
             </div>
@@ -161,7 +161,7 @@ export const ProfilePage: React.FC = () => {
           <div className="flex-1 text-center md:text-left space-y-3">
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
               <span className="px-3 py-1 rounded-full text-[11px] font-bold tracking-wider bg-brand text-white uppercase shadow-glow-blue">
-                OFFICIAL ATHLETE
+                VẬN ĐỘNG VIÊN CHÍNH THỨC
               </span>
               <span className="px-3 py-1 rounded-full text-[11px] font-bold tracking-wider bg-white/10 text-sky-300 border border-white/15 uppercase">
                 {profile?.badmintonLevel || 'INTERMEDIATE'}

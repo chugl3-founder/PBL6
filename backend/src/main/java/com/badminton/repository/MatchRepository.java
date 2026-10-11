@@ -13,6 +13,12 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
 
     Optional<Match> findByIdAndDeletedAtIsNull(Long id);
 
+    Page<Match> findByDeletedAtIsNull(Pageable pageable);
+
+    Page<Match> findByDeletedAtIsNotNull(Pageable pageable);
+
+    Page<Match> findByStatus(String status, Pageable pageable);
+
     Page<Match> findByOwnerIdAndDeletedAtIsNull(Long ownerId, Pageable pageable);
 
     Page<Match> findByOwnerIdAndStatusAndDeletedAtIsNull(Long ownerId, String status, Pageable pageable);
@@ -30,4 +36,3 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             Pageable pageable
     );
 }
-

@@ -69,7 +69,7 @@ export const ResetPasswordPage: React.FC = () => {
       <div className="relative z-10 hidden lg:flex flex-col justify-center max-w-xl text-left space-y-6">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-semibold w-fit shadow-md">
           <ShieldCheck className="w-4 h-4 text-brand" />
-          <span>CREDENTIAL SECURITY ROTATION</span>
+          <span>THIẾT LẬP LẠI MẬT KHẨU BẢO MẬT</span>
         </div>
         
         <h1 className="text-4xl xl:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md">

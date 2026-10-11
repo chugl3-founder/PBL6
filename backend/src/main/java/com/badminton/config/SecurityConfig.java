@@ -41,7 +41,7 @@ public class SecurityConfig {
                 // Video stream public (có giới hạn preview 5p cho guest)
                 .requestMatchers("/api/videos/*/stream").permitAll()
                 // Admin endpoints bắt buộc quyền ADMIN
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
                 // Các endpoint còn lại yêu cầu đăng nhập
                 .anyRequest().authenticated()
             )

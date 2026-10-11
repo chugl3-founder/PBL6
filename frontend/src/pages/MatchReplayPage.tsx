@@ -765,7 +765,7 @@ export const MatchReplayPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
         <div className="space-y-1">
           <Link
-            to={isPublic ? "/#public-library" : `/matches/${id}`}
+            to={isPublic ? "/public-matches" : `/matches/${id}`}
             className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
