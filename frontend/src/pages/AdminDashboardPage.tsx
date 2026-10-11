@@ -22,8 +22,12 @@ import apiClient from '../api/client';
 
 export const AdminDashboardPage: React.FC = () => {
   const location = useLocation();
-  const [activeSection, setActiveSection] = useState<'MATCHES' | 'USERS'>(
-    location.pathname.includes('/users') ? 'USERS' : 'MATCHES'
+  const [activeSection, setActiveSection] = useState<'MATCHES' | 'USERS' | 'AI_MONITOR'>(
+    location.pathname.includes('/users')
+      ? 'USERS'
+      : location.pathname.includes('/ai-monitor')
+      ? 'AI_MONITOR'
+      : 'MATCHES'
   );
 
   // State Quản lý Trận đấu (VS-16)
@@ -41,6 +45,13 @@ export const AdminDashboardPage: React.FC = () => {
   const [userStatusFilter, setUserStatusFilter] = useState<string>('ALL');
   const [userActionLoadingId, setUserActionLoadingId] = useState<number | null>(null);
 
+  // State Giám sát Phân tích AI (VS-18)
+  const [analyses, setAnalyses] = useState<any[]>([]);
+  const [analysesTotal, setAnalysesTotal] = useState<number>(0);
+  const [analysesLoading, setAnalysesLoading] = useState(true);
+  const [aiStatusFilter, setAiStatusFilter] = useState<string>('ALL');
+  const [aiActionLoadingId, setAiActionLoadingId] = useState<number | null>(null);
+
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const currentUserJson = localStorage.getItem('user_info');
@@ -49,6 +60,8 @@ export const AdminDashboardPage: React.FC = () => {
   useEffect(() => {
     if (location.pathname.includes('/users')) {
       setActiveSection('USERS');
+    } else if (location.pathname.includes('/ai-monitor')) {
+      setActiveSection('AI_MONITOR');
     } else if (location.pathname.includes('/matches')) {
       setActiveSection('MATCHES');
     }
@@ -64,6 +77,21 @@ export const AdminDashboardPage: React.FC = () => {
     }, 250);
     return () => clearTimeout(timer);
   }, [userSearch, userStatusFilter]);
+
+  useEffect(() => {
+    fetchAnalyses(aiStatusFilter, true);
+  }, [aiStatusFilter]);
+
+  // Tự động làm mới danh sách phiên AI mỗi 3s khi đang ở phân hệ AI_MONITOR hoặc có phiên đang QUEUED/PROCESSING
+  useEffect(() => {
+    const hasActiveJob = analyses.some(a => a.status === 'QUEUED' || a.status === 'PROCESSING');
+    if (activeSection !== 'AI_MONITOR' && !hasActiveJob) return;
+
+    const pollInterval = setInterval(() => {
+      fetchAnalyses(aiStatusFilter, false);
+    }, 2500);
+    return () => clearInterval(pollInterval);
+  }, [activeSection, aiStatusFilter, analyses]);
 
   const fetchMatches = async (status: string) => {
     try {
@@ -98,6 +126,23 @@ export const AdminDashboardPage: React.FC = () => {
       console.error('Lỗi khi tải danh sách người dùng cho Admin:', err);
     } finally {
       setUsersLoading(false);
+    }
+  };
+
+  const fetchAnalyses = async (status: string, showSpinner = true) => {
+    try {
+      if (showSpinner) setAnalysesLoading(true);
+      const params = new URLSearchParams({ page: '0', size: '50' });
+      if (status !== 'ALL') params.append('status', status);
+      const res = await apiClient.get(`/admin/ai-analyses?${params.toString()}`);
+      setAnalyses(res.data.data || []);
+      if (res.data.pagination?.totalElements !== undefined) {
+        setAnalysesTotal(res.data.pagination.totalElements);
+      }
+    } catch (err: any) {
+      console.error('Lỗi khi tải danh sách phiên phân tích AI cho Admin:', err);
+    } finally {
+      if (showSpinner) setAnalysesLoading(false);
     }
   };
 
@@ -187,6 +232,27 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  const handleAdminRetryAnalysis = async (analysisItem: any) => {
+    try {
+      setAiActionLoadingId(analysisItem.id);
+      setFeedbackMsg(null);
+      const res = await apiClient.post(`/admin/ai-analyses/${analysisItem.id}/retry`);
+      showFeedback(
+        'success',
+        res.data?.message || `Đã kích hoạt chạy lại phiên phân tích AI mới #${res.data?.analysisId} cho trận đấu #${analysisItem.matchId}!`
+      );
+      await fetchAnalyses(aiStatusFilter, false);
+      await fetchMatches(filterStatus);
+    } catch (err: any) {
+      showFeedback(
+        'error',
+        err.response?.data?.message || 'Không thể chạy lại phiên phân tích AI.'
+      );
+    } finally {
+      setAiActionLoadingId(null);
+    }
+  };
+
   const publishedCount = matches.filter(m => m.status === 'PUBLISHED' && !m.deletedAt).length;
 
   const filterTabs = [
@@ -255,6 +321,52 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  const getAiStatusBadge = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Hoàn tất (COMPLETED)</span>
+          </span>
+        );
+      case 'PROCESSING':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-300 font-bold">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>Đang xử lý (PROCESSING)</span>
+          </span>
+        );
+      case 'QUEUED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-bold">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>Trong hàng đợi (QUEUED)</span>
+          </span>
+        );
+      case 'FAILED':
+      case 'UNSUPPORTED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 font-bold">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>Thất bại ({status})</span>
+          </span>
+        );
+      case 'CANCELLED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold">
+            <span>Đã hủy (CANCELLED)</span>
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300">
+            <span>{status}</span>
+          </span>
+        );
+    }
+  };
+
   return (
     <div className="space-y-8 pb-16">
       {/* Tiêu đề trang & Chuyển đổi phân hệ Quản trị */}
@@ -262,12 +374,12 @@ export const AdminDashboardPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-black text-white tracking-tight">Quản Trị Hệ Thống</h1>
           <p className="text-sm text-slate-300 mt-1">
-            Kiểm duyệt Thư viện trận đấu công khai (VS-16) và Quản lý tài khoản người dùng (VS-17)
+            Kiểm duyệt Thư viện trận đấu (VS-16), Quản lý người dùng (VS-17) & Giám sát tiến trình AI (VS-18)
           </p>
         </div>
 
-        {/* Navigation Tabs giữa Quản lý Trận đấu & Quản lý Người dùng */}
-        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-[#122340]/90 border border-white/15">
+        {/* Navigation Tabs giữa Quản lý Trận đấu, Quản lý Người dùng & Giám sát AI */}
+        <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-[#122340]/90 border border-white/15">
           <button
             type="button"
             onClick={() => setActiveSection('MATCHES')}
@@ -291,6 +403,18 @@ export const AdminDashboardPage: React.FC = () => {
           >
             <Users className="w-4 h-4" />
             <span>Quản lý Người dùng ({usersTotal || users.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSection('AI_MONITOR')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeSection === 'AI_MONITOR'
+                ? 'bg-brand text-white shadow-glow-blue'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Cpu className="w-4 h-4" />
+            <span>Giám sát AI ({analysesTotal || analyses.length})</span>
           </button>
         </div>
       </div>
@@ -723,6 +847,208 @@ export const AdminDashboardPage: React.FC = () => {
                               </>
                             )}
                           </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* PHÂN HỆ 3: GIÁM SÁT PHÂN TÍCH AI & RETRY KHẨN CẤP TỪ ADMIN (VS-18) */}
+      {activeSection === 'AI_MONITOR' && (
+        <section className="bg-[#0f1d35]/80 border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-5">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-purple-400" />
+                <span>Giám Sát Tiến Trình Phân Tích AI & Điều Phối Khẩn Cấp</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                Theo dõi thời gian thực các phiên xử lý AI trong toàn hệ thống, tra cứu mã lỗi và kích hoạt chạy lại khẩn cấp (VS-18)
+              </p>
+            </div>
+
+            {/* Bộ lọc trạng thái AI */}
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {[
+                { key: 'ALL', label: 'Tất cả phiên AI' },
+                { key: 'PROCESSING', label: 'Đang xử lý' },
+                { key: 'QUEUED', label: 'Trong hàng đợi' },
+                { key: 'COMPLETED', label: 'Hoàn tất' },
+                { key: 'FAILED', label: 'Gặp sự cố (FAILED)' },
+                { key: 'CANCELLED', label: 'Đã hủy' },
+              ].map((st) => (
+                <button
+                  key={st.key}
+                  onClick={() => setAiStatusFilter(st.key)}
+                  className={`px-3 py-1.5 rounded-full font-semibold transition-all ${
+                    aiStatusFilter === st.key
+                      ? st.key === 'FAILED'
+                        ? 'bg-rose-600 text-white shadow-lg'
+                        : 'bg-brand text-white shadow-glow-blue'
+                      : 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {analysesLoading && (
+            <div className="py-16 flex flex-col items-center justify-center space-y-3">
+              <Loader2 className="w-7 h-7 text-sky-400 animate-spin" />
+              <span className="text-xs text-slate-400">Đang tải danh sách phiên phân tích AI...</span>
+            </div>
+          )}
+
+          {!analysesLoading && analyses.length === 0 && (
+            <div className="py-12 text-center text-slate-400 text-sm">
+              Không có phiên phân tích AI nào phù hợp với bộ lọc hiện tại.
+            </div>
+          )}
+
+          {!analysesLoading && analyses.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/10 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                    <th className="pb-3 px-3">Phiên AI & Mô Hình</th>
+                    <th className="pb-3 px-3">Trận Đấu & Người Tạo</th>
+                    <th className="pb-3 px-3">Trạng Thái & Tiến Độ</th>
+                    <th className="pb-3 px-3">Chi Tiết Lỗi / Thời Gian</th>
+                    <th className="pb-3 px-3 text-right">Hành Động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {analyses.map((a) => {
+                    const canRetry =
+                      a.status === 'FAILED' ||
+                      a.status === 'UNSUPPORTED' ||
+                      a.status === 'CANCELLED';
+                    const isRetrying = aiActionLoadingId === a.id;
+
+                    return (
+                      <tr key={a.id} className="hover:bg-white/[0.02] transition-colors">
+                        {/* Phiên AI & Mô Hình */}
+                        <td className="py-4 px-3">
+                          <div className="font-bold text-white text-sm flex items-center gap-2">
+                            <span>Phiên #{a.id}</span>
+                            {a.isCurrent ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[10px] text-emerald-300 font-semibold">
+                                Phiên hiện tại
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] text-slate-400">
+                                Lịch sử cũ
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-purple-300 font-mono text-[11px] mt-0.5">
+                            {a.modelName || 'CoachAI+'} ({a.modelVersion || '2.0'})
+                          </div>
+                        </td>
+
+                        {/* Trận Đấu & Người Tạo */}
+                        <td className="py-4 px-3 max-w-xs">
+                          <div className="font-bold text-white text-xs line-clamp-1">
+                            {a.matchTitle || `${a.playerAName || 'Player A'} vs ${a.playerBName || 'Player B'}`}
+                          </div>
+                          <div className="text-sky-400 text-[11px] mt-0.5">
+                            Trận #{a.matchId} • {a.playerAName} vs {a.playerBName}
+                          </div>
+                          <div className="text-slate-500 text-[11px]">
+                            Chủ sở hữu: {a.ownerEmail || 'Hệ thống'}
+                          </div>
+                        </td>
+
+                        {/* Trạng Thái & Tiến Độ */}
+                        <td className="py-4 px-3">
+                          <div>{getAiStatusBadge(a.status)}</div>
+                          {(a.status === 'PROCESSING' || a.status === 'QUEUED') && (
+                            <div className="mt-2 w-44 space-y-1">
+                              <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                <div
+                                  className="h-full bg-brand transition-all duration-300"
+                                  style={{ width: `${a.progressPercent || 10}%` }}
+                                />
+                              </div>
+                              <div className="text-[10px] text-sky-300 truncate">
+                                {a.progressPercent || 0}% • {a.currentStage || 'Đang khởi tạo...'}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Chi Tiết Lỗi / Thời Gian */}
+                        <td className="py-4 px-3 max-w-xs">
+                          {a.errorCode || a.errorMessage ? (
+                            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 space-y-0.5">
+                              {a.errorCode && (
+                                <div className="font-mono font-bold text-rose-400 text-[11px]">
+                                  Mã lỗi: {a.errorCode}
+                                </div>
+                              )}
+                              {a.errorMessage && (
+                                <div className="text-rose-200/90 text-[11px] line-clamp-2">
+                                  {a.errorMessage}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-slate-400 text-[11px] space-y-0.5">
+                              <div>
+                                Tạo lúc:{' '}
+                                {a.createdAt ? new Date(a.createdAt).toLocaleString('vi-VN') : 'N/A'}
+                              </div>
+                              {a.completedAt && (
+                                <div className="text-emerald-400/80">
+                                  Hoàn tất: {new Date(a.completedAt).toLocaleString('vi-VN')}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Hành Động */}
+                        <td className="py-4 px-3 text-right">
+                          <div className="inline-flex items-center gap-2">
+                            {a.matchId && (
+                              <Link
+                                to={`/matches/${a.matchId}`}
+                                target="_blank"
+                                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-colors border border-white/10"
+                                title="Xem trang chi tiết trận đấu"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </Link>
+                            )}
+
+                            <button
+                              type="button"
+                              disabled={!canRetry || isRetrying}
+                              onClick={() => handleAdminRetryAnalysis(a)}
+                              title={
+                                canRetry
+                                  ? 'Kích hoạt chạy lại khẩn cấp phiên phân tích AI này'
+                                  : 'Chỉ khả dụng cho các phiên bị lỗi (FAILED / UNSUPPORTED) hoặc đã hủy'
+                              }
+                              className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold transition-all flex items-center gap-1.5 disabled:opacity-35 disabled:cursor-not-allowed"
+                            >
+                              {isRetrying ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <>
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <span>Thử lại (Retry)</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

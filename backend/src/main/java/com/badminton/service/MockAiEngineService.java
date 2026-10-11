@@ -97,8 +97,9 @@ public class MockAiEngineService {
 
             if (cancelledAnalyses.contains(analysisId)) return;
 
-            // Kịch bản kiểm thử: Nếu tiêu đề chứa 'fail', mô phỏng lỗi UNSUPPORTED_VIDEO_ANGLE (VS-13)
-            if (match != null && match.getTitle() != null && match.getTitle().toLowerCase().contains("fail")) {
+            // Kịch bản kiểm thử: Nếu tiêu đề chứa 'fail' và không phải phiên retry khẩn cấp từ Admin, mô phỏng lỗi UNSUPPORTED_VIDEO_ANGLE (VS-13)
+            boolean isAdminRetry = analysis.getModelVersion() != null && analysis.getModelVersion().contains("admin_retry");
+            if (!isAdminRetry && match != null && match.getTitle() != null && match.getTitle().toLowerCase().contains("fail")) {
                 log.warn("[MockAiEngine] Kích hoạt kịch bản kiểm thử lỗi UNSUPPORTED_VIDEO_ANGLE cho Analysis ID: {}", analysisId);
                 handleFailure(analysis, matchId, "UNSUPPORTED_VIDEO_ANGLE", "Góc quay video không chuẩn hoặc người chơi bị che khuất trong nhiều khung hình liên tiếp.");
                 return;

@@ -471,6 +471,118 @@ public class AnalysisService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public com.badminton.dto.admin.PagedAnalysisResponse getAllAnalysesForAdmin(String status, int page, int size) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100)
+        );
+
+        org.springframework.data.domain.Page<AiAnalysis> analysisPage;
+        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status.trim())) {
+            analysisPage = aiAnalysisRepository.findByStatusIgnoreCaseOrderByCreatedAtDesc(status.trim(), pageable);
+        } else {
+            analysisPage = aiAnalysisRepository.findAllByOrderByCreatedAtDesc(pageable);
+        }
+
+        java.util.List<com.badminton.dto.admin.AdminAnalysisResponse> items = analysisPage.getContent()
+                .stream()
+                .map(this::toAdminAnalysisResponse)
+                .collect(java.util.stream.Collectors.toList());
+
+        return com.badminton.dto.admin.PagedAnalysisResponse.builder()
+                .data(items)
+                .pagination(com.badminton.common.dto.PaginationMeta.builder()
+                        .page(analysisPage.getNumber())
+                        .size(analysisPage.getSize())
+                        .totalElements(analysisPage.getTotalElements())
+                        .totalPages(analysisPage.getTotalPages())
+                        .build())
+                .build();
+    }
+
+    @Transactional
+    public AnalysisDispatchResponse retryAnalysisForAdmin(Long analysisId) {
+        AiAnalysis oldAnalysis = aiAnalysisRepository.findById(analysisId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ERR_RESOURCE_NOT_FOUND", "Không tìm thấy phiên phân tích AI với ID tương ứng."));
+
+        if (!"FAILED".equalsIgnoreCase(oldAnalysis.getStatus())
+                && !"UNSUPPORTED".equalsIgnoreCase(oldAnalysis.getStatus())
+                && !"CANCELLED".equalsIgnoreCase(oldAnalysis.getStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.AI, "ANALYSIS_NOT_FAILED", "Chỉ có thể thử lại phiên phân tích khi đang ở trạng thái lỗi (FAILED, UNSUPPORTED) hoặc đã hủy (CANCELLED).");
+        }
+
+        Match match = oldAnalysis.getMatch();
+        Long matchId = match.getId();
+
+        aiAnalysisRepository.demoteAllCurrentByMatchId(matchId);
+
+        AiAnalysis newAnalysis = AiAnalysis.builder()
+                .match(match)
+                .video(oldAnalysis.getVideo())
+                .status("QUEUED")
+                .modelName("CoachAI+")
+                .modelVersion("2.0_pbl6_coachai_admin_retry")
+                .isCurrent(true)
+                .build();
+
+        AiAnalysis savedNewAnalysis = aiAnalysisRepository.saveAndFlush(newAnalysis);
+
+        match.setStatus("ANALYZING");
+        matchRepository.saveAndFlush(match);
+
+        mockAiEngineService.runMockAnalysis(savedNewAnalysis.getId());
+        log.info("[Admin AI Monitor] Đã kích hoạt chạy lại khẩn cấp phiên phân tích AI cũ ID={} -> phiên mới ID={} cho Match ID={}",
+                analysisId, savedNewAnalysis.getId(), matchId);
+
+        return AnalysisDispatchResponse.builder()
+                .analysisId(savedNewAnalysis.getId())
+                .matchId(matchId)
+                .status("QUEUED")
+                .message("Quản trị viên đã kích hoạt chạy lại phiên phân tích AI thành công và đưa vào hàng đợi xử lý.")
+                .queuedAt(OffsetDateTime.now())
+                .build();
+    }
+
+    private com.badminton.dto.admin.AdminAnalysisResponse toAdminAnalysisResponse(AiAnalysis a) {
+        Match match = a.getMatch();
+        Video video = a.getVideo();
+        int progress = mockAiEngineService.getProgress(a.getId());
+        String currentStage = mockAiEngineService.getCurrentStage(a.getId());
+
+        if ("COMPLETED".equalsIgnoreCase(a.getStatus())) {
+            progress = 100;
+            currentStage = "completed: Phân tích hoàn tất";
+        } else if ("FAILED".equalsIgnoreCase(a.getStatus()) || "UNSUPPORTED".equalsIgnoreCase(a.getStatus())) {
+            progress = 0;
+            currentStage = "failed: Phiên phân tích gặp sự cố";
+        } else if ("CANCELLED".equalsIgnoreCase(a.getStatus())) {
+            progress = 0;
+            currentStage = "cancelled: Đã hủy";
+        }
+
+        return com.badminton.dto.admin.AdminAnalysisResponse.builder()
+                .id(a.getId())
+                .matchId(match != null ? match.getId() : null)
+                .matchTitle(match != null ? match.getTitle() : null)
+                .playerAName(match != null ? match.getPlayerAName() : null)
+                .playerBName(match != null ? match.getPlayerBName() : null)
+                .ownerEmail(match != null && match.getOwner() != null ? match.getOwner().getEmail() : null)
+                .videoId(video != null ? video.getId() : null)
+                .status(a.getStatus())
+                .modelName(a.getModelName())
+                .modelVersion(a.getModelVersion())
+                .progressPercent(progress)
+                .currentStage(currentStage)
+                .startedAt(a.getStartedAt())
+                .completedAt(a.getCompletedAt())
+                .errorCode(a.getErrorCode())
+                .errorMessage(a.getErrorMessage())
+                .isCurrent(a.getIsCurrent())
+                .createdAt(a.getCreatedAt())
+                .build();
+    }
+
     private <T> java.util.List<T> parseJsonList(com.fasterxml.jackson.databind.ObjectMapper mapper, String json, Class<T> clazz) {
         if (json == null || json.isBlank()) return java.util.Collections.emptyList();
         try {

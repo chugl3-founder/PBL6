@@ -325,6 +325,22 @@
 
 ---
 
+## 13. Module Giám Sát Phân Tích AI & Retry Khẩn Cấp Từ Admin (VS-18)
+
+*Các API liên quan:*
+- `GET /api/admin/ai-analyses?status={status}&page=0&size=10`: Admin giám sát toàn bộ các phiên phân tích AI trong hệ thống và lọc theo trạng thái (`QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`, `CANCELLED`) (FR-M08-06, FR-M08-07).
+- `POST /api/admin/ai-analyses/{id}/retry`: Admin kích hoạt chạy lại khẩn cấp phiên phân tích AI bị lỗi (`FAILED` / `UNSUPPORTED`) hoặc đã hủy (`CANCELLED`) (FR-M08-11).
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-ADM-AI-01** | Người dùng thường (`ROLE_USER`) truy cập `/api/admin/ai-analyses` bị chặn | `GET /api/admin/ai-analyses` (Bearer Token `ROLE_USER`) | **403 Forbidden** | Bắt lỗi phân quyền Spring Security: từ chối truy cập API giám sát AI của Admin. | ✅ **PASS** |
+| **TC-ADM-AI-02** | Admin lấy danh sách toàn bộ phiên phân tích AI | `GET /api/admin/ai-analyses?page=0&size=20` (Bearer Token `ROLE_ADMIN`) | **200 OK** | Trả về `PagedAnalysisResponse` gồm danh sách `AdminAnalysisResponse` kèm tên trận đấu, chủ sở hữu, tiến độ, mã lỗi và `pagination`. | ✅ **PASS** |
+| **TC-ADM-AI-03** | Admin lọc riêng các phiên phân tích AI bị lỗi (`FAILED`) | `GET /api/admin/ai-analyses?status=FAILED&page=0&size=20` | **200 OK** | Chỉ trả về các bản ghi có `status: "FAILED"` kèm `errorCode` và `errorMessage`. | ✅ **PASS** |
+| **TC-ADM-AI-04** | Admin kích hoạt chạy lại khẩn cấp (Retry) phiên AI bị `FAILED` | `POST /api/admin/ai-analyses/{failedId}/retry` | **202 Accepted** | Khởi tạo phiên phân tích mới với `status: "QUEUED"`, `isCurrent: true`, hạ `isCurrent: false` cho phiên cũ và chạy tiến trình ngầm hoàn tất `COMPLETED`. | ✅ **PASS** |
+| **TC-ADM-AI-05** | Chặn Admin bấm Retry trên phiên đã `COMPLETED` | `POST /api/admin/ai-analyses/{completedId}/retry` | **400 Bad Request** | Bắt lỗi `ANALYSIS_NOT_FAILED`: "Chỉ có thể thử lại phiên phân tích khi đang ở trạng thái lỗi (FAILED, UNSUPPORTED) hoặc đã hủy (CANCELLED)." | ✅ **PASS** |
+
+---
+
 *(Tài liệu này được tự động cập nhật liên tục đồng bộ cùng Postman Collection `badminton-api.postman_collection.json`).*
 
 

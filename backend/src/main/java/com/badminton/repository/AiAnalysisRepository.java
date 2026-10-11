@@ -1,6 +1,8 @@
 package com.badminton.repository;
 
 import com.badminton.entity.AiAnalysis;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -15,6 +17,10 @@ public interface AiAnalysisRepository extends JpaRepository<AiAnalysis, Long> {
     List<AiAnalysis> findByMatchIdOrderByCreatedAtDesc(Long matchId);
 
     Optional<AiAnalysis> findTopByMatchIdOrderByCreatedAtDesc(Long matchId);
+
+    Page<AiAnalysis> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    Page<AiAnalysis> findByStatusIgnoreCaseOrderByCreatedAtDesc(String status, Pageable pageable);
 
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
     @org.springframework.data.jpa.repository.Query("UPDATE AiAnalysis a SET a.isCurrent = false WHERE a.match.id = :matchId")
