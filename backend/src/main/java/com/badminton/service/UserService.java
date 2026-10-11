@@ -171,4 +171,86 @@ public class UserService {
                         "Không tìm thấy thông tin người dùng."
                 ));
     }
+
+    @Transactional(readOnly = true)
+    public com.badminton.dto.admin.PagedUserResponse getAllUsersForAdmin(String search, String status, int page, int size) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                page,
+                size,
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")
+        );
+        String cleanSearch = (search != null) ? search.trim() : "";
+
+        org.springframework.data.domain.Page<User> userPage;
+        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
+            userPage = userRepository.searchUsersByStatus(status.trim().toUpperCase(), cleanSearch, pageable);
+        } else {
+            userPage = userRepository.searchUsers(cleanSearch, pageable);
+        }
+
+        List<UserResponse> data = userPage.getContent().stream()
+                .map(authService::mapToUserResponse)
+                .toList();
+
+        com.badminton.common.dto.PaginationMeta pagination = com.badminton.common.dto.PaginationMeta.builder()
+                .page(userPage.getNumber())
+                .size(userPage.getSize())
+                .totalElements(userPage.getTotalElements())
+                .totalPages(userPage.getTotalPages())
+                .build();
+
+        return com.badminton.dto.admin.PagedUserResponse.builder()
+                .data(data)
+                .pagination(pagination)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getUserByIdForAdmin(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_USER_NOT_FOUND",
+                        "Không tìm thấy người dùng với ID: " + id
+                ));
+        return authService.mapToUserResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateUserStatusForAdmin(Long id, String targetStatus, String adminEmail) {
+        if (targetStatus == null || (!"ACTIVE".equalsIgnoreCase(targetStatus.trim()) && !"LOCKED".equalsIgnoreCase(targetStatus.trim()))) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    ErrorType.VALIDATION,
+                    "ERR_INVALID_USER_STATUS",
+                    "Trạng thái không hợp lệ. Chỉ chấp nhận ACTIVE hoặc LOCKED."
+            );
+        }
+
+        String normalizedStatus = targetStatus.trim().toUpperCase();
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        ErrorType.VALIDATION,
+                        "ERR_USER_NOT_FOUND",
+                        "Không tìm thấy người dùng với ID: " + id
+                ));
+
+        if (user.getEmail().equalsIgnoreCase(adminEmail) && "LOCKED".equals(normalizedStatus)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    ErrorType.VALIDATION,
+                    "ERR_CANNOT_LOCK_SELF",
+                    "Quản trị viên không thể tự khóa tài khoản của chính mình."
+            );
+        }
+
+        user.setStatus(normalizedStatus);
+        User saved = userRepository.save(user);
+        log.info("Admin {} đã cập nhật trạng thái tài khoản userId={} ({}) thành {}", adminEmail, id, user.getEmail(), normalizedStatus);
+
+        return authService.mapToUserResponse(saved);
+    }
 }

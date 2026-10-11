@@ -1,5 +1,7 @@
 package com.badminton.config;
 
+import com.badminton.entity.User;
+import com.badminton.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +18,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -24,6 +28,7 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(
@@ -37,6 +42,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(jwt) && jwtTokenProvider.validateToken(jwt)) {
                 String email = jwtTokenProvider.getEmailFromToken(jwt);
                 String role = jwtTokenProvider.getRoleFromToken(jwt);
+
+                Optional<User> userOpt = userRepository.findByEmail(email);
+                if (userOpt.isPresent() && "LOCKED".equalsIgnoreCase(userOpt.get().getStatus())) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json;charset=UTF-8");
+                    String errorJson = String.format(
+                            "{\"errorType\":\"SYSTEM\",\"code\":\"AUTH_ACCOUNT_LOCKED\",\"message\":\"Tài khoản của bạn đã bị khóa bởi quản trị viên.\",\"timestamp\":\"%s\"}",
+                            Instant.now().toString()
+                    );
+                    response.getWriter().write(errorJson);
+                    return;
+                }
 
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role);
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -63,4 +80,3 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 }
-

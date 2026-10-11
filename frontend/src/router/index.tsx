@@ -81,6 +81,22 @@ export const AppRouter: React.FC = () => {
             </RoleGuard>
           }
         />
+        <Route
+          path="admin/matches"
+          element={
+            <RoleGuard allowedRoles={['ROLE_ADMIN']}>
+              <AdminDashboardPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="admin/users"
+          element={
+            <RoleGuard allowedRoles={['ROLE_ADMIN']}>
+              <AdminDashboardPage />
+            </RoleGuard>
+          }
+        />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

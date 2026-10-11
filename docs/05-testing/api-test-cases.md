@@ -307,7 +307,26 @@
 
 ---
 
+## 12. Module Quản Lý Người Dùng & Khóa/Mở Khóa Tài Khoản (VS-17)
+
+*Các API liên quan:*
+- `GET /api/admin/users?search={keyword}&status={status}&page=0&size=10`: Admin lấy danh sách người dùng có phân trang, tìm kiếm và lọc trạng thái (FR-M08-02).
+- `GET /api/admin/users/{id}`: Admin xem thông tin chi tiết một người dùng (FR-M08-03).
+- `PUT /api/admin/users/{id}/status`: Admin khóa (`LOCKED`) hoặc mở khóa (`ACTIVE`) tài khoản người dùng (FR-M08-04).
+
+| Mã Test Case | Tên Kịch Bản | Dữ Liệu Đầu Vào (Payload) | Mã Lỗi / HTTP Status | Kết Quả Mong Đợi (Expected Response) | Đánh Giá (Pass/Fail) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-ADM-USR-01** | Admin lấy danh sách toàn bộ người dùng | `GET /api/admin/users?page=0&size=10` (Bearer Token `ROLE_ADMIN`) | **200 OK** | Trả về `PagedUserResponse` gồm danh sách `UserResponse` và `pagination`. | ✅ **PASS** |
+| **TC-ADM-USR-02** | Admin tìm kiếm người dùng theo từ khóa | `GET /api/admin/users?search=admin&page=0&size=10` | **200 OK** | Trả về danh sách người dùng khớp với email hoặc họ tên chứa từ khóa. | ✅ **PASS** |
+| **TC-ADM-USR-03** | Admin xem chi tiết người dùng theo ID | `GET /api/admin/users/1` (Bearer Token `ROLE_ADMIN`) | **200 OK** | Trả về `UserResponse` đầy đủ thông tin người dùng. | ✅ **PASS** |
+| **TC-ADM-USR-04** | Admin khóa tài khoản người dùng vi phạm | `PUT /api/admin/users/{userId}/status` với `{ "status": "LOCKED" }` | **200 OK** | Cập nhật `status: "LOCKED"` trong DB. Mọi request tiếp theo dùng token của user bị khóa đều trả về `403 Forbidden` (`AUTH_ACCOUNT_LOCKED`). | ✅ **PASS** |
+| **TC-ADM-USR-05** | Admin mở khóa tài khoản người dùng | `PUT /api/admin/users/{userId}/status` với `{ "status": "ACTIVE" }` | **200 OK** | Cập nhật `status: "ACTIVE"`, người dùng đăng nhập và truy cập lại bình thường. | ✅ **PASS** |
+| **TC-ADM-USR-06** | Chặn Admin tự khóa chính tài khoản của mình | `PUT /api/admin/users/{adminId}/status` với `{ "status": "LOCKED" }` | **400 Bad Request** | Bắt lỗi `ERR_CANNOT_LOCK_SELF`: "Quản trị viên không thể tự khóa tài khoản của chính mình." | ✅ **PASS** |
+
+---
+
 *(Tài liệu này được tự động cập nhật liên tục đồng bộ cùng Postman Collection `badminton-api.postman_collection.json`).*
+
 
 
 
