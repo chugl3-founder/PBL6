@@ -30,5 +30,7 @@ public class RallyResponse {
     private String scoreText;
     private List<String> strokeSequence;
     private Boolean isComplete;
+    private Boolean partialStart;
+    private Boolean partialEnd;
 }
 

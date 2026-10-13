@@ -223,52 +223,72 @@ export const MatchDetailPage: React.FC = () => {
     setUploadProgress(0);
 
     try {
-      // BƯỚC 1: Xin S3 Presigned URL từ Backend
-      const presignRes = await apiClient.post(`/matches/${id}/videos/upload-url`, {
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        mimeType: selectedFile.type || 'video/mp4'
-      });
+      let uploadSuccess = false;
 
-      const { uploadUrl, storagePath } = presignRes.data;
+      // CÁCH 1: Thử S3 Presigned URL
+      try {
+        const presignRes = await apiClient.post(`/matches/${id}/videos/upload-url`, {
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          mimeType: selectedFile.type || 'video/mp4'
+        });
 
-      // BƯỚC 2: Tải trực tiếp Binary lên MinIO bằng HTTP PUT
-      setUploadStatus('uploading');
-      let startTime = Date.now();
-      let lastLoaded = 0;
+        const { uploadUrl, storagePath } = presignRes.data;
 
-      await axios.put(uploadUrl, selectedFile, {
-        headers: {
-          'Content-Type': selectedFile.type || 'video/mp4'
-        },
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(percent);
+        setUploadStatus('uploading');
+        let startTime = Date.now();
+        let lastLoaded = 0;
 
-            // Tính toán tốc độ
-            const elapsedSec = (Date.now() - startTime) / 1000;
-            if (elapsedSec > 0.5) {
-              const bytesPerSec = (progressEvent.loaded - lastLoaded) / elapsedSec;
-              const mbps = (bytesPerSec / (1024 * 1024)).toFixed(1);
-              setUploadSpeed(`${mbps} MB/s`);
-              startTime = Date.now();
-              lastLoaded = progressEvent.loaded;
+        await axios.put(uploadUrl, selectedFile, {
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percent);
+
+              const elapsedSec = (Date.now() - startTime) / 1000;
+              if (elapsedSec > 0.5) {
+                const bytesPerSec = (progressEvent.loaded - lastLoaded) / elapsedSec;
+                const mbps = (bytesPerSec / (1024 * 1024)).toFixed(1);
+                setUploadSpeed(`${mbps} MB/s`);
+                startTime = Date.now();
+                lastLoaded = progressEvent.loaded;
+              }
             }
           }
-        }
-      });
+        });
 
-      // BƯỚC 3: Xác nhận hoàn tất với Backend
-      setUploadStatus('verifying');
-      const completeRes = await apiClient.post(`/matches/${id}/videos/complete`, {
-        storagePath,
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size
-      });
+        setUploadStatus('verifying');
+        const completeRes = await apiClient.post(`/matches/${id}/videos/complete`, {
+          storagePath,
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size
+        });
 
-      setVideo(completeRes.data);
-      if (match) {
+        setVideo(completeRes.data);
+        uploadSuccess = true;
+      } catch (presignErr) {
+        console.warn('Presigned PUT không khả dụng, tự động chuyển sang Direct Upload:', presignErr);
+
+        // CÁCH 2: Tự động Fallback sang Direct Upload qua Backend
+        setUploadStatus('uploading');
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const directRes = await apiClient.post(`/matches/${id}/videos/direct-upload`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percent);
+            }
+          }
+        });
+
+        setVideo(directRes.data);
+        uploadSuccess = true;
+      }
+
+      if (uploadSuccess && match) {
         setMatch({ ...match, status: 'READY' });
       }
       setUploadStatus('idle');

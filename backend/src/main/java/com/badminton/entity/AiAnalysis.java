@@ -108,6 +108,31 @@ public class AiAnalysis {
     @Column(name = "timing_seconds", columnDefinition = "jsonb")
     private String timingSeconds;
 
+    @Column(name = "result_schema_version", length = 50)
+    private String resultSchemaVersion;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "raw_result", columnDefinition = "jsonb")
+    private String rawResult;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "scoreboard_data", columnDefinition = "jsonb")
+    private String scoreboardData;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "scoreboard_ocr_data", columnDefinition = "jsonb")
+    private String scoreboardOcrData;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "suppression_audit", columnDefinition = "jsonb")
+    private String suppressionAudit;
+
+    @Column(name = "worker_job_id", length = 100)
+    private String workerJobId;
+
+    @Column(name = "ingested_at")
+    private OffsetDateTime ingestedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

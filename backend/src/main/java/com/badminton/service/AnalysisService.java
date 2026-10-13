@@ -34,6 +34,7 @@ public class AnalysisService {
     private final com.badminton.repository.RallyRepository rallyRepository;
     private final com.badminton.repository.MatchStatisticRepository matchStatisticRepository;
     private final MockAiEngineService mockAiEngineService;
+    private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
 
     @Transactional
     public AnalysisDispatchResponse dispatchAnalysis(Long matchId, String userEmail) {
@@ -74,11 +75,26 @@ public class AnalysisService {
         match.setStatus("ANALYZING");
         matchRepository.saveAndFlush(match);
 
-        // Kích hoạt Mock AI Engine phân tích bất đồng bộ (hoặc bắn RabbitMQ cho external worker)
-        mockAiEngineService.runMockAnalysis(savedAnalysis.getId());
+        // Gửi Analysis Job lên CloudAMQP cho external AI Worker (GPU)
+        boolean sentToRabbit = false;
+        try {
+            java.util.Map<String, Object> job = new java.util.HashMap<>();
+            job.put("analysisId", savedAnalysis.getId());
+            job.put("matchId", matchId);
+            job.put("videoStoragePath", video.getStoragePath());
 
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String payload = mapper.writeValueAsString(job);
+            rabbitTemplate.convertAndSend(com.badminton.config.RabbitMQConfig.EXCHANGE_NAME, com.badminton.config.RabbitMQConfig.ROUTING_KEY, payload);
+            sentToRabbit = true;
+            log.info("Đã gửi Analysis Job lên CloudAMQP cho external AI Worker: {}", payload);
+        } catch (Exception e) {
+            log.warn("Không thể gửi lên RabbitMQ ({}), fallback sang MockAiEngine.", e.getMessage());
+        }
 
-        log.info("Đã điều phối phân tích AI thành công cho Match ID: {}, Analysis ID: {}", matchId, savedAnalysis.getId());
+        if (!sentToRabbit) {
+            mockAiEngineService.runMockAnalysis(savedAnalysis.getId());
+        }
 
         return AnalysisDispatchResponse.builder()
                 .analysisId(savedAnalysis.getId())
@@ -119,6 +135,9 @@ public class AnalysisService {
             currentStage = "completed";
         } else if ("FAILED".equalsIgnoreCase(analysis.getStatus())) {
             currentStage = "failed";
+        } else if ("PROCESSING".equalsIgnoreCase(analysis.getStatus()) && progress == 0) {
+            progress = 50;
+            currentStage = "Đang xử lý phân tích AI qua GPU Worker";
         }
 
         return AnalysisStatusResponse.builder()
@@ -160,11 +179,13 @@ public class AnalysisService {
             return (com.badminton.dto.analysis.AiEventResponse) com.badminton.dto.analysis.AiEventResponse.builder()
                     .id(e.getId())
                     .eventOrder(e.getEventOrder())
+                    .rallyNumber(e.getRallyNumber())
                     .startFrame(e.getStartFrame())
                     .hitFrame(e.getHitFrame())
                     .endFrame(e.getEndFrame())
                     .timeSeconds(e.getTimeSeconds())
                     .playerSide(e.getPlayerSide())
+                    .hitterName(e.getHitterName())
                     .stroke(e.getStroke())
                     .strokeSide(e.getStrokeSide())
                     .confidence(e.getConfidence())
@@ -174,6 +195,8 @@ public class AnalysisService {
                     .ballRound(e.getBallRound())
                     .gapFromPreviousHitSeconds(e.getGapFromPreviousHitSeconds())
                     .top2(top2)
+                    .ttaUsed(e.getTtaUsed())
+                    .ttaWindows(e.getTtaWindows())
                     .cropBox(cropBox)
                     .playerPositionCourt(playerPos)
                     .opponentPositionCourt(oppPos)
@@ -230,6 +253,8 @@ public class AnalysisService {
                     .scoreText(r.getScoreText())
                     .strokeSequence(strokeSeq)
                     .isComplete(r.getIsComplete())
+                    .partialStart(r.getPartialStart())
+                    .partialEnd(r.getPartialEnd())
                     .build();
         }).collect(java.util.stream.Collectors.toList());
     }

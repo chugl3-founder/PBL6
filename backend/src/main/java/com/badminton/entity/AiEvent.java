@@ -29,6 +29,9 @@ public class AiEvent {
     @Column(name = "event_order", nullable = false)
     private Integer eventOrder;
 
+    @Column(name = "rally_number")
+    private Integer rallyNumber;
+
     @Column(name = "start_frame", nullable = false)
     private Integer startFrame;
 
@@ -43,6 +46,9 @@ public class AiEvent {
 
     @Column(name = "player_side", nullable = false, length = 20)
     private String playerSide; // UPPER, LOWER
+
+    @Column(name = "hitter_name", length = 100)
+    private String hitterName;
 
     @Column(nullable = false, length = 50)
     private String stroke; // SERVE, SMASH, CLEAR, DROP, LIFT, DRIVE, NET_SHOT, NET_ATTACK, PUSH, UNKNOWN
@@ -73,6 +79,12 @@ public class AiEvent {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "top2", columnDefinition = "jsonb")
     private String top2;
+
+    @Column(name = "tta_used")
+    private Boolean ttaUsed;
+
+    @Column(name = "tta_windows")
+    private Integer ttaWindows;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "crop_box", columnDefinition = "jsonb")

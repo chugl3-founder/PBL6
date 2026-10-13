@@ -15,11 +15,13 @@ import java.util.List;
 public class AiEventResponse {
     private Long id;
     private Integer eventOrder;
+    private Integer rallyNumber;
     private Integer startFrame;
     private Integer hitFrame;
     private Integer endFrame;
     private BigDecimal timeSeconds;
     private String playerSide; // UPPER, LOWER
+    private String hitterName;
     private String stroke; // SERVE, SMASH, CLEAR, DROP, LIFT, DRIVE, NET_SHOT, NET_ATTACK, PUSH, UNKNOWN
     private String strokeSide; // FOREHAND, BACKHAND, AROUNDHEAD, UNKNOWN
     private BigDecimal confidence;
@@ -29,6 +31,8 @@ public class AiEventResponse {
     private Integer ballRound;
     private BigDecimal gapFromPreviousHitSeconds;
     private List<String> top2;
+    private Boolean ttaUsed;
+    private Integer ttaWindows;
     private List<Integer> cropBox;
     private List<Double> playerPositionCourt; // [x, y] normalized 0..1
     private List<Double> opponentPositionCourt; // [x, y] normalized 0..1

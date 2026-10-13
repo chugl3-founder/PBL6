@@ -60,6 +60,9 @@ public class Video {
     @Column(precision = 5, scale = 2)
     private BigDecimal fps;
 
+    @Column(name = "total_frames")
+    private Integer totalFrames;
+
     @Column(nullable = false, length = 20)
     @Builder.Default
     private String status = "UPLOADING"; // UPLOADING, UPLOADED, READY, FAILED
