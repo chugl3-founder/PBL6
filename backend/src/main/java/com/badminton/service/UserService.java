@@ -7,19 +7,22 @@ import com.badminton.dto.user.AvatarResponse;
 import com.badminton.dto.user.UpdateProfileRequest;
 import com.badminton.entity.User;
 import com.badminton.repository.UserRepository;
-import io.minio.BucketExistsArgs;
-import io.minio.MakeBucketArgs;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import com.badminton.config.S3Properties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -31,13 +34,9 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AuthService authService;
-    private final MinioClient minioClient;
-
-    @Value("${minio.bucket.avatars:badminton-avatars}")
-    private String avatarBucket;
-
-    @Value("${minio.public-url:http://localhost:9000}")
-    private String minioPublicUrl;
+    private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
+    private final S3Properties s3Properties;
 
     private static final List<String> ALLOWED_IMAGE_TYPES = Arrays.asList(
             "image/jpeg",
@@ -111,14 +110,6 @@ public class UserService {
         User user = findUserByEmail(email);
 
         try {
-            // Đảm bảo bucket tồn tại
-            boolean bucketExists = minioClient.bucketExists(
-                    BucketExistsArgs.builder().bucket(avatarBucket).build()
-            );
-            if (!bucketExists) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(avatarBucket).build());
-            }
-
             // Đặt tên file duy nhất theo UUID
             String originalFilename = file.getOriginalFilename();
             String extension = ".jpg";
@@ -127,20 +118,38 @@ public class UserService {
             }
             String objectName = "user-" + user.getId() + "-" + UUID.randomUUID() + extension;
 
-            // Upload lên MinIO
+            String avatarBucket = (s3Properties.bucket() != null && s3Properties.bucket().avatars() != null)
+                    ? s3Properties.bucket().avatars()
+                    : "badminton-avatars";
+            String publicUrl = s3Properties.publicUrl() != null ? s3Properties.publicUrl() : "";
+
+            // Upload lên S3
+            PutObjectRequest putReq = PutObjectRequest.builder()
+                    .bucket(avatarBucket)
+                    .key(objectName)
+                    .contentType(contentType)
+                    .build();
+
             try (InputStream is = file.getInputStream()) {
-                minioClient.putObject(
-                        PutObjectArgs.builder()
-                                .bucket(avatarBucket)
-                                .object(objectName)
-                                .stream(is, file.getSize(), -1)
-                                .contentType(contentType)
-                                .build()
-                );
+                s3Client.putObject(putReq, RequestBody.fromInputStream(is, file.getSize()));
             }
 
-            // Tạo public URL truy cập avatar
-            String avatarUrl = minioPublicUrl + "/" + avatarBucket + "/" + objectName;
+            // Tạo presigned GET URL truy cập avatar (7 ngày)
+            String avatarUrl;
+            try {
+                GetObjectRequest getReq = GetObjectRequest.builder()
+                        .bucket(avatarBucket)
+                        .key(objectName)
+                        .build();
+                avatarUrl = s3Presigner.presignGetObject(
+                        GetObjectPresignRequest.builder()
+                                .signatureDuration(Duration.ofDays(7))
+                                .getObjectRequest(getReq)
+                                .build()
+                ).url().toString();
+            } catch (Exception ex) {
+                avatarUrl = publicUrl + "/" + avatarBucket + "/" + objectName;
+            }
 
             user.setAvatarUrl(avatarUrl);
             userRepository.save(user);
@@ -152,7 +161,7 @@ public class UserService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Lỗi khi upload avatar lên MinIO cho user {}: {}", email, e.getMessage(), e);
+            log.error("Lỗi khi upload avatar lên S3 cho user {}: {}", email, e.getMessage(), e);
             throw new ApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     ErrorType.SYSTEM,

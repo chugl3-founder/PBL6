@@ -12,23 +12,25 @@ import com.badminton.entity.Video;
 import com.badminton.repository.MatchRepository;
 import com.badminton.repository.UserRepository;
 import com.badminton.repository.VideoRepository;
-import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.MinioClient;
-import io.minio.StatObjectArgs;
-import io.minio.StatObjectResponse;
-import io.minio.http.Method;
+import com.badminton.config.S3Properties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -37,14 +39,9 @@ public class VideoService {
     private final MatchRepository matchRepository;
     private final VideoRepository videoRepository;
     private final UserRepository userRepository;
-    private final MinioClient minioClient;
-    private final MinioClient minioPresignerClient;
-
-    @Value("${minio.bucket.videos:badminton-videos}")
-    private String videoBucket;
-
-    @Value("${minio.public-url:http://localhost:9000}")
-    private String minioPublicUrl;
+    private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
+    private final S3Properties s3Properties;
 
     // Giới hạn dung lượng tối đa 500MB theo NFR-VID-01
     private static final long MAX_VIDEO_SIZE = 500L * 1024 * 1024;
@@ -61,14 +58,26 @@ public class VideoService {
             MatchRepository matchRepository,
             VideoRepository videoRepository,
             UserRepository userRepository,
-            @Qualifier("minioClient") MinioClient minioClient,
-            @Qualifier("minioPresignerClient") MinioClient minioPresignerClient
+            S3Client s3Client,
+            S3Presigner s3Presigner,
+            S3Properties s3Properties
     ) {
         this.matchRepository = matchRepository;
         this.videoRepository = videoRepository;
         this.userRepository = userRepository;
-        this.minioClient = minioClient;
-        this.minioPresignerClient = minioPresignerClient;
+        this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
+        this.s3Properties = s3Properties;
+    }
+
+    private String getVideoBucket() {
+        return (s3Properties.bucket() != null && s3Properties.bucket().videos() != null)
+                ? s3Properties.bucket().videos()
+                : "badminton-videos";
+    }
+
+    private String getPublicUrl() {
+        return s3Properties.publicUrl() != null ? s3Properties.publicUrl() : "";
     }
 
     @Transactional
@@ -78,22 +87,21 @@ public class VideoService {
         checkOwnership(match, user);
 
         // 1. Kiểm tra giới hạn dung lượng 500MB (NFR-VID-01)
-        if (request.getFileSize() > MAX_VIDEO_SIZE) {
+        if (request.getFileSize() != null && request.getFileSize() > MAX_VIDEO_SIZE) {
             log.warn("Dung lượng video vượt quá 500MB: matchId={}, size={}", matchId, request.getFileSize());
             throw new ApiException(
-                    HttpStatus.PAYLOAD_TOO_LARGE,
+                    HttpStatus.BAD_REQUEST,
                     ErrorType.VALIDATION,
-                    "ERR_PAYLOAD_TOO_LARGE",
-                    "Dung lượng video vượt quá giới hạn tối đa cho phép (500MB)."
+                    "ERR_VIDEO_TOO_LARGE",
+                    "Dung lượng video không được vượt quá 500MB."
             );
         }
 
-        // 2. Kiểm tra định dạng phần mở rộng
-        String fileName = request.getFileName().trim();
+        // 2. Kiểm tra định dạng file mở rộng
+        String fileName = request.getFileName();
         String ext = "";
-        int dotIdx = fileName.lastIndexOf('.');
-        if (dotIdx >= 0) {
-            ext = fileName.substring(dotIdx).toLowerCase(Locale.ROOT);
+        if (fileName != null && fileName.lastIndexOf(".") != -1) {
+            ext = fileName.substring(fileName.lastIndexOf(".")).toLowerCase(Locale.ROOT);
         }
 
         if (!ALLOWED_EXTENSIONS.contains(ext)) {
@@ -112,15 +120,17 @@ public class VideoService {
         // 4. Sinh S3 Presigned PUT URL thời hạn 15 phút (900s)
         String uploadUrl;
         try {
-            uploadUrl = minioPresignerClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.PUT)
-                            .bucket(videoBucket)
-                            .object(storagePath)
-                            .region("us-east-1")
-                            .expiry(15, TimeUnit.MINUTES)
-                            .build()
-            );
+            PutObjectRequest putReq = PutObjectRequest.builder()
+                    .bucket(getVideoBucket())
+                    .key(storagePath)
+                    .build();
+
+            PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(15))
+                    .putObjectRequest(putReq)
+                    .build();
+
+            uploadUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
         } catch (Exception e) {
             log.error("Không thể sinh Presigned Upload URL: matchId={}, err={}", matchId, e.getMessage(), e);
             throw new ApiException(
@@ -159,18 +169,18 @@ public class VideoService {
         Match match = findMatchById(matchId);
         checkOwnership(match, user);
 
-        // 1. Kiểm tra sự tồn tại thực tế của file trên MinIO
-        StatObjectResponse stat;
+        // 1. Kiểm tra sự tồn tại thực tế của file trên S3
+        HeadObjectResponse stat;
         try {
-            stat = minioClient.statObject(
-                    StatObjectArgs.builder()
-                            .bucket(videoBucket)
-                            .object(request.getStoragePath())
+            stat = s3Client.headObject(
+                    HeadObjectRequest.builder()
+                            .bucket(getVideoBucket())
+                            .key(request.getStoragePath())
                             .build()
             );
         } catch (Exception e) {
-            log.error("Kiểm tra file trên MinIO thất bại: bucket={}, path={}, err={}",
-                    videoBucket, request.getStoragePath(), e.getMessage());
+            log.error("Kiểm tra file trên S3 thất bại: bucket={}, path={}, err={}",
+                    getVideoBucket(), request.getStoragePath(), e.getMessage());
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     ErrorType.VALIDATION,
@@ -187,7 +197,7 @@ public class VideoService {
 
         video.setFileName(request.getFileName().trim());
         video.setStoragePath(request.getStoragePath().trim());
-        video.setFileSize(stat.size());
+        video.setFileSize(stat.contentLength() != null ? stat.contentLength() : request.getFileSize());
         video.setStatus("READY");
         Video savedVideo = videoRepository.save(video);
 
@@ -195,7 +205,58 @@ public class VideoService {
         match.setStatus("READY");
         matchRepository.save(match);
 
-        log.info("Xác nhận hoàn tất upload video cho match ID={}: size={} bytes", matchId, stat.size());
+        log.info("Xác nhận hoàn tất upload video cho match ID={}: size={} bytes", matchId, stat.contentLength());
+
+        return mapToVideoResponse(savedVideo);
+    }
+
+    @Transactional
+    public VideoResponse uploadVideoDirectly(Long matchId, org.springframework.web.multipart.MultipartFile file, String userEmail) {
+        User user = findUserByEmail(userEmail);
+        Match match = findMatchById(matchId);
+        checkOwnership(match, user);
+
+        String fileName = file.getOriginalFilename();
+        String ext = "";
+        if (fileName != null && fileName.lastIndexOf(".") != -1) {
+            ext = fileName.substring(fileName.lastIndexOf(".")).toLowerCase(Locale.ROOT);
+        }
+
+        String storagePath = "matches/" + matchId + "/" + UUID.randomUUID() + ext;
+
+        try {
+            PutObjectRequest putReq = PutObjectRequest.builder()
+                    .bucket(getVideoBucket())
+                    .key(storagePath)
+                    .build();
+
+            s3Client.putObject(putReq, software.amazon.awssdk.core.sync.RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+        } catch (Exception e) {
+            log.error("Tải video lên S3 trực tiếp thất bại: matchId={}, err={}", matchId, e.getMessage(), e);
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    ErrorType.SYSTEM,
+                    "ERR_S3_UPLOAD_FAILED",
+                    "Không thể lưu trữ file video lên hệ thống Cloud."
+            );
+        }
+
+        Video video = videoRepository.findByMatchId(matchId)
+                .orElse(Video.builder()
+                        .match(match)
+                        .build());
+
+        video.setFileName(fileName != null ? fileName : "video.mp4");
+        video.setStoragePath(storagePath);
+        video.setFileSize(file.getSize());
+        video.setStatus("READY");
+        Video savedVideo = videoRepository.save(video);
+
+        match.setStatus("READY");
+        matchRepository.save(match);
+
+        log.info("Xác nhận tải video trực tiếp thành công cho match ID={}: storagePath={}, size={}",
+                matchId, storagePath, file.getSize());
 
         return mapToVideoResponse(savedVideo);
     }
@@ -264,7 +325,7 @@ public class VideoService {
 
     private void checkOwnership(Match match, User user) {
         boolean isAdmin = "ROLE_ADMIN".equals(user.getRole());
-        boolean isOwner = match.getOwner().getId().equals(user.getId());
+        boolean isOwner = match.getOwner() != null && match.getOwner().getId().equals(user.getId());
 
         if (!isAdmin && !isOwner) {
             throw new ApiException(
@@ -282,18 +343,20 @@ public class VideoService {
             videoUrl = video.getYoutubeUrl();
         } else {
             try {
-                videoUrl = minioPresignerClient.getPresignedObjectUrl(
-                        GetPresignedObjectUrlArgs.builder()
-                                .method(Method.GET)
-                                .bucket(videoBucket)
-                                .object(video.getStoragePath())
-                                .region("us-east-1")
-                                .expiry(7, TimeUnit.DAYS)
-                                .build()
-                );
+                GetObjectRequest getReq = GetObjectRequest.builder()
+                        .bucket(getVideoBucket())
+                        .key(video.getStoragePath())
+                        .build();
+
+                GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                        .signatureDuration(Duration.ofDays(7))
+                        .getObjectRequest(getReq)
+                        .build();
+
+                videoUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
             } catch (Exception e) {
                 log.warn("Không thể sinh Presigned GET URL cho video, dùng direct public URL: {}", e.getMessage());
-                videoUrl = minioPublicUrl + "/" + videoBucket + "/" + video.getStoragePath();
+                videoUrl = getPublicUrl() + "/" + getVideoBucket() + "/" + video.getStoragePath();
             }
         }
 

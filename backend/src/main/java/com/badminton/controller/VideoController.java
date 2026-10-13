@@ -38,6 +38,16 @@ public class VideoController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping(value = "/videos/direct-upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<VideoResponse> uploadVideoDirectly(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file
+    ) {
+        VideoResponse response = videoService.uploadVideoDirectly(id, file, email);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/video")
     public ResponseEntity<VideoResponse> getVideoMetadata(
             @PathVariable Long id,

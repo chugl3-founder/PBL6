@@ -24,7 +24,7 @@ public class JwtTokenProvider {
 
     public JwtTokenProvider(
             @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}") String secret,
-            @Value("${jwt.expiration-ms:900000}") long accessTokenExpirationMs // Mặc định 15 phút (900,000ms)
+            @Value("${jwt.expiration-ms:604800000}") long accessTokenExpirationMs // 7 ngày (604,800,000ms)
     ) {
         byte[] keyBytes = Decoders.BASE64.decode(secret);
         this.secretKey = Keys.hmacShaKeyFor(keyBytes);

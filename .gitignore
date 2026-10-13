@@ -32,7 +32,9 @@ frontend/.npm/
 
 # AI Worker - Python
 ai-worker/__pycache__/
+ai-worker/**/__pycache__/
 ai-worker/*.pyc
+ai-worker/**/*.pyc
 ai-worker/.pytest_cache/
 ai-worker/venv/
 ai-worker/.venv/
