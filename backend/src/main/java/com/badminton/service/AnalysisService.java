@@ -306,7 +306,8 @@ public class AnalysisService {
             int playerBStrokes = totalStrokes - playerAStrokes;
             int forehands = (int) events.stream().filter(e -> "FOREHAND".equalsIgnoreCase(e.getStrokeSide())).count();
             int backhands = (int) events.stream().filter(e -> "BACKHAND".equalsIgnoreCase(e.getStrokeSide())).count();
-            int aroundheads = totalStrokes - forehands - backhands;
+            int aroundheads = (int) events.stream().filter(e -> "AROUNDHEAD".equalsIgnoreCase(e.getStrokeSide()) || "AROUND_HEAD".equalsIgnoreCase(e.getStrokeSide())).count();
+            int unknownSides = totalStrokes - forehands - backhands - aroundheads;
             double avgConf = events.stream()
                     .filter(e -> e.getConfidence() != null)
                     .mapToDouble(e -> e.getConfidence().doubleValue())
@@ -324,7 +325,7 @@ public class AnalysisService {
                     .forehandCount(forehands)
                     .backhandCount(backhands)
                     .aroundheadCount(aroundheads)
-                    .unknownSideCount(0)
+                    .unknownSideCount(unknownSides)
                     .avgConfidence(java.math.BigDecimal.valueOf(avgConf).setScale(3, java.math.RoundingMode.HALF_UP))
                     .build();
             stats = matchStatisticRepository.save(stats);

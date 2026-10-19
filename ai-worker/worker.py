@@ -240,10 +240,10 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
 
         player_a_strokes = sum(1 for p in predictions if str(p.get("hitter", p.get("player_side", ""))).upper() == "UPPER")
         player_b_strokes = total_strokes - player_a_strokes
-        forehand_cnt = sum(1 for p in predictions if "FOREHAND" in str(p.get("stroke_side", "")).upper())
+        forehand_cnt = sum(1 for p in predictions if ("FOREHAND" in str(p.get("stroke_side", "")).upper() or "AROUNDHEAD" in str(p.get("stroke_side", "")).upper()))
         backhand_cnt = sum(1 for p in predictions if "BACKHAND" in str(p.get("stroke_side", "")).upper())
-        aroundhead_cnt = sum(1 for p in predictions if "AROUNDHEAD" in str(p.get("stroke_side", "")).upper())
-        unknown_side_cnt = total_strokes - forehand_cnt - backhand_cnt - aroundhead_cnt
+        aroundhead_cnt = 0
+        unknown_side_cnt = total_strokes - forehand_cnt - backhand_cnt
         confs = [float(p.get("confidence", 0.85)) for p in predictions]
         avg_conf = (sum(confs) / max(1, len(confs))) if confs else 0.85
 
