@@ -35,11 +35,9 @@ export interface MatchStatisticsData {
     }>;
   };
   tacticalPatterns?: {
-    top_transitions_2gram?: Array<{ from: string; to: string; count: number }>;
-    estimated_winning_combinations?: {
-      upper: string[][];
-      lower: string[][];
-    };
+    top_transitions_2gram?: Array<{ sequence?: string; from?: string; to?: string; count: number }>;
+    top_sequences_3gram?: Array<{ sequence?: string; count: number }>;
+    estimated_winning_combinations?: Record<string, any>;
   };
 }
 
@@ -81,6 +79,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
   compact = false
 }) => {
   const [hoveredSlice, setHoveredSlice] = useState<string | null>(null);
+  const [patternGram, setPatternGram] = useState<'3GRAM' | '2GRAM'>('3GRAM');
 
   // Chuẩn bị dữ liệu biểu đồ tròn phân bố cú đánh
   const distribution = stats.strokeDistribution || {};
@@ -140,11 +139,13 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
   const playerAPercent = Math.round((playerAStrokes / (stats.totalStrokes || 1)) * 100);
   const playerBPercent = 100 - playerAPercent;
 
-  // Thuận tay vs Trái tay vs Khác
-  const totalHandedness = (stats.forehandCount + stats.backhandCount + stats.aroundheadCount) || stats.totalStrokes || 1;
-  const forehandPct = Math.round((stats.forehandCount / totalHandedness) * 100);
-  const backhandPct = Math.round((stats.backhandCount / totalHandedness) * 100);
-  const aroundheadPct = 100 - forehandPct - backhandPct;
+  // Thuận tay vs Trái tay (Gộp Around the head vào Thuận tay / Forehand vì bản chất cơ học là forehand)
+  const effectiveForehand = (stats.forehandCount || 0) + (stats.aroundheadCount || 0);
+  const effectiveBackhand = stats.backhandCount || 0;
+  const knownHandedness = effectiveForehand + effectiveBackhand;
+  const forehandPct = knownHandedness > 0 ? Math.round((effectiveForehand / knownHandedness) * 100) : 0;
+  const backhandPct = knownHandedness > 0 ? (100 - forehandPct) : 0;
+  const hasHandednessData = knownHandedness > 0;
 
   return (
     <div className="space-y-5 pb-4 text-white animate-fade-in">
@@ -358,12 +359,12 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
               <span className="text-[11px] text-white/40 font-mono">Grip</span>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {/* Forehand */}
               <div>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-white/80">Thuận tay (Forehand)</span>
-                  <span className="font-mono font-bold text-emerald-400">{stats.forehandCount} ({forehandPct}%)</span>
+                  <span className="font-mono font-bold text-emerald-400">{effectiveForehand} ({forehandPct}%)</span>
                 </div>
                 <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{ width: `${forehandPct}%` }} />
@@ -374,23 +375,19 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
               <div>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-white/80">Trái tay (Backhand)</span>
-                  <span className="font-mono font-bold text-cyan-400">{stats.backhandCount} ({backhandPct}%)</span>
+                  <span className="font-mono font-bold text-cyan-400">{effectiveBackhand} ({backhandPct}%)</span>
                 </div>
                 <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
                   <div className="h-full bg-cyan-400 rounded-full transition-all duration-500" style={{ width: `${backhandPct}%` }} />
                 </div>
               </div>
 
-              {/* Around the head */}
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-white/80">Vòng đầu (Around the head)</span>
-                  <span className="font-mono font-bold text-purple-400">{stats.aroundheadCount} ({aroundheadPct}%)</span>
+              {!hasHandednessData && (
+                <div className="pt-1.5 border-t border-white/5 text-[11px] text-white/40 italic flex items-center justify-between">
+                  <span>* Chưa phát hiện dữ liệu góc mặt vợt (Grip)</span>
+                  <span className="text-white/30 font-mono text-[10px]">{stats.totalStrokes} cú đánh UNKNOWN</span>
                 </div>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-purple-400 rounded-full transition-all duration-500" style={{ width: `${aroundheadPct}%` }} />
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -504,11 +501,18 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         const maxR = 75;
 
         const axisNameVi: Record<string, string> = {
+          'Attack Stroke Share': 'Tấn công',
+          'Defensive Stroke Share': 'Phòng thủ',
+          'Net Stroke Share': 'Gài lưới',
+          'Shot Variety': 'Đa dạng đòn',
+          'Mean Model Confidence': 'Độ chuẩn xác',
+          'Fast Stroke Share': 'Nhịp độ nhanh',
           attack: 'Tấn công',
           defense: 'Phòng thủ',
-          net_play: 'Kiểm soát lưới',
-          consistency: 'Độ ổn định',
-          variation: 'Biến hóa',
+          net_play: 'Gài lưới',
+          consistency: 'Độ chuẩn xác',
+          variation: 'Đa dạng đòn',
+          pace: 'Nhịp độ nhanh',
         };
 
         const getPoint = (idx: number, val: number) => {
@@ -536,7 +540,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-purple-400" />
                 <h3 className="font-bold text-xs lg:text-sm text-white">
-                  Biểu Đồ Radar 5 Trục Chỉ Số Chiến Thuật
+                  Biểu Đồ Radar {numAxes} Trục Chỉ Số Chiến Thuật
                 </h3>
               </div>
               <div className="flex items-center gap-3 text-[11px]">
@@ -683,34 +687,94 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         </div>
       )}
 
-      {/* 6. TACTICAL PATTERNS (2-GRAM COMBINATIONS) */}
-      {stats.tacticalPatterns?.top_transitions_2gram && stats.tacticalPatterns.top_transitions_2gram.length > 0 && (
-        <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
-          <div className="flex items-center gap-2 mb-3">
-            <Award className="w-4 h-4 text-emerald-400 shrink-0" />
-            <h3 className="font-bold text-xs lg:text-sm text-white">Chuỗi phối hợp chiến thuật phổ biến</h3>
-          </div>
+      {/* 6. TACTICAL PATTERNS (3-GRAM & 2-GRAM COMBINATIONS) */}
+      {stats.tacticalPatterns && (() => {
+        const list3Gram = stats.tacticalPatterns.top_sequences_3gram || [];
+        const list2Gram = stats.tacticalPatterns.top_transitions_2gram || [];
+        const activeList = (patternGram === '3GRAM' && list3Gram.length > 0) ? list3Gram : list2Gram;
 
-          <div className={`grid ${compact ? 'grid-cols-1 gap-2' : 'grid-cols-1 sm:grid-cols-3 gap-3'}`}>
-            {stats.tacticalPatterns.top_transitions_2gram.map((trans, idx) => (
-              <div key={idx} className="p-2.5 px-3 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between min-w-0">
-                <div className="flex items-center gap-2 text-xs min-w-0">
-                  <span className="px-2 py-0.5 rounded-lg bg-blue-500/15 border border-blue-500/30 font-bold uppercase text-blue-400 text-[11px] shrink-0">
-                    {trans.from}
-                  </span>
-                  <span className="text-white/40 text-[11px] shrink-0">➜</span>
-                  <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 font-bold uppercase text-amber-400 text-[11px] shrink-0">
-                    {trans.to}
-                  </span>
-                </div>
-                <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0 ml-2">
-                  {trans.count} lần
-                </span>
+        if (list3Gram.length === 0 && list2Gram.length === 0) return null;
+
+        return (
+          <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
+            <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-emerald-400 shrink-0" />
+                <h3 className="font-bold text-xs lg:text-sm text-white">
+                  Chuỗi phối hợp chiến thuật phổ biến
+                </h3>
               </div>
-            ))}
+
+              {/* Tab Selector: 3-Gram vs 2-Gram */}
+              <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/5 text-[11px]">
+                {list3Gram.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPatternGram('3GRAM')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                      patternGram === '3GRAM'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm'
+                        : 'text-white/40 hover:text-white/80'
+                    }`}
+                  >
+                    Chuỗi 3 đòn liên hoàn (3-Gram)
+                  </button>
+                )}
+                {list2Gram.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPatternGram('2GRAM')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                      patternGram === '2GRAM' || list3Gram.length === 0
+                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm'
+                        : 'text-white/40 hover:text-white/80'
+                    }`}
+                  >
+                    Cặp chuyển tiếp 2 đòn (2-Gram)
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className={`grid ${compact ? 'grid-cols-1 gap-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'}`}>
+              {activeList.map((trans: any, idx: number) => {
+                const rawSeq = trans.sequence || '';
+                const parts = rawSeq
+                  ? rawSeq.split('->').map((s: string) => s.trim().toUpperCase())
+                  : [trans.from, trans.to].filter(Boolean).map((s: string) => s.toUpperCase());
+
+                return (
+                  <div key={idx} className="p-2.5 px-3 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between min-w-0 hover:border-white/10 transition-colors">
+                    <div className="flex items-center gap-1.5 text-xs min-w-0 flex-wrap">
+                      {parts.map((stroke: string, pIdx: number) => {
+                        const color = STROKE_COLORS[stroke] || '#38bdf8';
+                        return (
+                          <React.Fragment key={pIdx}>
+                            {pIdx > 0 && <span className="text-white/40 text-[10px] shrink-0">➜</span>}
+                            <span
+                              className="px-2 py-0.5 rounded-lg border font-bold uppercase text-[10px] sm:text-[11px] shrink-0 shadow-sm"
+                              style={{
+                                backgroundColor: `${color}22`,
+                                borderColor: `${color}55`,
+                                color: color
+                              }}
+                            >
+                              {stroke.replace('_', ' ')}
+                            </span>
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                    <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0 ml-2">
+                      {trans.count} lần
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

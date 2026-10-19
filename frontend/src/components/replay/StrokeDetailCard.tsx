@@ -103,7 +103,8 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
   const tactical = getTacticalLabel(event.attackStateRule);
 
   // Nhãn tay vợt
-  const getStrokeSideLabel = (side: string) => {
+  const getStrokeSideLabel = (side: string | undefined) => {
+    if (!side || side.toUpperCase() === 'UNKNOWN') return '';
     switch (side.toUpperCase()) {
       case 'FOREHAND':
         return 'Thuận tay (Forehand)';
@@ -130,9 +131,11 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
               <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider uppercase border shadow-sm ${style.bg}`}>
                 {event.stroke}
               </span>
-              <span className="text-xs font-semibold text-white/80">
-                {getStrokeSideLabel(event.strokeSide)}
-              </span>
+              {getStrokeSideLabel(event.strokeSide) && (
+                <span className="text-xs font-semibold text-white/80">
+                  {getStrokeSideLabel(event.strokeSide)}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 text-xs text-white/60 mt-0.5">
               <span className="flex items-center gap-1 font-medium text-white/90">

@@ -75,6 +75,9 @@ export const MatchReplayPage: React.FC = () => {
   const strokesContainerRef = useRef<HTMLDivElement>(null);
   const [autoScrollStrokes, setAutoScrollStrokes] = useState<boolean>(true);
 
+  // Tab chuyển đổi bên dưới video: Sân 2D vs Chi tiết cú đánh
+  const [bottomTab, setBottomTab] = useState<'COURT_2D' | 'STROKE_DETAIL'>('COURT_2D');
+
   const isYouTube = video?.videoSourceType === 'YOUTUBE' || Boolean(video?.youtubeVideoId);
 
   // Hover controls & Auto-hide
@@ -297,6 +300,25 @@ export const MatchReplayPage: React.FC = () => {
   }, [isPlaying, isYouTube, isPublic, events, selectedEvent]);
 
   // Đồng bộ Video TimeUpdate với Timeline & 2D Court (cho Video MP4 MinIO)
+  // Đồng bộ cú đánh được chọn theo mốc thời gian video
+  const syncEventWithTime = (timeSec: number) => {
+    if (!events.length) return;
+    // 1. Tìm cú đánh trong bán kính +/- 1.2s
+    let candidate = events.find((e) => Math.abs(e.timeSeconds - timeSec) <= 1.2);
+    // 2. Nếu ở khoảng giữa 2 cú đánh, chọn cú đánh vừa diễn ra trước mốc thời gian này
+    if (!candidate) {
+      const pastEvents = events.filter((e) => e.timeSeconds <= timeSec);
+      if (pastEvents.length > 0) {
+        candidate = pastEvents[pastEvents.length - 1];
+      } else {
+        candidate = events[0];
+      }
+    }
+    if (candidate && (!selectedEvent || selectedEvent.id !== candidate.id)) {
+      setSelectedEvent(candidate);
+    }
+  };
+
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
     const curr = videoRef.current.currentTime;
@@ -311,12 +333,7 @@ export const MatchReplayPage: React.FC = () => {
     }
 
     setCurrentTime(curr);
-
-    // Tìm event gần nhất với curr (trong khoảng +/- 0.8 giây)
-    const active = events.find((e) => Math.abs(e.timeSeconds - curr) <= 0.8);
-    if (active && (!selectedEvent || selectedEvent.id !== active.id)) {
-      setSelectedEvent(active);
-    }
+    syncEventWithTime(curr);
   };
 
   const handleLoadedMetadata = () => {
@@ -341,13 +358,14 @@ export const MatchReplayPage: React.FC = () => {
         // Tính toán để căn cú đánh vào chính giữa khung cuộn
         const targetScrollTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (elRect.height / 2);
 
+        // Khi video đang phát (isPlaying): dùng 'auto' (tức thì) để bám sát 100% thời gian thực, không bị trễ/lag do animation
         container.scrollTo({
           top: Math.max(0, targetScrollTop),
-          behavior: 'smooth'
+          behavior: isPlaying ? 'auto' : 'smooth'
         });
       }
     }
-  }, [selectedEvent?.id, activeTab, autoScrollStrokes]);
+  }, [selectedEvent?.id, activeTab, autoScrollStrokes, isPlaying]);
 
   const togglePlay = () => {
     if (isYouTube && ytPlayerRef.current) {
@@ -453,6 +471,7 @@ export const MatchReplayPage: React.FC = () => {
       const newTime = Math.max(0, Math.min(duration, curr + seconds));
       ytPlayerRef.current.seekTo(newTime, true);
       setCurrentTime(newTime);
+      syncEventWithTime(newTime);
       showOsd(seconds > 0 ? `Tua tới +${seconds}s` : `Tua lùi ${seconds}s`);
       return;
     }
@@ -461,6 +480,7 @@ export const MatchReplayPage: React.FC = () => {
     const newTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
     videoRef.current.currentTime = newTime;
     setCurrentTime(newTime);
+    syncEventWithTime(newTime);
     showOsd(seconds > 0 ? `Tua tới +${seconds}s` : `Tua lùi ${seconds}s`);
   };
 
@@ -575,8 +595,7 @@ export const MatchReplayPage: React.FC = () => {
       ytPlayerRef.current.seekTo(rally.startTime, true);
       setCurrentTime(rally.startTime);
       setSelectedRally(rally);
-      const firstEvt = events.find((e) => Math.abs(e.timeSeconds - rally.startTime) <= 0.8);
-      if (firstEvt) setSelectedEvent(firstEvt);
+      syncEventWithTime(rally.startTime);
       if (!isPlaying) {
         ytPlayerRef.current.playVideo();
         setIsPlaying(true);
@@ -589,12 +608,7 @@ export const MatchReplayPage: React.FC = () => {
     videoRef.current.currentTime = rally.startTime;
     setCurrentTime(rally.startTime);
     setSelectedRally(rally);
-
-    // Đồng bộ cú đánh đầu tiên của rally này
-    const firstEvt = events.find((e) => Math.abs(e.timeSeconds - rally.startTime) <= 0.8);
-    if (firstEvt) {
-      setSelectedEvent(firstEvt);
-    }
+    syncEventWithTime(rally.startTime);
 
     if (!isPlaying) {
       videoRef.current.play();
@@ -609,9 +623,11 @@ export const MatchReplayPage: React.FC = () => {
     if (isYouTube && ytPlayerRef.current) {
       ytPlayerRef.current.seekTo(val, true);
       setCurrentTime(val);
+      syncEventWithTime(val);
     } else if (videoRef.current) {
       videoRef.current.currentTime = val;
       setCurrentTime(val);
+      syncEventWithTime(val);
     }
   };
 
@@ -861,14 +877,14 @@ export const MatchReplayPage: React.FC = () => {
               </div>
             )}
 
-            {/* Top Indicator Overlay (Tên cú đánh đang diễn ra) */}
+            {/* Top Indicator Overlay (Tên cú đánh đang diễn ra - Căn giữa thể thao cân đối) */}
             {selectedEvent && (
-              <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 text-xs shadow-lg transition-opacity duration-300">
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 bg-black/75 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs shadow-2xl transition-all duration-300 pointer-events-none">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
                 <span className="font-extrabold text-white uppercase tracking-wider">{selectedEvent.stroke}</span>
-                <span className="text-white/40 text-[11px]">#{selectedEvent.eventOrder}</span>
+                <span className="text-white/50 text-[11px] font-mono">#{selectedEvent.eventOrder}</span>
                 <span className="text-white/30">•</span>
-                <span className="text-emerald-300 font-mono text-[11px]">{(selectedEvent.confidence * 100).toFixed(0)}% AI</span>
+                <span className="text-emerald-300 font-mono text-[11px] font-bold">{(selectedEvent.confidence * 100).toFixed(0)}% AI</span>
               </div>
             )}
 
@@ -1102,34 +1118,64 @@ export const MatchReplayPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 3. THẺ CHI TIẾT CÚ ĐÁNH & CẢNH BÁO ĐỘ TIN CẬY THẤP (VS-10) */}
-          <StrokeDetailCard
-            event={selectedEvent}
-            playerAName={match.playerAName}
-            playerBName={match.playerBName}
-            upperPlayer={match.upperPlayer}
-            onSeek={(t) => {
-              if (videoRef.current) {
-                videoRef.current.currentTime = t;
-                setCurrentTime(t);
-                if (!isPlaying) {
-                  videoRef.current.play();
-                  setIsPlaying(true);
-                }
-              }
-            }}
-            onPlaySlow={handlePlaySlow}
-          />
+          {/* 3. TAB CHUYỂN ĐỔI: SÂN 2D vs CHI TIẾT CÚ ĐÁNH (GỌN GÀNG TRÊN 1 MÀN HÌNH) */}
+          <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-[#0b1220]/80 border border-white/10 backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={() => setBottomTab('COURT_2D')}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                bottomTab === 'COURT_2D'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+              }`}
+            >
+              <Target className="w-3.5 h-3.5" />
+              <span>Mô Phỏng Sân 2D (Radar Court)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBottomTab('STROKE_DETAIL')}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                bottomTab === 'STROKE_DETAIL'
+                  ? 'bg-brand/20 text-brand border border-brand/40 shadow-glow-blue'
+                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Phân Tích Cú Đánh & Ma Trận 3×3</span>
+            </button>
+          </div>
 
-          {/* 4. SÂN 2D NẰM NGANG (HORIZONTAL 2D RADAR COURT) */}
-          <div>
-            <Court2DViewer
-              currentEvent={selectedEvent}
+          {/* 4. NỘI DUNG THEO TAB ĐƯỢC CHỌN */}
+          {bottomTab === 'COURT_2D' ? (
+            <div>
+              <Court2DViewer
+                currentEvent={selectedEvent}
+                playerAName={match.playerAName}
+                playerBName={match.playerBName}
+                upperPlayer={match.upperPlayer}
+              />
+            </div>
+          ) : (
+            <StrokeDetailCard
+              event={selectedEvent}
               playerAName={match.playerAName}
               playerBName={match.playerBName}
               upperPlayer={match.upperPlayer}
+              onSeek={(t) => {
+                if (videoRef.current) {
+                  videoRef.current.currentTime = t;
+                  setCurrentTime(t);
+                  syncEventWithTime(t);
+                  if (!isPlaying) {
+                    videoRef.current.play();
+                    setIsPlaying(true);
+                  }
+                }
+              }}
+              onPlaySlow={handlePlaySlow}
             />
-          </div>
+          )}
 
         </div>
 
@@ -1137,41 +1183,44 @@ export const MatchReplayPage: React.FC = () => {
         <div className="lg:col-span-4 space-y-4">
           <div className="rounded-3xl bg-[#0b1220]/80 border border-white/10 p-5 backdrop-blur-xl shadow-2xl flex flex-col h-[980px]">
             {/* Header Tabs chuyển đổi giữa Cú đánh, Pha cầu & Thống kê (VS-11, VS-12) */}
-            <div className="flex items-center gap-1.5 p-1 bg-white/5 rounded-2xl border border-white/10 mb-3">
+            <div className="grid grid-cols-3 gap-1 p-1 bg-white/5 rounded-2xl border border-white/10 mb-3 text-[11px]">
               <button
                 type="button"
                 onClick={() => setActiveTab('STROKES')}
-                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-1.5 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${
                   activeTab === 'STROKES'
                     ? 'bg-brand text-white shadow-glow-blue'
                     : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
+                title={`Cú đánh (${filteredEvents.length})`}
               >
-                <Layers className="w-3.5 h-3.5" />
-                <span className="truncate">Cú đánh ({filteredEvents.length})</span>
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{filteredEvents.length} Cú đánh</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('RALLIES')}
-                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-1.5 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${
                   activeTab === 'RALLIES'
                     ? 'bg-brand text-white shadow-glow-blue'
                     : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
+                title={`Pha cầu (${rallies.length})`}
               >
-                <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                <span className="truncate">Pha cầu ({rallies.length})</span>
+                <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="truncate">{rallies.length} Pha cầu</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('STATISTICS')}
-                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-1.5 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${
                   activeTab === 'STATISTICS'
                     ? 'bg-brand text-white shadow-glow-blue'
                     : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
+                title="Thống kê"
               >
-                <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
+                <BarChart3 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span className="truncate">Thống kê</span>
               </button>
             </div>
@@ -1245,11 +1294,19 @@ export const MatchReplayPage: React.FC = () => {
 
                           {/* Thông tin cú đánh */}
                           <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
                                 {evt.stroke}
                               </span>
-                              <span className="text-[11px] text-white/50">{evt.strokeSide}</span>
+                              {evt.strokeSide && evt.strokeSide.toUpperCase() !== 'UNKNOWN' && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border ${
+                                  evt.strokeSide.toUpperCase().includes('FOREHAND')
+                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                    : 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                                }`}>
+                                  {evt.strokeSide.toUpperCase().includes('FOREHAND') ? 'Thuận tay' : 'Trái tay'}
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-white/70 flex items-center gap-1.5">
                               <span className={`w-1.5 h-1.5 rounded-full ${evt.playerSide === 'UPPER' ? 'bg-blue-400' : 'bg-amber-400'}`} />

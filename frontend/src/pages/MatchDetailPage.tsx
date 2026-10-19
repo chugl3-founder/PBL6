@@ -5,7 +5,7 @@ import {
   Trophy, Calendar, ArrowLeft, CheckCircle2, Clock, 
   UploadCloud, AlertCircle, RefreshCw, FileVideo, 
   HardDrive, Sparkles, Check, ExternalLink,
-  AlertTriangle, Ban, RotateCcw
+  AlertTriangle, Ban, RotateCcw, Play, ArrowRight
 } from 'lucide-react';
 import apiClient from '../api/client';
 
@@ -425,9 +425,9 @@ export const MatchDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Player A */}
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-brand">VẬN ĐỘNG VIÊN A</span>
-                  <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-brand/20 text-brand font-mono font-bold">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-brand whitespace-nowrap">VẬN ĐỘNG VIÊN A</span>
+                  <span className="text-[10px] uppercase px-2.5 py-0.5 rounded-full bg-brand/20 text-brand font-mono font-bold whitespace-nowrap shrink-0">
                     {match.upperPlayer === 'PLAYER_A' ? 'Sân trên (Xa)' : 'Sân dưới (Gần)'}
                   </span>
                 </div>
@@ -441,9 +441,9 @@ export const MatchDetailPage: React.FC = () => {
 
               {/* Player B */}
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-amber-400">VẬN ĐỘNG VIÊN B</span>
-                  <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-amber-400 whitespace-nowrap">VẬN ĐỘNG VIÊN B</span>
+                  <span className="text-[10px] uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold whitespace-nowrap shrink-0">
                     {match.upperPlayer === 'PLAYER_B' ? 'Sân trên (Xa)' : 'Sân dưới (Gần)'}
                   </span>
                 </div>
@@ -646,7 +646,7 @@ export const MatchDetailPage: React.FC = () => {
                 <div>
                   <div className="text-xs font-bold text-white">Bước 1: Khởi tạo Metadata</div>
                   <div className="text-[11px] text-emerald-200/80 mt-0.5">
-                    Đã lưu tên 2 vận động viên & vị trí sân (VS-05)
+                    Đã lưu tên 2 vận động viên & vị trí sân
                   </div>
                 </div>
               </div>
@@ -667,8 +667,8 @@ export const MatchDetailPage: React.FC = () => {
                 <div>
                   <div className="text-xs font-bold text-white">Bước 2: Tải lên video S3 Presigned URL</div>
                   <div className="text-[11px] text-white/60 mt-0.5">
-                    {match.status !== 'DRAFT' 
-                      ? 'Video đã lưu trữ an toàn trên MinIO' 
+                    {match.status !== 'DRAFT'
+                      ? 'Video đã lưu trữ an toàn trên Cloud Storage (S3)'
                       : 'Đang chờ tải video (≤ 500MB)'}
                   </div>
                 </div>
@@ -844,23 +844,24 @@ export const MatchDetailPage: React.FC = () => {
 
             {/* CTA if ANALYZED / COMPLETED */}
             {(match.status === 'ANALYZED' || match.status === 'COMPLETED') && (
-              <div className="pt-2 space-y-2.5">
+              <div className="pt-2 space-y-3">
                 <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>Trận đấu đã phân tích thành công! Dữ liệu Replay & Thống kê đã sẵn sàng.</span>
                 </div>
                 <Link
                   to={`/matches/${id}/replay`}
-                  className="w-full h-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 text-sm"
+                  className="w-full h-12 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:opacity-95 text-white font-bold shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 text-sm group"
                 >
-                  <FileVideo className="w-4 h-4" />
-                  <span>Vào Xem Video Replay & AI Timeline (VS-09)</span>
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>Xem Video Replay & Thống Kê AI</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <button
                   type="button"
                   onClick={handleStartAnalysis}
                   disabled={dispatchingAnalysis}
-                  className="w-full h-11 rounded-full bg-white/10 hover:bg-white/15 text-white/80 font-medium transition-all flex items-center justify-center gap-2 text-xs"
+                  className="w-full h-11 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 font-medium transition-all flex items-center justify-center gap-2 text-xs"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>Phân tích lại (Re-analyze)</span>

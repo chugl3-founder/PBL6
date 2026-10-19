@@ -302,9 +302,12 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
               >
                 <span>{currentEvent.stroke}</span>
               </span>
-              <span className="px-2.5 py-1 rounded-full bg-white/10 text-white/80 text-[11px] font-semibold border border-white/10">
-                {currentEvent.strokeSide}
-              </span>
+              {currentEvent.strokeSide && currentEvent.strokeSide.toUpperCase() !== 'UNKNOWN' && (
+                <span className="px-2.5 py-1 rounded-full bg-white/10 text-white/80 text-[11px] font-semibold border border-white/10">
+                  {currentEvent.strokeSide.toUpperCase().includes('FOREHAND') ? 'Thuận tay' :
+                   currentEvent.strokeSide.toUpperCase().includes('BACKHAND') ? 'Trái tay' : currentEvent.strokeSide}
+                </span>
+              )}
             </div>
           </div>
 
