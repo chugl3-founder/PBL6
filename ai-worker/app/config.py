@@ -1,8 +1,7 @@
 """Environment-backed worker configuration.
 
-Secrets deliberately have no source-code defaults. Local development should
-load them from an ignored .env file; deployments should inject them through
-the container/orchestrator secret store.
+Hỗ trợ nạp cấu hình linh hoạt từ biến môi trường hoặc .env file,
+tương thích hoàn toàn với môi trường Docker Compose và chạy độc lập.
 """
 
 from __future__ import annotations
@@ -16,11 +15,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def _required(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
-        raise RuntimeError(f"Required environment variable {name} is not configured")
-    return value
+def _get_env(name: str, default: str = "") -> str:
+    return os.getenv(name, default)
 
 
 @dataclass(frozen=True)
@@ -41,22 +37,29 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        rabbit_user = _get_env("RABBITMQ_USER", "guest")
+        rabbit_pass = _get_env("RABBITMQ_PASS", "guest")
+        rabbit_host = _get_env("RABBITMQ_HOST", "rabbitmq")
+        rabbit_port = _get_env("RABBITMQ_PORT", "5672")
+
+        default_amqp = f"amqp://{rabbit_user}:{rabbit_pass}@{rabbit_host}:{rabbit_port}/"
+
         return cls(
             ai_classifier_root=Path(
                 os.getenv("AI_CLASSIFIER_ROOT", "../AI_Classifier")
             ).resolve(),
-            amqp_url=_required("AMQP_URL"),
-            queue_name=os.getenv("RABBITMQ_QUEUE", "badminton.ai.queue"),
-            db_host=_required("DB_HOST"),
-            db_port=int(os.getenv("DB_PORT", "5432")),
-            db_name=os.getenv("DB_NAME", "postgres"),
-            db_user=_required("DB_USER"),
-            db_password=_required("DB_PASS"),
-            s3_endpoint=_required("S3_ENDPOINT"),
-            s3_access_key=_required("S3_ACCESS_KEY"),
-            s3_secret_key=_required("S3_SECRET_KEY"),
-            s3_bucket=os.getenv("S3_BUCKET", "badminton-videos"),
-            s3_region=os.getenv("S3_REGION", "ap-southeast-1"),
+            amqp_url=_get_env("AMQP_URL", default_amqp),
+            queue_name=_get_env("RABBITMQ_QUEUE", "badminton.ai.queue"),
+            db_host=_get_env("DB_HOST", "postgres"),
+            db_port=int(_get_env("DB_PORT", "5432")),
+            db_name=_get_env("DB_NAME", _get_env("POSTGRES_DB", "badminton_db")),
+            db_user=_get_env("DB_USER", _get_env("POSTGRES_USER", "badminton_user")),
+            db_password=_get_env("DB_PASS", _get_env("POSTGRES_PASSWORD", "badminton_password")),
+            s3_endpoint=_get_env("S3_ENDPOINT", "http://minio:9000"),
+            s3_access_key=_get_env("S3_ACCESS_KEY", _get_env("MINIO_ROOT_USER", "minioadmin")),
+            s3_secret_key=_get_env("S3_SECRET_KEY", _get_env("MINIO_ROOT_PASSWORD", "minioadmin")),
+            s3_bucket=_get_env("S3_BUCKET", _get_env("S3_BUCKET_VIDEOS", "badminton-videos")),
+            s3_region=_get_env("S3_REGION", "ap-southeast-1"),
         )
 
 
