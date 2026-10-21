@@ -1,39 +1,42 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 /**
  * Cấu hình kết nối Backend Spring Boot & MinIO cho Mobile App.
  *
- * Lưu ý khi kiểm thử:
- * - Máy thật (Physical device qua Expo Go): Dùng IP máy tính trên cùng mạng Wi-Fi (ví dụ: '10.10.28.61').
- * - Android Emulator: Dùng '10.0.2.2' hoặc IP Wi-Fi.
- * - iOS Simulator: Dùng 'localhost' hoặc IP Wi-Fi.
+ * Tự động lấy địa chỉ IP máy tính từ Expo Go (Constants.expoConfig?.hostUri),
+ * giúp bạn đổi mạng Wi-Fi (ở nhà, ở trường, phát 4G) mà không bị lỗi timeout hay phải sửa IP thủ công.
  */
-// 10.0.2.2 là địa chỉ loopback chuẩn của Android Emulator để gọi localhost máy tính
-// Nếu dùng điện thoại thật kết nối cùng Wi-Fi: đổi thành IP Wi-Fi hiện tại (ví dụ: '192.168.2.149')
-const EMULATOR_HOST_IP = '10.0.2.2';
-const LAN_WIFI_IP = '192.168.2.149';
+const getAutoDetectedHost = (): string => {
+  // 1. Tự động lấy IP từ hostUri mà Expo Go kết nối tới (dạng "172.31.99.36:8081")
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest2?.extra?.expoClient?.hostUri ||
+    (Constants as any).manifest?.debuggerHost;
 
-// Đang chạy trên điện thoại thật kết nối cùng Wi-Fi -> dùng LAN_WIFI_IP (192.168.2.149)
-// Nếu chuyển sang máy ảo Pixel 8a -> đổi thành EMULATOR_HOST_IP (10.0.2.2)
-const DEFAULT_HOST_IP = LAN_WIFI_IP;
+  if (hostUri) {
+    const detectedIp = hostUri.split(':')[0];
+    if (detectedIp && detectedIp !== 'localhost' && detectedIp !== '127.0.0.1') {
+      return detectedIp;
+    }
+  }
 
-const getBaseHost = (): string => {
+  // 2. Nếu là Android Emulator và không có hostUri
   if (Platform.OS === 'android') {
-    // Có thể dùng DEFAULT_HOST_IP để đồng nhất giữa máy thật & giả lập
-    return DEFAULT_HOST_IP;
+    return '10.0.2.2';
   }
-  if (Platform.OS === 'ios') {
-    return DEFAULT_HOST_IP;
-  }
-  return 'localhost';
+
+  // 3. Fallback IP Wi-Fi hiện tại của máy tính
+  return '172.31.99.36';
 };
 
+const DETECTED_HOST = getAutoDetectedHost();
+
 export const ENV = {
-  HOST_IP: DEFAULT_HOST_IP,
-  API_BASE_URL: `http://${getBaseHost()}:8080/api`,
-  STORAGE_BASE_URL: `http://${getBaseHost()}:9000`,
+  HOST_IP: DETECTED_HOST,
+  API_BASE_URL: `http://${DETECTED_HOST}:8080/api`,
+  STORAGE_BASE_URL: `http://${DETECTED_HOST}:9000`,
   TIMEOUT_MS: 15000,
 };
 
 export default ENV;
-

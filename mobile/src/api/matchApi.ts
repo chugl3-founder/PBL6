@@ -61,5 +61,39 @@ export const matchApi = {
     const res = await apiClient.post(`/matches/${matchId}/analysis/start`);
     return res.data;
   },
+
+  // Tải video trận đấu lên hệ thống
+  uploadVideoDirect: async (
+    matchId: number | string,
+    fileUri: string,
+    fileName: string,
+    mimeType: string,
+    onProgress?: (percent: number) => void
+  ): Promise<VideoData> => {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: fileUri,
+      name: fileName || 'video.mp4',
+      type: mimeType || 'video/mp4',
+    } as any);
+
+    const res = await apiClient.post<VideoData>(
+      `/matches/${matchId}/videos/direct-upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 120000, // 2 phút cho file video lớn
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total && onProgress) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
+          }
+        },
+      }
+    );
+    return res.data;
+  },
 };
 

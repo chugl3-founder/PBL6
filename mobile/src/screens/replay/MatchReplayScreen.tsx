@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { WebView } from 'react-native-webview';
 import { RootStackParamList } from '../../navigation/types';
 import { matchApi } from '../../api/matchApi';
 import { replayApi } from '../../api/replayApi';
@@ -22,6 +23,7 @@ import { useAuth } from '../../context/AuthContext';
 import { TouchTimeline } from '../../components/TouchTimeline';
 import { RallyScroller } from '../../components/RallyScroller';
 import { Court2DViewer } from '../../components/Court2DViewer';
+import { ENV } from '../../config/env';
 import {
   Play,
   Pause,
@@ -48,6 +50,8 @@ export const MatchReplayScreen: React.FC = () => {
   const { matchId, isPublic = true } = route.params;
   const { user } = useAuth();
 
+  const webViewRef = useRef<WebView>(null);
+
   const [match, setMatch] = useState<MatchData | null>(null);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [events, setEvents] = useState<AiEventData[]>([]);
@@ -64,15 +68,39 @@ export const MatchReplayScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'EVENTS' | 'COURT' | 'RALLIES'>('EVENTS');
   const [showGuestModal, setShowGuestModal] = useState<boolean>(false);
 
-  // Khởi tạo video player với expo-video
-  const videoSource = videoData?.videoUrl ? { uri: videoData.videoUrl } : null;
+  // Nhận diện video YouTube hay video MP4 từ MinIO
+  const isYouTube =
+    videoData?.videoSourceType === 'YOUTUBE' ||
+    Boolean(videoData?.youtubeVideoId) ||
+    Boolean(videoData?.videoUrl?.includes('youtube.com') || videoData?.videoUrl?.includes('youtu.be'));
+
+  const youtubeId =
+    videoData?.youtubeVideoId ||
+    (videoData?.videoUrl?.includes('v=')
+      ? videoData.videoUrl.split('v=')[1]?.split('&')[0]
+      : videoData?.videoUrl?.includes('youtu.be/')
+      ? videoData.videoUrl.split('youtu.be/')[1]?.split('?')[0]
+      : null);
+
+  // Chuẩn hóa URL video nếu trỏ về container minio hoặc localhost nội bộ của máy chủ
+  const resolvedVideoUrl = useMemo(() => {
+    if (!videoData?.videoUrl) return '';
+    if (isYouTube) return videoData.videoUrl;
+    return videoData.videoUrl
+      .replace('http://minio:9000', ENV.STORAGE_BASE_URL)
+      .replace('http://localhost:9000', ENV.STORAGE_BASE_URL)
+      .replace('http://127.0.0.1:9000', ENV.STORAGE_BASE_URL);
+  }, [videoData?.videoUrl, isYouTube]);
+
+  // Chỉ khởi tạo expo-video nếu là file video thông thường (không phải YouTube)
+  const videoSource = !isYouTube && resolvedVideoUrl ? { uri: resolvedVideoUrl } : null;
   const player = useVideoPlayer(videoSource, (p) => {
     p.loop = false;
   });
 
-  // Đăng ký event listeners cho VideoPlayer
+  // Đăng ký event listeners cho VideoPlayer (file MP4)
   useEffect(() => {
-    if (!player) return;
+    if (isYouTube || !player) return;
 
     const playListener = player.addListener('playingChange', (event) => {
       setIsPlaying(event.isPlaying);
@@ -82,13 +110,12 @@ export const MatchReplayScreen: React.FC = () => {
       const currentSecs = event.currentTime;
       setCurrentTime(currentSecs);
 
-      // Cập nhật duration nếu có
       if (player.duration && duration === 0) {
         setDuration(player.duration);
       }
 
       // Giới hạn 5 phút (300s) cho Khách vãng lai
-      if (!user && currentSecs >= 300) {
+      if (!user && isPublic && currentSecs >= 300) {
         if (player.playing) {
           player.pause();
           setShowGuestModal(true);
@@ -115,14 +142,14 @@ export const MatchReplayScreen: React.FC = () => {
       timeListener.remove();
       statusListener.remove();
     };
-  }, [player, events, selectedEvent?.id, user, duration]);
+  }, [player, isYouTube, events, selectedEvent?.id, user, isPublic, duration]);
 
-  // Cập nhật source khi videoData tải xong
+  // Cập nhật source cho file MP4
   useEffect(() => {
-    if (player && videoData?.videoUrl) {
-      player.replace({ uri: videoData.videoUrl });
+    if (!isYouTube && player && resolvedVideoUrl) {
+      player.replace({ uri: resolvedVideoUrl });
     }
-  }, [player, videoData?.videoUrl]);
+  }, [player, isYouTube, resolvedVideoUrl]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -140,7 +167,7 @@ export const MatchReplayScreen: React.FC = () => {
           : await matchApi.getMyMatchVideo(matchId);
         setVideoData(v);
         if (v.durationSeconds) {
-          setDuration(v.durationSeconds);
+          setDuration(Number(v.durationSeconds));
         }
 
         // 3. AI Events
@@ -170,42 +197,79 @@ export const MatchReplayScreen: React.FC = () => {
     fetchData();
   }, [matchId, isPublic]);
 
+  // Xử lý message từ YouTube IFrame trong WebView
+  const handleWebViewMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.event === 'timeUpdate' && typeof data.currentTime === 'number') {
+        const timeSecs = data.currentTime;
+        setCurrentTime(timeSecs);
+
+        if (events.length > 0) {
+          const nearest = events.find((e) => Math.abs(e.timeSeconds - timeSecs) < 0.6);
+          if (nearest && nearest.id !== selectedEvent?.id) {
+            setSelectedEvent(nearest);
+          }
+        }
+
+        // Giới hạn 5 phút cho Khách
+        if (!user && isPublic && timeSecs >= 300) {
+          setShowGuestModal(true);
+          webViewRef.current?.injectJavaScript('if(window.player && window.player.pauseVideo) window.player.pauseVideo();');
+        }
+      } else if (data.event === 'stateChange') {
+        // 1: PLAYING, 2: PAUSED
+        setIsPlaying(data.state === 1);
+      }
+    } catch (e) {}
+  };
+
   const handlePlayPause = () => {
-    if (!player) return;
-    if (!user && currentTime >= 300) {
+    if (!user && isPublic && currentTime >= 300) {
       setShowGuestModal(true);
       return;
     }
 
-    if (isPlaying) {
-      player.pause();
-    } else {
-      player.play();
+    if (isYouTube && webViewRef.current) {
+      webViewRef.current.injectJavaScript('if(window.togglePlayPause) window.togglePlayPause();');
+    } else if (player) {
+      if (isPlaying) {
+        player.pause();
+      } else {
+        player.play();
+      }
     }
   };
 
   const handleSeek = (seconds: number) => {
-    if (!player) return;
-    if (!user && seconds >= 300) {
+    if (!user && isPublic && seconds >= 300) {
       setShowGuestModal(true);
       return;
     }
-    player.currentTime = seconds;
     setCurrentTime(seconds);
+
+    if (isYouTube && webViewRef.current) {
+      webViewRef.current.injectJavaScript(`if(window.seekToSeconds) window.seekToSeconds(${seconds});`);
+    } else if (player) {
+      player.currentTime = seconds;
+    }
   };
 
   const handleSkip = (deltaSeconds: number) => {
-    if (!player) return;
     const target = Math.max(0, Math.min(duration || 3600, currentTime + deltaSeconds));
     handleSeek(target);
   };
 
   const cyclePlaybackRate = () => {
-    if (!player) return;
     const nextIdx = (rateIndex + 1) % PLAYBACK_RATES.length;
     const nextRate = PLAYBACK_RATES[nextIdx];
     setRateIndex(nextIdx);
-    player.playbackRate = nextRate;
+
+    if (isYouTube && webViewRef.current) {
+      webViewRef.current.injectJavaScript(`if(window.player && window.player.setPlaybackRate) window.player.setPlaybackRate(${nextRate});`);
+    } else if (player) {
+      player.playbackRate = nextRate;
+    }
   };
 
   const handleSelectEvent = (evt: AiEventData) => {
@@ -228,6 +292,72 @@ export const MatchReplayScreen: React.FC = () => {
   }
 
   const currentRate = PLAYBACK_RATES[rateIndex];
+
+  // HTML nhúng YouTube IFrame Player API
+  const youtubeHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+      <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000000; overflow: hidden; }
+        #player { width: 100%; height: 100%; }
+      </style>
+    </head>
+    <body>
+      <div id="player"></div>
+      <script src="https://www.youtube.com/iframe_api"></script>
+      <script>
+        var player;
+        function onYouTubeIframeAPIReady() {
+          player = new YT.Player('player', {
+            videoId: '${youtubeId}',
+            playerVars: {
+              autoplay: 1,
+              playsinline: 1,
+              controls: 1,
+              rel: 0,
+              modestbranding: 1,
+              enablejsapi: 1,
+              origin: 'https://www.youtube.com'
+            },
+            events: {
+              'onReady': onPlayerReady,
+              'onStateChange': onPlayerStateChange,
+              'onError': function(e) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ event: 'error', error: e.data }));
+              }
+            }
+          });
+          window.player = player;
+        }
+        function onPlayerReady(event) {
+          setInterval(function() {
+            if (player && player.getCurrentTime) {
+              var time = player.getCurrentTime();
+              window.ReactNativeWebView.postMessage(JSON.stringify({ event: 'timeUpdate', currentTime: time }));
+            }
+          }, 400);
+        }
+        function onPlayerStateChange(event) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ event: 'stateChange', state: event.data }));
+        }
+        window.seekToSeconds = function(sec) {
+          if (player && player.seekTo) {
+            player.seekTo(sec, true);
+          }
+        };
+        window.togglePlayPause = function() {
+          if (player && player.getPlayerState) {
+            var state = player.getPlayerState();
+            if (state === 1) { player.pauseVideo(); } else { player.playVideo(); }
+          }
+        };
+      </script>
+    </body>
+    </html>
+  `;
 
   return (
     <View style={styles.container}>
@@ -255,9 +385,27 @@ export const MatchReplayScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Video Player */}
+      {/* Video Player Area */}
       <View style={styles.playerContainer}>
-        {videoData?.videoUrl && player ? (
+        {isYouTube && youtubeId ? (
+          <WebView
+            ref={webViewRef}
+            style={styles.videoPlayer}
+            source={{
+              html: youtubeHtml,
+              baseUrl: 'https://www.youtube.com',
+            }}
+            originWhitelist={['*']}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            allowsFullscreenVideo={true}
+            mixedContentMode="always"
+            userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+            onMessage={handleWebViewMessage}
+          />
+        ) : videoData?.videoUrl && player ? (
           <VideoView
             style={styles.videoPlayer}
             player={player}
