@@ -100,7 +100,7 @@ services:
   # 6. Skeleton AI Worker (Python Consumer)
   ai-worker:
     build:
-      context: ./ai-worker
+      context: ./backend/integrations/ai-worker
       dockerfile: Dockerfile
     container_name: badminton_ai_worker
     restart: unless-stopped
@@ -113,6 +113,9 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASS: ${RABBITMQ_PASS:-guest}
       RABBITMQ_QUEUE: badminton.ai.queue
+      AI_CLASSIFIER_ROOT: /opt/AI_Classifier
+    volumes:
+      - ./AI_Classifier:/opt/AI_Classifier:ro
 
 volumes:
   postgres_data:

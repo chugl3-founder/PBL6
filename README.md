@@ -3,7 +3,7 @@
 Dự án đồ án PBL6: Hệ thống tiếp nhận video trận đấu cầu lông, sinh S3 Presigned URL, điều phối tác vụ phân tích, trực quan hóa dòng sự kiện cú đánh (Stroke markers) trên video stream và thống kê chuyên sâu.
 
 > [!IMPORTANT]
-> **Ranh giới xử lý AI:** Dự án này **không huấn luyện hoặc chạy mô hình Computer Vision**. Mô hình AI do bộ phận AI độc lập khác đảm nhiệm. Dự án chịu trách nhiệm Web Backend, Frontend Replay, Database, và điều phối qua Message Broker. Giai đoạn hiện tại sử dụng **Mock Data Engine** để phục vụ phát triển và kiểm thử toàn diện. Thư mục `ai-worker/` là **Skeleton Consumer** làm cổng tích hợp chuẩn.
+> **Ranh giới xử lý AI:** Dự án này **không huấn luyện hoặc chạy mô hình Computer Vision**. Mô hình AI nằm trong Git repository độc lập `AI_Classifier/`. Dự án web chịu trách nhiệm Backend, Frontend Replay, Database và điều phối qua Message Broker. `backend/integrations/ai-worker/` là **Skeleton Consumer** làm cổng tích hợp chuẩn.
 
 ---
 
@@ -80,7 +80,7 @@ npm run dev
 ### Bước 4: Chạy Skeleton AI Worker (Tùy chọn)
 Mở một cửa sổ Terminal thứ 3:
 ```bash
-cd ai-worker
+cd backend/integrations/ai-worker
 python -m venv venv
 # Windows:
 venv\Scripts\activate
@@ -111,7 +111,7 @@ python worker.py
 3. **Kiểm tra MinIO Storage:** Mở `http://localhost:9001` (login `minioadmin`/`minioadmin`), bạn sẽ thấy 2 bucket đã được tự động tạo sẵn:
    - `badminton-videos`: Lưu trữ video trận đấu MP4.
    - `badminton-avatars`: Lưu trữ ảnh đại diện người dùng.
-4. **Kiểm tra Database:** Toàn bộ bảng CSDL đã được Flyway tự động migrate thành công theo tài liệu `docs/02-design/erd.md`.
+4. **Kiểm tra Database:** Toàn bộ bảng CSDL đã được Flyway tự động migrate thành công theo tài liệu `backend/docs/platform/02-design/erd.md`.
 
 ---
 
@@ -119,24 +119,19 @@ python worker.py
 
 ```text
 PBL6_code/
-├── backend/               # Spring Boot 3 (Controller, Service, Repository, Flyway)
-│   ├── src/main/java/     # Mã nguồn Java 17
-│   ├── src/main/resources/# application.yml, db/migration/V1__init_schema.sql
+├── AI_Classifier/         # Git repo AI độc lập: model, dữ liệu, nghiên cứu
+├── backend/               # Spring Boot và các thành phần server-side
+│   ├── src/               # Controller, Service, Repository, Flyway
+│   ├── integrations/
+│   │   └── ai-worker/     # RabbitMQ consumer nối sang AI_Classifier
+│   ├── docs/platform/     # Requirements, thiết kế, ADR và test API
+│   ├── scripts/platform/  # Script phục vụ dữ liệu web/backend
 │   ├── Dockerfile
 │   └── pom.xml
 ├── frontend/              # React 18 + Vite + TypeScript + TailwindCSS
-│   ├── src/               # router, layout, guard, api/client, pages
+│   ├── src/
 │   ├── Dockerfile
 │   └── package.json
-├── ai-worker/             # Skeleton Consumer lắng nghe RabbitMQ (cổng cắm AI sau này)
-│   ├── worker.py
-│   ├── requirements.txt
-│   └── Dockerfile
-├── docs/                  # Toàn bộ tài liệu phân tích & thiết kế
-│   ├── 00-requirements/   # Yêu cầu chức năng (FR) và phi chức năng (NFR)
-│   ├── 01-analysis/       # Gaps, Traceability Matrix RTM
-│   ├── 02-design/         # ERD, State machines, Sequence diagrams, OpenAPI spec, Wireframes
-│   └── 04-tasks/          # Product Backlog chia nhỏ theo 23 Vertical Slices
 ├── docker-compose.yml     # Khởi chạy 1-chạm toàn bộ 6 dịch vụ
 ├── .env.example           # Biến môi trường mẫu
 └── README.md              # Hướng dẫn khởi chạy

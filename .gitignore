@@ -16,6 +16,9 @@ desktop.ini
 *.sublime-project
 *.sublime-workspace
 
+# Independently versioned AI repository
+/AI_Classifier/
+
 # Backend - Java & Spring Boot
 backend/target/
 backend/.mvn/wrapper/maven-wrapper.jar
@@ -31,14 +34,14 @@ frontend/*.local
 frontend/.npm/
 
 # AI Worker - Python
-ai-worker/__pycache__/
-ai-worker/**/__pycache__/
-ai-worker/*.pyc
-ai-worker/**/*.pyc
-ai-worker/.pytest_cache/
-ai-worker/venv/
-ai-worker/.venv/
-ai-worker/env/
+backend/integrations/ai-worker/__pycache__/
+backend/integrations/ai-worker/**/__pycache__/
+backend/integrations/ai-worker/*.pyc
+backend/integrations/ai-worker/**/*.pyc
+backend/integrations/ai-worker/.pytest_cache/
+backend/integrations/ai-worker/venv/
+backend/integrations/ai-worker/.venv/
+backend/integrations/ai-worker/env/
 
 # Logs & Temporary files
 logs/

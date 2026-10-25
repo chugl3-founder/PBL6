@@ -6,7 +6,7 @@ RabbitMQ consumer that bridges the web platform and the independently owned
 ## Structure
 
 ```text
-ai-worker/
+backend/integrations/ai-worker/
   app/
     config.py                 environment-backed settings
     infrastructure/
@@ -32,3 +32,4 @@ python worker.py
 ```
 
 Set `AI_CLASSIFIER_ROOT` in `.env` to the local `AI_Classifier` checkout.
+From this directory, the default checkout path is `../../../AI_Classifier`.

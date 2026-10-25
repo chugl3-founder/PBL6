@@ -8,7 +8,7 @@
   2. **Frontend:** Hiển thị giao diện, phát video stream (Video.js), trực quan hóa timeline markers, điều hướng pha cầu (rallies) và biểu đồ thống kê.
 - **Chiến lược Mock Data:**
   - Ở giai đoạn hiện tại, toàn bộ tiến trình phân tích AI được mô phỏng bằng **Mock Engine (Spring Boot @Async Stub)** để sinh dữ liệu mẫu đầy đủ và chuẩn xác theo schema DB để phát triển và kiểm thử end-to-end các tính năng Web và Replay.
-  - Thư mục `ai-worker/` chỉ đóng vai trò **Skeleton Consumer** (lắng nghe hàng đợi RabbitMQ và in log) làm cổng tích hợp chuẩn cho đội ngũ AI cắm vào sau này.
+  - Thư mục `backend/integrations/ai-worker/` chỉ đóng vai trò **Skeleton Consumer** (lắng nghe hàng đợi RabbitMQ và in log) làm cổng tích hợp chuẩn cho đội ngũ AI cắm vào sau này.
 
 ---
 
