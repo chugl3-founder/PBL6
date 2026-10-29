@@ -15,6 +15,7 @@ import { TimelineMarkers } from '../components/replay/TimelineMarkers';
 import { StrokeDetailCard } from '../components/replay/StrokeDetailCard';
 import { RalliesExplorer, RallyData } from '../components/replay/RalliesExplorer';
 import { StatisticsDashboard, MatchStatisticsData } from '../components/replay/StatisticsDashboard';
+import { normalizeStrokeSide, strokeSideLabel } from '../utils/strokeSide';
 
 interface MatchData {
   id: number;
@@ -1298,13 +1299,13 @@ export const MatchReplayPage: React.FC = () => {
                               <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
                                 {evt.stroke}
                               </span>
-                              {evt.strokeSide && evt.strokeSide.toUpperCase() !== 'UNKNOWN' && (
+                              {strokeSideLabel(evt.strokeSide) && (
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border ${
-                                  evt.strokeSide.toUpperCase().includes('FOREHAND')
+                                  normalizeStrokeSide(evt.strokeSide) === 'FOREHAND'
                                     ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
                                     : 'bg-purple-500/10 text-purple-300 border-purple-500/20'
                                 }`}>
-                                  {evt.strokeSide.toUpperCase().includes('FOREHAND') ? 'Thuận tay' : 'Trái tay'}
+                                  {strokeSideLabel(evt.strokeSide)}
                                 </span>
                               )}
                             </div>

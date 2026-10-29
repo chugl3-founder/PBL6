@@ -80,6 +80,9 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
             player_side = str(pred.get("hitter", pred.get("player_side", "LOWER"))).upper()
             stroke = str(pred.get("stroke", "CLEAR")).upper()
             stroke_side = str(pred.get("stroke_side", "UNKNOWN")).upper()
+            # Aroundhead is an overhead forehand; the model separates it poorly, so store it as forehand.
+            if stroke_side in ("AROUNDHEAD", "AROUND_HEAD"):
+                stroke_side = "FOREHAND"
             conf = float(pred.get("confidence", 0.85))
             hit_score = float(pred.get("hit_score", 0.90))
             ball_round = int(pred.get("ball_round", event_order))

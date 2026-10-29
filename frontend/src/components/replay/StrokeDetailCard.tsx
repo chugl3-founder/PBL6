@@ -4,6 +4,7 @@ import {
   Play, RotateCcw, Target, Sparkles, User, Crosshair
 } from 'lucide-react';
 import { AiEventData } from '../court/Court2DViewer';
+import { normalizeStrokeSide } from '../../utils/strokeSide';
 
 interface StrokeDetailCardProps {
   event: AiEventData | null;
@@ -104,16 +105,13 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
 
   // Nhãn tay vợt
   const getStrokeSideLabel = (side: string | undefined) => {
-    if (!side || side.toUpperCase() === 'UNKNOWN') return '';
-    switch (side.toUpperCase()) {
+    switch (normalizeStrokeSide(side)) {
       case 'FOREHAND':
         return 'Thuận tay (Forehand)';
       case 'BACKHAND':
         return 'Trái tay (Backhand)';
-      case 'AROUNDHEAD':
-        return 'Vòng đầu (Aroundhead)';
       default:
-        return side;
+        return '';
     }
   };
 
