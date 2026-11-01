@@ -27,7 +27,9 @@
         {
           "photosPermission": "Ứng dụng cần quyền truy cập thư viện để chọn video trận đấu cầu lông."
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-video"
     ]
   }
 }

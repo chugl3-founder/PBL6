@@ -27,7 +27,7 @@ const getAutoDetectedHost = (): string => {
   }
 
   // 3. Fallback IP Wi-Fi hiện tại của máy tính
-  return '172.31.99.36';
+  return '192.168.2.149';
 };
 
 const DETECTED_HOST = getAutoDetectedHost();
