@@ -50,7 +50,7 @@ export const MatchReplayScreen: React.FC = () => {
   const { matchId, isPublic = true } = route.params;
   const { user } = useAuth();
 
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<WebView<{}>>(null);
 
   const [match, setMatch] = useState<MatchData | null>(null);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
