@@ -539,7 +539,7 @@ export const MatchDetailPage: React.FC = () => {
               <input 
                 ref={fileInputRef}
                 type="file" 
-                accept="video/mp4,video/quicktime,video/x-matroska,video/webm"
+                accept="video/mp4"
                 onChange={handleFileSelect}
                 className="hidden" 
               />
@@ -569,7 +569,7 @@ export const MatchDetailPage: React.FC = () => {
                 ) : (
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-white">Kéo thả video hoặc bấm để chọn</p>
-                    <p className="text-xs text-white/40">Hỗ trợ MP4, MOV, MKV, WebM (Tối đa 500MB)</p>
+                    <p className="text-xs text-white/40">Hỗ trợ MP4 (Tối đa 500MB)</p>
                   </div>
                 )}
               </div>

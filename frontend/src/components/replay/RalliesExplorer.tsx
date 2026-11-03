@@ -61,9 +61,21 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
     return upperPlayer === 'PLAYER_A' ? playerBName : playerAName;
   };
 
+  // Scores read from the broadcast scoreboard (OCR) are the real match score;
+  // otherwise they are counted from 0-0 at the start of the uploaded video.
+  const ocrAnchored = rallies.some((r) => r.winReason?.toLowerCase().startsWith('ocr_confirmed'));
+  const scoreLabel = ocrAnchored ? 'Tỉ số:' : 'Điểm clip (ước tính):';
+  const scoreTooltip = ocrAnchored
+    ? 'Tỉ số đọc từ bảng điểm của video (OCR)'
+    : 'Không đọc được bảng điểm: AI tự đếm số pha thắng, tính từ 0-0 ở đầu video, không phải tỉ số thật của trận';
+
   const formatWinReason = (reason?: string) => {
     if (!reason) return 'Ghi điểm';
-    switch (reason.toLowerCase()) {
+    const normalized = reason.toLowerCase();
+    if (normalized.startsWith('ocr_confirmed')) return 'Xác nhận từ bảng điểm (OCR)';
+    switch (normalized) {
+      case 'next_rally_server':
+        return 'Suy ra từ người giao cầu pha sau';
       case 'winner_smash':
         return 'Đập cầu ghi điểm (Smash Winner)';
       case 'winner_net_shot':
@@ -136,10 +148,10 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                 )}
               </div>
 
-              {/* Điểm số tích lũy trong đoạn clip */}
-              <div className="flex items-center gap-1.5" title="Điểm số tích lũy ước tính của đoạn video này (tính từ đầu clip)">
-                <span className="text-[10px] text-white/50">Điểm clip:</span>
-                <span className="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-mono font-bold text-xs" title="Tích lũy số pha thắng trong clip">
+              {/* Tỉ số sau pha cầu: thật nếu có OCR, ngược lại là điểm ước tính trong clip */}
+              <div className="flex items-center gap-1.5" title={scoreTooltip}>
+                <span className="text-[10px] text-white/50">{scoreLabel}</span>
+                <span className="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-mono font-bold text-xs">
                   {rally.scoreText || `${rally.scoreUpper} - ${rally.scoreLower}`}
                 </span>
               </div>
