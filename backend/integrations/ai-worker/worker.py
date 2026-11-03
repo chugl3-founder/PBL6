@@ -28,7 +28,11 @@ import pika
 from psycopg2.extras import Json
 
 from app.config import settings
-from app.infrastructure.database import get_connection, update_analysis_status
+from app.infrastructure.database import (
+    fetch_court_player_names,
+    get_connection,
+    update_analysis_status,
+)
 from app.infrastructure.object_storage import download_video
 
 # Configure paths to import AI_Classifier modules
@@ -478,12 +482,13 @@ def process_job(payload: Dict[str, Any]):
         pose_ckpt = (ckpts / "yolov8n-pose.pt") if (ckpts / "yolov8n-pose.pt").exists() else (AI_CLASSIFIER_ROOT / "models" / "checkpoints" / "pose" / "yolov8n-pose.pt")
         rally_ckpt = (ckpts / "rally_boundary_detector.joblib") if (ckpts / "rally_boundary_detector.joblib").exists() else (AI_CLASSIFIER_ROOT / "work_dirs" / "rally_boundary_detector.joblib")
 
+        player_upper, player_lower = fetch_court_player_names(match_id)
         logger.info(f"Launching AI pipeline inference on GPU...")
         result = analyze_badminton_video(
             video_path=temp_video_path,
             output_path=output_json_path,
-            player_upper="Player Upper",
-            player_lower="Player Lower",
+            player_upper=player_upper,
+            player_lower=player_lower,
             hit_checkpoint=hit_ckpt,
             kap_checkpoint=kap_ckpt,
             pose_model=pose_ckpt,
@@ -501,6 +506,7 @@ def process_job(payload: Dict[str, Any]):
             hit_rescue=True,
             serve_rescue_threshold=0.40,
             bridge_rescue_threshold=0.55,
+            alternation_gap_frames=60,
         )
 
         save_ai_results_to_database(analysis_id, match_id, result)
@@ -545,16 +551,22 @@ def connect_to_rabbitmq():
 
 def main():
     logger.info("Starting Badminton Production AI Worker with GPU...")
-    connection, channel = connect_to_rabbitmq()
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
-
-    try:
-        channel.start_consuming()
-    except KeyboardInterrupt:
-        logger.info("AI Worker stopped by user.")
-        channel.stop_consuming()
-        connection.close()
+    # CloudAMQP drops idle or flaky connections; reconnect instead of exiting.
+    # An unacknowledged in-flight job is redelivered by the broker after a drop.
+    while True:
+        connection, channel = connect_to_rabbitmq()
+        channel.basic_qos(prefetch_count=1)
+        channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
+        try:
+            channel.start_consuming()
+        except KeyboardInterrupt:
+            logger.info("AI Worker stopped by user.")
+            channel.stop_consuming()
+            connection.close()
+            return
+        except pika.exceptions.AMQPConnectionError as e:
+            logger.warning(f"Lost connection to CloudAMQP ({e!r}). Reconnecting in 5 seconds...")
+            time.sleep(5)
 
 
 if __name__ == "__main__":

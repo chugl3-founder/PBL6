@@ -345,6 +345,7 @@ public class AnalysisService {
         Object radarChart = parseJsonObject(mapper, analysis.getRadarChart());
         Object coachInsights = parseJsonObject(mapper, analysis.getCoachInsights());
         Object tacticalPatterns = parseJsonObject(mapper, analysis.getTacticalPatterns());
+        Object structuredTactics = parseJsonObject(mapper, analysis.getStructuredTactics());
 
         return com.badminton.dto.analysis.MatchStatisticsResponse.builder()
                 .id(stats.getId())
@@ -366,6 +367,7 @@ public class AnalysisService {
                 .radarChart(radarChart)
                 .coachInsights(coachInsights)
                 .tacticalPatterns(tacticalPatterns)
+                .structuredTactics(structuredTactics)
                 .build();
     }
 

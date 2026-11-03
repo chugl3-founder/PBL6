@@ -41,5 +41,7 @@ public class MatchStatisticsResponse {
     private Object radarChart;
     private Object coachInsights;
     private Object tacticalPatterns;
+    // Chiến thuật CoachAI+ theo từng rally/người chơi (rule-based)
+    private Object structuredTactics;
 }
 

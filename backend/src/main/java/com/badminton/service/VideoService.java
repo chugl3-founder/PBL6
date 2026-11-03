@@ -46,13 +46,8 @@ public class VideoService {
     // Giới hạn dung lượng tối đa 500MB theo NFR-VID-01
     private static final long MAX_VIDEO_SIZE = 500L * 1024 * 1024;
 
-    private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList(
-            ".mp4",
-            ".mov",
-            ".mkv",
-            ".webm",
-            ".avi"
-    );
+    // Chỉ nhận MP4: định dạng mọi trình duyệt đều phát được trên trang Replay
+    private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList(".mp4");
 
     public VideoService(
             MatchRepository matchRepository,
@@ -80,15 +75,10 @@ public class VideoService {
         return s3Properties.publicUrl() != null ? s3Properties.publicUrl() : "";
     }
 
-    @Transactional
-    public VideoUploadUrlResponse getPresignedUploadUrl(Long matchId, VideoUploadUrlRequest request, String userEmail) {
-        User user = findUserByEmail(userEmail);
-        Match match = findMatchById(matchId);
-        checkOwnership(match, user);
-
-        // 1. Kiểm tra giới hạn dung lượng 500MB (NFR-VID-01)
-        if (request.getFileSize() != null && request.getFileSize() > MAX_VIDEO_SIZE) {
-            log.warn("Dung lượng video vượt quá 500MB: matchId={}, size={}", matchId, request.getFileSize());
+    /** Kiểm tra dung lượng và định dạng video, trả về phần mở rộng (vd ".mp4"). */
+    private String validateVideoFile(Long matchId, String fileName, Long fileSize) {
+        if (fileSize != null && fileSize > MAX_VIDEO_SIZE) {
+            log.warn("Dung lượng video vượt quá 500MB: matchId={}, size={}", matchId, fileSize);
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     ErrorType.VALIDATION,
@@ -97,22 +87,30 @@ public class VideoService {
             );
         }
 
-        // 2. Kiểm tra định dạng file mở rộng
-        String fileName = request.getFileName();
         String ext = "";
         if (fileName != null && fileName.lastIndexOf(".") != -1) {
             ext = fileName.substring(fileName.lastIndexOf(".")).toLowerCase(Locale.ROOT);
         }
-
         if (!ALLOWED_EXTENSIONS.contains(ext)) {
             log.warn("Định dạng video không được hỗ trợ: matchId={}, fileName={}", matchId, fileName);
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     ErrorType.VALIDATION,
                     "ERR_INVALID_FILE_TYPE",
-                    "Định dạng video không được hỗ trợ. Vui lòng chọn file MP4, MOV, MKV hoặc WebM."
+                    "Định dạng video không được hỗ trợ. Vui lòng chọn file MP4."
             );
         }
+        return ext;
+    }
+
+    @Transactional
+    public VideoUploadUrlResponse getPresignedUploadUrl(Long matchId, VideoUploadUrlRequest request, String userEmail) {
+        User user = findUserByEmail(userEmail);
+        Match match = findMatchById(matchId);
+        checkOwnership(match, user);
+
+        // 1–2. Kiểm tra dung lượng 500MB (NFR-VID-01) và định dạng file
+        String ext = validateVideoFile(matchId, request.getFileName(), request.getFileSize());
 
         // 3. Tạo đường dẫn lưu trữ độc nhất
         String storagePath = "matches/" + matchId + "/" + UUID.randomUUID() + ext;
@@ -216,11 +214,9 @@ public class VideoService {
         Match match = findMatchById(matchId);
         checkOwnership(match, user);
 
+        // Đường dự phòng phải chặn giống Presigned URL, nếu không file sai định dạng vẫn lọt qua
         String fileName = file.getOriginalFilename();
-        String ext = "";
-        if (fileName != null && fileName.lastIndexOf(".") != -1) {
-            ext = fileName.substring(fileName.lastIndexOf(".")).toLowerCase(Locale.ROOT);
-        }
+        String ext = validateVideoFile(matchId, fileName, file.getSize());
 
         String storagePath = "matches/" + matchId + "/" + UUID.randomUUID() + ext;
 
