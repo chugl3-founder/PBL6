@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Video, ArrowRight, BarChart3, Crosshair, TrendingUp, Globe, Clock, Loader2 } from 'lucide-react';
+import { Play, Video, ArrowRight, BarChart3, Crosshair, TrendingUp, Globe, Clock, Loader2, Zap, Cloud } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
 
@@ -30,39 +30,42 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-20 pb-20 pt-6">
-      {/* 1. HERO SECTION */}
-      <section className="relative min-h-[640px] rounded-3xl overflow-hidden border border-white/20 bg-gradient-to-br from-[#122340] via-[#0f1d35] to-[#0c1626] flex flex-col justify-between p-8 sm:p-14 lg:p-16 shadow-2xl">
+    <div className="space-y-20 pb-20 pt-4">
+      {/* 1. HERO SECTION (TĂNG KÍCH THƯỚC KHUNG, TĂNG ĐỘ SÁNG CHUẨN ẢNH 2) */}
+      <section className="relative min-h-[680px] lg:min-h-[720px] rounded-3xl overflow-hidden border border-white/20 bg-gradient-to-br from-[#123160] via-[#0e274f] to-[#0a1c38] flex flex-col justify-between p-8 sm:p-12 lg:p-16 shadow-2xl">
+        {/* Background Court Image - Sáng rõ nét */}
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-45 mix-blend-screen pointer-events-none brightness-110 contrast-105"
+          className="absolute inset-0 bg-cover bg-center pointer-events-none brightness-110 contrast-105"
           style={{
             backgroundImage: `url('/images/arena-court-blue.jpg')`
           }}
         />
 
-        <div className="absolute -top-32 right-10 w-[750px] h-[750px] bg-brand/30 rounded-full blur-[140px] pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-[600px] h-[600px] bg-sky-400/25 rounded-full blur-[120px] pointer-events-none" />
+        {/* Lớp gradient xanh dịu giữ độ sáng của sân và đảm bảo độ tương phản chữ */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0c2652]/85 via-[#0d2a5a]/45 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#091f42]/70 via-transparent to-transparent pointer-events-none" />
+        
+        {/* Lớp ánh sáng xanh thể thao (Cyan & Royal Blue Glow) */}
+        <div className="absolute -top-24 right-10 w-[750px] h-[750px] bg-sky-400/20 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute -bottom-20 -left-20 w-[650px] h-[650px] bg-brand/25 rounded-full blur-[140px] pointer-events-none" />
 
-        <div className="relative z-10 max-w-3xl space-y-6 pt-4">
-          {/* Badge */}
-          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-semibold tracking-wide shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-brand animate-ping" />
-            <span>TRÍ TUỆ NHÂN TẠO & THỊ GIÁC MÁY TÍNH CHO CẦU LÔNG</span>
-          </div>
-
+        {/* Hero Content */}
+        <div className="relative z-10 max-w-4xl space-y-6 pt-4">
           {/* Heading */}
-          <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.15]">
-            Phân tích hiệu suất & <br />
-            chiến thuật đỉnh cao cho <br />
-            <span className="tech-highlight-line mt-1.5 shadow-glow-blue">cầu lông hiện đại.</span>
+          <h1 className="font-heading text-4xl sm:text-5xl lg:text-[60px] font-extrabold text-white tracking-tight leading-[1.12]">
+            Phân tích hiệu suất và <br />
+            chiến thuật đỉnh cao <br />
+            cho cầu lông hiện đại.
           </h1>
 
+          {/* Subtitle */}
           <p className="text-slate-200 text-base sm:text-lg leading-relaxed max-w-2xl font-normal">
-            Nền tảng số hóa chuyên sâu dành cho mọi sân đấu, vận động viên và huấn luyện viên. Bóc tách tự động từng cú đánh, tốc độ cầu, vị trí di chuyển và thống kê đối đầu trực quan bằng AI.
+            Theo dõi cú đánh, tốc độ cầu, vị trí di chuyển và diễn biến trận đấu <br className="hidden sm:inline" />
+            trên một nền tảng trực quan dành cho vận động viên và huấn luyện viên.
           </p>
 
           {/* CTAs */}
-          <div className="pt-2 flex flex-wrap items-center gap-4">
+          <div className="pt-3 flex flex-wrap items-center gap-4">
             <Link
               to="/my-matches"
               className="rounded-full bg-brand hover:bg-brand-hover text-white font-semibold px-7 py-3.5 text-sm shadow-glow-blue transition-all duration-200 flex items-center gap-2"
@@ -81,29 +84,74 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Hero Bottom Telemetry Strip */}
-        <div className="relative z-10 pt-10 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-6 text-sm">
-          <div className="bg-white/5 backdrop-blur-sm p-3.5 rounded-2xl border border-white/10">
-            <div className="font-heading text-2xl font-bold text-white tracking-tight">100%</div>
-            <div className="text-slate-300 text-xs mt-0.5">Tự động cắt pha cầu (Rally)</div>
+        {/* Hero Bottom 4 Feature Cards (Rộng rãi, sáng khối kính xanh) */}
+        <div className="relative z-10 pt-12 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+          {/* Card 1: Tự động phân đoạn trận đấu */}
+          <div className="bg-[#122e5a]/70 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-white/20 flex items-center gap-4 shadow-xl hover:border-sky-400/50 hover:bg-[#16376b]/80 transition-all">
+            <div className="w-12 h-12 rounded-full bg-[#007aff] flex items-center justify-center text-white shrink-0 shadow-glow-blue">
+              <Zap className="w-5 h-5 fill-white" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm sm:text-[15px] leading-snug">
+                Tự động phân đoạn trận đấu
+              </h3>
+              <p className="text-slate-300 text-xs leading-relaxed mt-1">
+                Nhận diện và tách các pha diễn biến chính.
+              </p>
+            </div>
           </div>
-          <div className="bg-white/5 backdrop-blur-sm p-3.5 rounded-2xl border border-white/10">
-            <div className="font-heading text-2xl font-bold text-sky-400 tracking-tight">&lt; 200ms</div>
-            <div className="text-slate-300 text-xs mt-0.5">Tốc độ điều phối tác vụ AI</div>
+
+          {/* Card 2: Phân tích cú đánh */}
+          <div className="bg-[#122e5a]/70 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-white/20 flex items-center gap-4 shadow-xl hover:border-sky-400/50 hover:bg-[#16376b]/80 transition-all">
+            <div className="w-12 h-12 rounded-full bg-[#007aff] flex items-center justify-center text-white shrink-0 shadow-glow-blue">
+              <BarChart3 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm sm:text-[15px] leading-snug">
+                Phân tích cú đánh
+              </h3>
+              <p className="text-slate-300 text-xs leading-relaxed mt-1">
+                Thống kê loại cú đánh, tốc độ và độ chính xác.
+              </p>
+            </div>
           </div>
-          <div className="bg-white/5 backdrop-blur-sm p-3.5 rounded-2xl border border-white/10">
-            <div className="font-heading text-2xl font-bold text-white tracking-tight">Sân 2D</div>
-            <div className="text-slate-300 text-xs mt-0.5">Mô phỏng tọa độ & quỹ đạo cầu</div>
+
+          {/* Card 3: Phân tích di chuyển */}
+          <div className="bg-[#122e5a]/70 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-white/20 flex items-center gap-4 shadow-xl hover:border-sky-400/50 hover:bg-[#16376b]/80 transition-all">
+            <div className="w-12 h-12 rounded-full bg-[#007aff] flex items-center justify-center text-white shrink-0 shadow-glow-blue">
+              <svg className="w-5 h-5 text-white fill-current" viewBox="0 0 24 24">
+                <path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 3.48L7.1 22.95h2.12l1.79-7.98 2.1 1.99v6h2v-7.5l-2.09-1.99.59-3.01c1.29 1.54 3.29 2.54 5.49 2.54v-2c-1.9 0-3.51-.99-4.3-2.4l-1-1.6c-.39-.6-.99-1-1.7-1-.3 0-.5.1-.8.1L6.1 8.28V13h2V9.67l1.79-.71z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm sm:text-[15px] leading-snug">
+                Phân tích di chuyển
+              </h3>
+              <p className="text-slate-300 text-xs leading-relaxed mt-1">
+                Theo dõi vị trí và vùng hoạt động trên sân.
+              </p>
+            </div>
           </div>
-          <div className="bg-white/5 backdrop-blur-sm p-3.5 rounded-2xl border border-white/10">
-            <div className="font-heading text-2xl font-bold text-sky-400 tracking-tight">S3 Cloud</div>
-            <div className="text-slate-300 text-xs mt-0.5">Tải lên trực tiếp video lớn</div>
+
+          {/* Card 4: Lưu trữ đám mây */}
+          <div className="bg-[#122e5a]/70 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-white/20 flex items-center gap-4 shadow-xl hover:border-sky-400/50 hover:bg-[#16376b]/80 transition-all">
+            <div className="w-12 h-12 rounded-full bg-[#007aff] flex items-center justify-center text-white shrink-0 shadow-glow-blue">
+              <Cloud className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm sm:text-[15px] leading-snug">
+                Lưu trữ đám mây
+              </h3>
+              <p className="text-slate-300 text-xs leading-relaxed mt-1">
+                Tải lên và quản lý video dễ dàng.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 2. FEATURE SPOTLIGHT */}
-      <section className="space-y-8">
+      {/* 2. FEATURE SPOTLIGHT (GIỮ NGUYÊN) */}
+      <section id="features" className="space-y-8">
         <div className="text-center max-w-2xl mx-auto space-y-2">
           <h2 className="font-heading text-2xl sm:text-3xl font-bold text-white tracking-tight">
             Công Cụ Chuyên Sâu Cho Vận Động Viên & Huấn Luyện Viên
@@ -176,7 +224,7 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 3. TRẬN ĐẤU TIÊU BIỂU (FEATURED PUBLIC MATCHES PREVIEW) */}
+      {/* 3. TRẬN ĐẤU TIÊU BIỂU (GIỮ NGUYÊN) */}
       <section className="space-y-6 pt-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
