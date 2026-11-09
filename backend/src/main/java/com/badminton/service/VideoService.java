@@ -145,7 +145,7 @@ public class VideoService {
                         .match(match)
                         .build());
 
-        video.setFileName(fileName);
+        video.setFileName(request.getFileName());
         video.setStoragePath(storagePath);
         video.setFileSize(request.getFileSize());
         video.setMimeType(request.getMimeType() != null ? request.getMimeType() : "video/mp4");

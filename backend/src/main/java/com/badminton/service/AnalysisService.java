@@ -9,6 +9,7 @@ import com.badminton.entity.Match;
 import com.badminton.entity.User;
 import com.badminton.entity.Video;
 import com.badminton.repository.AiAnalysisRepository;
+import com.badminton.repository.AnalysisQueueRepository;
 import com.badminton.repository.MatchRepository;
 import com.badminton.repository.UserRepository;
 import com.badminton.repository.VideoRepository;
@@ -35,53 +36,21 @@ public class AnalysisService {
     private final com.badminton.repository.MatchStatisticRepository matchStatisticRepository;
     private final MockAiEngineService mockAiEngineService;
     private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+    private final AnalysisQueueRepository analysisQueueRepository;
 
-    @Transactional
     public AnalysisDispatchResponse dispatchAnalysis(Long matchId, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
-
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        if (!match.getOwner().getId().equals(user.getId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
-        }
-
-        Video video = videoRepository.findByMatchId(matchId)
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_FOUND", "Trận đấu chưa có video được tải lên"));
-
-        if (!"READY".equalsIgnoreCase(video.getStatus()) && !"UPLOADED".equalsIgnoreCase(video.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_READY", "Video chưa sẵn sàng để phân tích");
-        }
-
-        // Đánh dấu toàn bộ các bản ghi phân tích cũ của trận đấu thành isCurrent = false
-        aiAnalysisRepository.demoteAllCurrentByMatchId(matchId);
-
-        // Tạo bản ghi AI Analysis mới với trạng thái QUEUED
-        AiAnalysis analysis = AiAnalysis.builder()
-                .match(match)
-                .video(video)
-                .status("QUEUED")
-                .modelName("CoachAI+")
-                .modelVersion("2.0_pbl6_coachai")
-                .isCurrent(true)
-                .build();
-
-        AiAnalysis savedAnalysis = aiAnalysisRepository.saveAndFlush(analysis);
-
-        // Cập nhật trạng thái trận đấu sang ANALYZING
-        match.setStatus("ANALYZING");
-        matchRepository.saveAndFlush(match);
+        // Commit before publishing: the broker call holds no database connection and the worker always finds the row.
+        AnalysisQueueRepository.QueuedAnalysis queued = analysisQueueRepository.createQueuedAnalysis(matchId, userEmail)
+                .orElseThrow(() -> transactionTemplate.execute(status -> dispatchRejection(matchId, userEmail)));
 
         // Gửi Analysis Job lên CloudAMQP cho external AI Worker (GPU)
         boolean sentToRabbit = false;
         try {
             java.util.Map<String, Object> job = new java.util.HashMap<>();
-            job.put("analysisId", savedAnalysis.getId());
+            job.put("analysisId", queued.analysisId());
             job.put("matchId", matchId);
-            job.put("videoStoragePath", video.getStoragePath());
+            job.put("videoStoragePath", queued.videoStoragePath());
 
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             String payload = mapper.writeValueAsString(job);
@@ -93,16 +62,35 @@ public class AnalysisService {
         }
 
         if (!sentToRabbit) {
-            mockAiEngineService.runMockAnalysis(savedAnalysis.getId());
+            mockAiEngineService.runMockAnalysis(queued.analysisId());
         }
 
         return AnalysisDispatchResponse.builder()
-                .analysisId(savedAnalysis.getId())
+                .analysisId(queued.analysisId())
                 .matchId(matchId)
                 .status("QUEUED")
                 .message("Yêu cầu phân tích đã được tiếp nhận và đưa vào hàng đợi xử lý.")
                 .queuedAt(OffsetDateTime.now())
                 .build();
+    }
+
+    /** Explains why createQueuedAnalysis created nothing. Only rejected requests pay for these extra queries. */
+    private ApiException dispatchRejection(Long matchId, String userEmail) {
+        Optional<User> user = userRepository.findByEmail(userEmail);
+        if (user.isEmpty()) {
+            return new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại");
+        }
+        Optional<Match> match = matchRepository.findById(matchId).filter(m -> m.getDeletedAt() == null);
+        if (match.isEmpty()) {
+            return new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu");
+        }
+        if (!match.get().getOwner().getId().equals(user.get().getId())) {
+            return new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
+        }
+        if (!videoRepository.existsByMatchId(matchId)) {
+            return new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_FOUND", "Trận đấu chưa có video được tải lên");
+        }
+        return new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_READY", "Video chưa sẵn sàng để phân tích");
     }
 
     @Transactional(readOnly = true)
@@ -328,7 +316,6 @@ public class AnalysisService {
                     .unknownSideCount(unknownSides)
                     .avgConfidence(java.math.BigDecimal.valueOf(avgConf).setScale(3, java.math.RoundingMode.HALF_UP))
                     .build();
-            stats = matchStatisticRepository.save(stats);
         }
 
         // 2. Tính phân bố chi tiết cú đánh (strokeDistribution)
