@@ -25,7 +25,8 @@ def update_analysis_status(
     analysis_id: int,
     status: str,
     error_message: str | None = None,
-) -> None:
+) -> bool:
+    """Return False when the database could not be reached, so the caller can keep the job."""
     try:
         with get_connection() as connection, connection.cursor() as cursor:
             if status == "PROCESSING":
@@ -49,6 +50,8 @@ def update_analysis_status(
                 )
     except Exception:
         logger.exception("Failed to update analysis %s status", analysis_id)
+        return False
+    return True
 
 
 def fetch_court_player_names(match_id: int) -> tuple[str, str]:
