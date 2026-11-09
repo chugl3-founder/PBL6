@@ -46,7 +46,7 @@ class Settings:
 
         return cls(
             ai_classifier_root=Path(
-                os.getenv("AI_CLASSIFIER_ROOT", "../AI_Classifier")
+                os.getenv("AI_CLASSIFIER_ROOT", "../../../AI_Classifier")
             ).resolve(),
             amqp_url=_get_env("AMQP_URL", default_amqp),
             queue_name=_get_env("RABBITMQ_QUEUE", "badminton.ai.queue"),

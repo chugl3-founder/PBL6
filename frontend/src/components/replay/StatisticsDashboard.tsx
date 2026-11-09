@@ -2,8 +2,15 @@ import React, { useState } from 'react';
 import { 
   BarChart3, Trophy, Flame,
   Sparkles, Award, Lightbulb, Activity,
-  PieChart as PieIcon, Users
+  PieChart as PieIcon, Users, Target
 } from 'lucide-react';
+import { TacticsBreakdown, StructuredTacticsData } from './TacticsBreakdown';
+
+interface CoachInsight {
+  target: string;
+  category: string;
+  insight: string;
+}
 
 export interface MatchStatisticsData {
   id: number;
@@ -27,25 +34,25 @@ export interface MatchStatisticsData {
     upper: number[];
     lower: number[];
   };
-  coachInsights?: {
-    insights: Array<{
-      target: string;
-      category: string;
-      insight: string;
-    }>;
-  };
+  // The AI pipeline stores a plain list; older/mock analyses wrap it in { insights }.
+  coachInsights?: CoachInsight[] | { insights: CoachInsight[] };
   tacticalPatterns?: {
     top_transitions_2gram?: Array<{ sequence?: string; from?: string; to?: string; count: number }>;
     top_sequences_3gram?: Array<{ sequence?: string; count: number }>;
     estimated_winning_combinations?: Record<string, any>;
   };
+  structuredTactics?: StructuredTacticsData | null;
 }
 
 interface StatisticsDashboardProps {
   stats: MatchStatisticsData;
   playerAName?: string;
   playerBName?: string;
+  /** Which player stands on the upper half of the video ('PLAYER_A' | 'PLAYER_B'). */
+  upperPlayer?: string;
   compact?: boolean;
+  /** Seek the replay video; enables "watch" buttons on tactic rallies. */
+  onSeekTime?: (seconds: number, label: string) => void;
 }
 
 const STROKE_COLORS: Record<string, string> = {
@@ -72,14 +79,44 @@ const STROKE_VIETNAMESE: Record<string, string> = {
   UNKNOWN: 'Khác'
 };
 
+type DashboardTab = 'STROKES' | 'TACTICS' | 'STYLE';
+
+const DASHBOARD_TABS: Array<{ key: DashboardTab; label: string; Icon: React.FC<{ className?: string }> }> = [
+  { key: 'STROKES', label: 'Cú đánh', Icon: PieIcon },
+  { key: 'TACTICS', label: 'Chiến thuật', Icon: Target },
+  { key: 'STYLE', label: 'Phong cách & nhận định', Icon: Lightbulb }
+];
+
+const EmptyTab: React.FC<{ text: string }> = ({ text }) => (
+  <div className="p-8 rounded-2xl bg-[#111c30]/60 border border-white/10 text-center text-xs text-white/50">
+    {text}
+  </div>
+);
+
 export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
   stats,
   playerAName = 'Player A',
   playerBName = 'Player B',
-  compact = false
+  upperPlayer = 'PLAYER_A',
+  compact = false,
+  onSeekTime
 }) => {
   const [hoveredSlice, setHoveredSlice] = useState<string | null>(null);
   const [patternGram, setPatternGram] = useState<'3GRAM' | '2GRAM'>('3GRAM');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('STROKES');
+  // The sidebar (compact) has no room for tabs, so it shows every section.
+  const showTab = (tab: DashboardTab) => compact || activeTab === tab;
+  const coachInsights: CoachInsight[] = Array.isArray(stats.coachInsights)
+    ? stats.coachInsights
+    : stats.coachInsights?.insights || [];
+  const hasStyleData = Boolean(
+    (stats.radarChart?.axes && stats.radarChart.axes.length >= 3) || coachInsights.length > 0
+  );
+  // Insight targets are 'upper'/'lower' in older data and player names (or "General") otherwise.
+  const insightTargetName = (target: string) =>
+    target === 'upper' || target === 'lower'
+      ? (target === 'upper') === (upperPlayer === 'PLAYER_A') ? playerAName : playerBName
+      : target === 'General' ? 'Cả trận' : target;
 
   // Chuẩn bị dữ liệu biểu đồ tròn phân bố cú đánh
   const distribution = stats.strokeDistribution || {};
@@ -208,7 +245,29 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         </div>
       </div>
 
+      {/* TAB CHUYỂN NHÓM PHÂN TÍCH */}
+      {!compact && (
+        <div className="flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 text-xs w-full sm:w-fit overflow-x-auto">
+          {DASHBOARD_TABS.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-all ${
+                activeTab === key
+                  ? 'bg-brand text-white shadow-glow-blue'
+                  : 'text-white/50 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 2. MAIN VISUALIZATION: STROKE DISTRIBUTION (DONUT) & PLAYER HEAD-TO-HEAD */}
+      {showTab('STROKES') && (
       <div className={`grid ${compact ? 'grid-cols-1 gap-4' : 'grid-cols-1 lg:grid-cols-12 gap-5'}`}>
         
         {/* DONUT CHART: PHÂN BỐ CÚ ĐÁNH */}
@@ -394,108 +453,19 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         </div>
       </div>
 
-      {/* 3. BIỂU ĐỒ CỘT DỌC & BẢNG PHÂN TÍCH ĐỊNH LƯỢNG CHI TIẾT CÚ ĐÁNH */}
-      {slices.length > 0 && (() => {
-        const maxCount = Math.max(...slices.map(s => s.count), 1);
-        return (
-          <div className={`grid ${compact ? 'grid-cols-1 gap-4' : 'grid-cols-1 lg:grid-cols-12 gap-5'}`}>
-            {/* Biểu đồ Cột dọc (Vertical Column Chart) */}
-            <div className={`${compact ? '' : 'lg:col-span-6'} p-4 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
-              <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-emerald-400" />
-                  <h3 className="font-bold text-xs lg:text-sm text-white">Biểu Đồ Cột Tần Suất Cú Đánh</h3>
-                </div>
-                <span className="text-[10px] text-white/40 font-mono">Đơn vị: số cú đánh</span>
-              </div>
+      )}
 
-              <div className="h-44 flex items-end justify-between gap-2 pt-6 pb-2 px-2 border-b border-white/10">
-                {slices.map((sl) => {
-                  const heightPct = Math.max(Math.round((sl.count / maxCount) * 100), 8);
-                  return (
-                    <div
-                      key={sl.stroke}
-                      className="flex-1 flex flex-col items-center justify-end h-full group"
-                    >
-                      <span className="text-[10px] font-mono font-bold text-white mb-1 opacity-85 group-hover:opacity-100">
-                        {sl.count}
-                      </span>
-                      <div
-                        className="w-full max-w-[34px] rounded-t-xl transition-all duration-500 group-hover:brightness-125"
-                        style={{
-                          height: `${heightPct}%`,
-                          backgroundColor: sl.color,
-                          boxShadow: `0 0 12px ${sl.color}40`,
-                        }}
-                        title={`${STROKE_VIETNAMESE[sl.stroke.toUpperCase()] || sl.stroke}: ${sl.count} cú (${sl.percentage}%)`}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex items-center justify-between gap-2 pt-2 px-1">
-                {slices.map((sl) => (
-                  <div key={sl.stroke} className="flex-1 text-center truncate">
-                    <span className="text-[9px] font-mono font-semibold text-white/70 uppercase">
-                      {sl.stroke.replace('_', ' ')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Bảng thống kê định lượng chi tiết theo loại cú đánh */}
-            <div className={`${compact ? '' : 'lg:col-span-6'} p-4 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
-              <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-sky-400" />
-                  <h3 className="font-bold text-xs lg:text-sm text-white">Bảng Phân Tích Định Lượng Cú Đánh</h3>
-                </div>
-                <span className="text-[10px] text-white/40 font-mono">Chi tiết tỷ trọng</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[11px]">
-                  <thead>
-                    <tr className="border-b border-white/10 text-white/50 uppercase text-[10px]">
-                      <th className="pb-2">Loại Cú Đánh</th>
-                      <th className="pb-2 text-right">Số Lượng</th>
-                      <th className="pb-2 text-right">Tỷ Lệ</th>
-                      <th className="pb-2 pl-3">Thanh Tỷ Trọng</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {slices.map((sl) => (
-                      <tr key={sl.stroke} className="hover:bg-white/[0.03]">
-                        <td className="py-2 font-medium text-white flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sl.color }} />
-                          <span className="truncate">{STROKE_VIETNAMESE[sl.stroke.toUpperCase()] || sl.stroke}</span>
-                        </td>
-                        <td className="py-2 text-right font-mono font-bold text-white">{sl.count}</td>
-                        <td className="py-2 text-right font-mono text-sky-300">{sl.percentage}%</td>
-                        <td className="py-2 pl-3 w-24">
-                          <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: `${sl.percentage}%`, backgroundColor: sl.color }}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {showTab('STYLE') && !hasStyleData && (
+        <EmptyTab text="Trận này chưa có dữ liệu phong cách & nhận định. Chạy lại phân tích AI để tạo." />
+      )}
 
       {/* 4. BIỂU ĐỒ RADAR NGŨ GIÁC 5 TRỤC ĐỐI ĐẦU (5-AXIS PENTAGON RADAR CHART) */}
-      {stats.radarChart?.axes && stats.radarChart.axes.length >= 3 && (() => {
+      {showTab('STYLE') && stats.radarChart?.axes && stats.radarChart.axes.length >= 3 && (() => {
         const axes = stats.radarChart!.axes;
-        const upperVals = stats.radarChart!.upper || [];
-        const lowerVals = stats.radarChart!.lower || [];
+        // Radar series are keyed by court side; the legend is keyed by player.
+        const upperIsA = upperPlayer === 'PLAYER_A';
+        const playerAVals = (upperIsA ? stats.radarChart!.upper : stats.radarChart!.lower) || [];
+        const playerBVals = (upperIsA ? stats.radarChart!.lower : stats.radarChart!.upper) || [];
         const numAxes = axes.length;
         const center = 110;
         const maxR = 75;
@@ -505,12 +475,12 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
           'Defensive Stroke Share': 'Phòng thủ',
           'Net Stroke Share': 'Gài lưới',
           'Shot Variety': 'Đa dạng đòn',
-          'Mean Model Confidence': 'Độ chuẩn xác',
+          'Mean Model Confidence': 'Độ tự tin AI',
           'Fast Stroke Share': 'Nhịp độ nhanh',
           attack: 'Tấn công',
           defense: 'Phòng thủ',
           net_play: 'Gài lưới',
-          consistency: 'Độ chuẩn xác',
+          consistency: 'Độ tự tin AI',
           variation: 'Đa dạng đòn',
           pace: 'Nhịp độ nhanh',
         };
@@ -525,12 +495,12 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         };
 
         const upperPolygon = axes.map((_, i) => {
-          const pt = getPoint(i, upperVals[i] ?? 70);
+          const pt = getPoint(i, playerAVals[i] ?? 70);
           return `${pt.x},${pt.y}`;
         }).join(' ');
 
         const lowerPolygon = axes.map((_, i) => {
-          const pt = getPoint(i, lowerVals[i] ?? 70);
+          const pt = getPoint(i, playerBVals[i] ?? 70);
           return `${pt.x},${pt.y}`;
         }).join(' ');
 
@@ -639,10 +609,10 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
                       <tr key={ax}>
                         <td className="py-1.5 font-medium text-white/90">{axisNameVi[ax] || ax}</td>
                         <td className="py-1.5 text-right font-mono font-bold text-sky-300">
-                          {upperVals[i] ?? 70}/100
+                          {playerAVals[i] ?? 70}/100
                         </td>
                         <td className="py-1.5 text-right font-mono font-bold text-amber-300">
-                          {lowerVals[i] ?? 70}/100
+                          {playerBVals[i] ?? 70}/100
                         </td>
                       </tr>
                     ))}
@@ -655,7 +625,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
       })()}
 
       {/* 5. COACHAI+ 2.0 RADAR & TACTICAL INSIGHTS */}
-      {stats.coachInsights?.insights && stats.coachInsights.insights.length > 0 && (
+      {showTab('STYLE') && coachInsights.length > 0 && (
         <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-gradient-to-r from-blue-950/40 via-[#111c30]/90 to-cyan-950/40 border border-brand/20 shadow-xl`}>
           <div className="flex items-center gap-2 mb-3">
             <Lightbulb className="w-4 h-4 text-amber-400 shrink-0" />
@@ -663,7 +633,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
           </div>
 
           <div className={`grid ${compact ? 'grid-cols-1 gap-2.5' : 'grid-cols-1 md:grid-cols-2 gap-3'}`}>
-            {stats.coachInsights.insights.map((item, idx) => (
+            {coachInsights.map((item, idx) => (
               <div key={idx} className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-start gap-2.5 min-w-0">
                 <div className="p-1.5 rounded-lg bg-brand/10 border border-brand/20 text-brand shrink-0 mt-0.5">
                   <Sparkles className="w-3.5 h-3.5" />
@@ -674,7 +644,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
                       {item.category}
                     </span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/80 font-medium truncate max-w-[150px]">
-                      Mục tiêu: {item.target === 'upper' ? playerAName : playerBName}
+                      Mục tiêu: {insightTargetName(item.target)}
                     </span>
                   </div>
                   <p className="text-[11px] text-white/80 leading-relaxed break-words">
@@ -687,8 +657,20 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         </div>
       )}
 
-      {/* 6. TACTICAL PATTERNS (3-GRAM & 2-GRAM COMBINATIONS) */}
-      {stats.tacticalPatterns && (() => {
+      {/* 6. CHIẾN THUẬT COACHAI+ (HIỆU QUẢ & TUA VIDEO) */}
+      {showTab('TACTICS') && (
+        <TacticsBreakdown
+          tactics={stats.structuredTactics}
+          playerAName={playerAName}
+          playerBName={playerBName}
+          upperPlayer={upperPlayer}
+          compact={compact}
+          onSeekTime={onSeekTime}
+        />
+      )}
+
+      {/* 7. TACTICAL PATTERNS (3-GRAM & 2-GRAM COMBINATIONS) */}
+      {showTab('TACTICS') && stats.tacticalPatterns && (() => {
         const list3Gram = stats.tacticalPatterns.top_sequences_3gram || [];
         const list2Gram = stats.tacticalPatterns.top_transitions_2gram || [];
         const activeList = (patternGram === '3GRAM' && list3Gram.length > 0) ? list3Gram : list2Gram;
@@ -701,7 +683,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
               <div className="flex items-center gap-2">
                 <Award className="w-4 h-4 text-emerald-400 shrink-0" />
                 <h3 className="font-bold text-xs lg:text-sm text-white">
-                  Chuỗi phối hợp chiến thuật phổ biến
+                  Chuỗi cú đánh lặp lại nhiều nhất
                 </h3>
               </div>
 
@@ -775,6 +757,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
           </div>
         );
       })()}
+
     </div>
   );
 };

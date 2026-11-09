@@ -1,5 +1,6 @@
 import React from 'react';
 import { Target, Zap, Activity, Wind, ArrowRight } from 'lucide-react';
+import { strokeSideLabel } from '../../utils/strokeSide';
 
 export interface AiEventData {
   id: number;
@@ -302,10 +303,9 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
               >
                 <span>{currentEvent.stroke}</span>
               </span>
-              {currentEvent.strokeSide && currentEvent.strokeSide.toUpperCase() !== 'UNKNOWN' && (
+              {strokeSideLabel(currentEvent.strokeSide) && (
                 <span className="px-2.5 py-1 rounded-full bg-white/10 text-white/80 text-[11px] font-semibold border border-white/10">
-                  {currentEvent.strokeSide.toUpperCase().includes('FOREHAND') ? 'Thuận tay' :
-                   currentEvent.strokeSide.toUpperCase().includes('BACKHAND') ? 'Trái tay' : currentEvent.strokeSide}
+                  {strokeSideLabel(currentEvent.strokeSide)}
                 </span>
               )}
             </div>

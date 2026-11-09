@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import tempfile
 import time
@@ -28,7 +29,11 @@ import pika
 from psycopg2.extras import Json
 
 from app.config import settings
-from app.infrastructure.database import get_connection, update_analysis_status
+from app.infrastructure.database import (
+    fetch_court_player_names,
+    get_connection,
+    update_analysis_status,
+)
 from app.infrastructure.object_storage import download_video
 
 # Configure paths to import AI_Classifier modules
@@ -80,6 +85,9 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
             player_side = str(pred.get("hitter", pred.get("player_side", "LOWER"))).upper()
             stroke = str(pred.get("stroke", "CLEAR")).upper()
             stroke_side = str(pred.get("stroke_side", "UNKNOWN")).upper()
+            # Aroundhead is an overhead forehand; the model separates it poorly, so store it as forehand.
+            if stroke_side in ("AROUNDHEAD", "AROUND_HEAD"):
+                stroke_side = "FOREHAND"
             conf = float(pred.get("confidence", 0.85))
             hit_score = float(pred.get("hit_score", 0.90))
             ball_round = int(pred.get("ball_round", event_order))
@@ -448,6 +456,58 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
         raise e
 
 
+def _checkpoint(name: str, fallback: Path) -> Path:
+    path = AI_CLASSIFIER_ROOT / "src" / "ai_classifier" / "models" / "checkpoints" / name
+    return path if path.exists() else fallback
+
+
+def run_ai_pipeline(video_path: Path, output_path: Path, player_upper: str, player_lower: str) -> Dict[str, Any]:
+    from run_pipeline import analyze_badminton_video
+
+    return analyze_badminton_video(
+        video_path=video_path,
+        output_path=output_path,
+        player_upper=player_upper,
+        player_lower=player_lower,
+        hit_checkpoint=_checkpoint("hit_detector.pth", AI_CLASSIFIER_ROOT / "work_dirs" / "r2plus1d18_hit_full" / "best.pth"),
+        kap_checkpoint=_checkpoint("kap_classifier.pth", AI_CLASSIFIER_ROOT / "work_dirs" / "kap_online_balanced_selection_20261008" / "best.pth"),
+        pose_model=_checkpoint("yolov8n-pose.pt", AI_CLASSIFIER_ROOT / "models" / "checkpoints" / "pose" / "yolov8n-pose.pt"),
+        rally_model=_checkpoint("rally_boundary_detector.joblib", AI_CLASSIFIER_ROOT / "work_dirs" / "rally_boundary_detector.joblib"),
+        threshold=0.75,
+        stride=4,
+        batch_size=8,
+        nms_radius=8,
+        same_side_nms_radius=18,
+        contact_refine_radius=2,
+        shared_cache=True,
+        use_amp=True,
+        use_tta=True,
+        full_tta=False,
+        hit_rescue=True,
+        serve_rescue_threshold=0.40,
+        bridge_rescue_threshold=0.55,
+        alternation_gap_frames=60,
+    )
+
+
+def warm_up_pipeline() -> None:
+    """Analyse a short local clip once at startup, so the first real job skips the one-time CUDA, model and OCR set-up."""
+    clip = os.getenv("AI_WARMUP_VIDEO")
+    if not clip:
+        return
+    if not Path(clip).exists():
+        logger.warning(f"AI_WARMUP_VIDEO not found: {clip}")
+        return
+    started = time.time()
+    logger.info(f"Warming up the AI pipeline on {clip} ...")
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            run_ai_pipeline(Path(clip), Path(tmpdir) / "warmup.json", "Upper", "Lower")
+        logger.info(f"AI pipeline warm-up finished in {time.time() - started:.1f}s")
+    except Exception as e:
+        logger.warning(f"AI pipeline warm-up failed ({e}); jobs will still run, only slower at first.")
+
+
 def process_job(payload: Dict[str, Any]):
     analysis_id = payload.get("analysisId")
     match_id = payload.get("matchId")
@@ -457,15 +517,16 @@ def process_job(payload: Dict[str, Any]):
         raise ValueError(f"Invalid message payload: {payload}")
 
     logger.info(f"=== [STARTING JOB] Analysis ID: {analysis_id}, Match ID: {match_id}, Video: {storage_path} ===")
-    update_analysis_status(analysis_id, "PROCESSING")
+    if not update_analysis_status(analysis_id, "PROCESSING"):
+        raise RuntimeError(f"Database unavailable, analysis {analysis_id} not started")
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
         temp_video_path = Path(tmpdir) / Path(storage_path).name
         download_video(storage_path, temp_video_path)
 
-        # Import AI Pipeline
+        # Fall back to skeleton mode when AI_Classifier is not available (e.g. a CPU-only container).
         try:
-            from run_pipeline import analyze_badminton_video
+            from run_pipeline import analyze_badminton_video  # noqa: F401
             has_pipeline = True
         except ImportError as e:
             logger.warning(f"Could not import 'run_pipeline' from AI_Classifier ({e}). Running in Skeleton Consumer mode.")
@@ -485,41 +546,15 @@ def process_job(payload: Dict[str, Any]):
             return
 
         output_json_path = Path(tmpdir) / f"match_{match_id}_analysis.json"
-
-        # Checkpoints
-        ckpts = AI_CLASSIFIER_ROOT / "src" / "ai_classifier" / "models" / "checkpoints"
-        hit_ckpt = (ckpts / "hit_detector.pth") if (ckpts / "hit_detector.pth").exists() else (AI_CLASSIFIER_ROOT / "work_dirs" / "r2plus1d18_hit_full" / "best.pth")
-        kap_ckpt = (ckpts / "kap_classifier.pth") if (ckpts / "kap_classifier.pth").exists() else (AI_CLASSIFIER_ROOT / "work_dirs" / "kap_online_balanced_selection_20261008" / "best.pth")
-        pose_ckpt = (ckpts / "yolov8n-pose.pt") if (ckpts / "yolov8n-pose.pt").exists() else (AI_CLASSIFIER_ROOT / "models" / "checkpoints" / "pose" / "yolov8n-pose.pt")
-        rally_ckpt = (ckpts / "rally_boundary_detector.joblib") if (ckpts / "rally_boundary_detector.joblib").exists() else (AI_CLASSIFIER_ROOT / "work_dirs" / "rally_boundary_detector.joblib")
-
+        player_upper, player_lower = fetch_court_player_names(match_id)
         logger.info(f"Launching AI pipeline inference on GPU...")
-        result = analyze_badminton_video(
-            video_path=temp_video_path,
-            output_path=output_json_path,
-            player_upper="Player Upper",
-            player_lower="Player Lower",
-            hit_checkpoint=hit_ckpt,
-            kap_checkpoint=kap_ckpt,
-            pose_model=pose_ckpt,
-            rally_model=rally_ckpt,
-            threshold=0.75,
-            stride=4,
-            batch_size=8,
-            nms_radius=8,
-            same_side_nms_radius=18,
-            contact_refine_radius=2,
-            shared_cache=True,
-            use_amp=True,
-            use_tta=True,
-            full_tta=False,
-            hit_rescue=True,
-            serve_rescue_threshold=0.40,
-            bridge_rescue_threshold=0.55,
-        )
+        result = run_ai_pipeline(temp_video_path, output_json_path, player_upper, player_lower)
 
         save_ai_results_to_database(analysis_id, match_id, result)
         logger.info(f"=== [JOB COMPLETED] Successfully analyzed Match {match_id} ===")
+
+
+DB_RETRY_SECONDS = 30
 
 
 def callback(ch, method, properties, body):
@@ -531,13 +566,18 @@ def callback(ch, method, properties, body):
         logger.info(f"<== [ACKNOWLEDGED] Message processed cleanly.")
     except Exception as e:
         logger.error(f"Error executing AI job: {e}", exc_info=True)
+        recorded = True
         try:
             payload = json.loads(body.decode("utf-8"))
             if "analysisId" in payload:
-                update_analysis_status(payload["analysisId"], "FAILED", str(e))
+                recorded = update_analysis_status(payload["analysisId"], "FAILED", str(e))
         except Exception:
             pass
-        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        if not recorded:
+            # The failure could not be saved, so dropping the message would leave the row QUEUED forever.
+            logger.warning(f"Database unavailable. Requeueing job in {DB_RETRY_SECONDS} seconds.")
+            time.sleep(DB_RETRY_SECONDS)
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=not recorded)
 
 
 def connect_to_rabbitmq():
@@ -560,16 +600,23 @@ def connect_to_rabbitmq():
 
 def main():
     logger.info("Starting Badminton Production AI Worker with GPU...")
-    connection, channel = connect_to_rabbitmq()
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
-
-    try:
-        channel.start_consuming()
-    except KeyboardInterrupt:
-        logger.info("AI Worker stopped by user.")
-        channel.stop_consuming()
-        connection.close()
+    warm_up_pipeline()
+    # CloudAMQP drops idle or flaky connections; reconnect instead of exiting.
+    # An unacknowledged in-flight job is redelivered by the broker after a drop.
+    while True:
+        connection, channel = connect_to_rabbitmq()
+        channel.basic_qos(prefetch_count=1)
+        channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
+        try:
+            channel.start_consuming()
+        except KeyboardInterrupt:
+            logger.info("AI Worker stopped by user.")
+            channel.stop_consuming()
+            connection.close()
+            return
+        except pika.exceptions.AMQPConnectionError as e:
+            logger.warning(f"Lost connection to CloudAMQP ({e!r}). Reconnecting in 5 seconds...")
+            time.sleep(5)
 
 
 if __name__ == "__main__":

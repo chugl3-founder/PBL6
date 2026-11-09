@@ -6,9 +6,8 @@ import com.badminton.dto.analysis.RallyResponse;
 import com.badminton.dto.match.MatchResponse;
 import com.badminton.dto.match.PagedMatchResponse;
 import com.badminton.dto.video.VideoResponse;
-import com.badminton.service.AnalysisService;
 import com.badminton.service.MatchService;
-import com.badminton.service.VideoService;
+import com.badminton.service.PublicReplayService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,8 +20,7 @@ import java.util.List;
 public class PublicMatchController {
 
     private final MatchService matchService;
-    private final VideoService videoService;
-    private final AnalysisService analysisService;
+    private final PublicReplayService publicReplayService;
 
     @GetMapping
     public ResponseEntity<PagedMatchResponse> browsePublicMatches(
@@ -42,31 +40,25 @@ public class PublicMatchController {
 
     @GetMapping("/{id}/video")
     public ResponseEntity<VideoResponse> getPublicMatchVideo(@PathVariable Long id) {
-        VideoResponse response = videoService.getPublicVideoByMatchId(id);
+        VideoResponse response = publicReplayService.getVideo(id);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}/events")
     public ResponseEntity<List<AiEventResponse>> getPublicMatchEvents(@PathVariable Long id) {
-        // Đảm bảo trận đấu tồn tại và đã PUBLISHED
-        matchService.getPublicMatchDetail(id);
-        List<AiEventResponse> events = analysisService.getMatchEvents(id);
+        List<AiEventResponse> events = publicReplayService.getEvents(id);
         return ResponseEntity.ok(events);
     }
 
     @GetMapping("/{id}/rallies")
     public ResponseEntity<List<RallyResponse>> getPublicMatchRallies(@PathVariable Long id) {
-        // Đảm bảo trận đấu tồn tại và đã PUBLISHED
-        matchService.getPublicMatchDetail(id);
-        List<RallyResponse> rallies = analysisService.getMatchRallies(id);
+        List<RallyResponse> rallies = publicReplayService.getRallies(id);
         return ResponseEntity.ok(rallies);
     }
 
     @GetMapping("/{id}/statistics")
     public ResponseEntity<MatchStatisticsResponse> getPublicMatchStatistics(@PathVariable Long id) {
-        // Đảm bảo trận đấu tồn tại và đã PUBLISHED
-        matchService.getPublicMatchDetail(id);
-        MatchStatisticsResponse statistics = analysisService.getMatchStatistics(id);
+        MatchStatisticsResponse statistics = publicReplayService.getStatistics(id);
         return ResponseEntity.ok(statistics);
     }
 }

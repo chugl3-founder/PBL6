@@ -15,6 +15,8 @@ import { TimelineMarkers } from '../components/replay/TimelineMarkers';
 import { StrokeDetailCard } from '../components/replay/StrokeDetailCard';
 import { RalliesExplorer, RallyData } from '../components/replay/RalliesExplorer';
 import { StatisticsDashboard, MatchStatisticsData } from '../components/replay/StatisticsDashboard';
+import { TacticsBreakdown } from '../components/replay/TacticsBreakdown';
+import { normalizeStrokeSide, strokeSideLabel } from '../utils/strokeSide';
 
 interface MatchData {
   id: number;
@@ -50,7 +52,7 @@ export const MatchReplayPage: React.FC = () => {
   const [rallies, setRallies] = useState<RallyData[]>([]);
   const [selectedRally, setSelectedRally] = useState<RallyData | null>(null);
   const [statistics, setStatistics] = useState<MatchStatisticsData | null>(null);
-  const [activeTab, setActiveTab] = useState<'STROKES' | 'RALLIES' | 'STATISTICS'>('STROKES');
+  const [activeTab, setActiveTab] = useState<'STROKES' | 'RALLIES' | 'TACTICS'>('STROKES');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -561,6 +563,32 @@ export const MatchReplayPage: React.FC = () => {
     }
   };
 
+  // Tua tới một thời điểm bất kỳ (ví dụ đoạn chiến thuật từ dashboard) và phát
+  const handleSeekToTime = (seconds: number, label: string) => {
+    playerContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (isYouTube && ytPlayerRef.current) {
+      ytPlayerRef.current.seekTo(seconds, true);
+      setCurrentTime(seconds);
+      syncEventWithTime(seconds);
+      if (!isPlaying) {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      showOsd(label);
+      return;
+    }
+
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = seconds;
+    setCurrentTime(seconds);
+    syncEventWithTime(seconds);
+    if (!isPlaying) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+    showOsd(label);
+  };
+
   // Phát lại chậm 0.5x cho cú đánh được chọn
   const handlePlaySlow = (timeSeconds: number) => {
     const startSec = Math.max(0, timeSeconds - 0.3);
@@ -775,6 +803,30 @@ export const MatchReplayPage: React.FC = () => {
     );
   }
 
+  // Rally scores are (upper, lower) after each rally; show them in Player A / B order.
+  const toPlayerOrder = (upper: number, lower: number) =>
+    match.upperPlayer === 'PLAYER_A' ? { playerA: upper, playerB: lower } : { playerA: lower, playerB: upper };
+  const scoredRallies = rallies.filter((r) => r.scoreText);
+  const firstRally = scoredRallies[0];
+  const lastRally = scoredRallies[scoredRallies.length - 1];
+  // Follow the video: the score after the latest finished rally, or the score
+  // before the first rally (its point taken back) while that rally is still ahead.
+  // endTime is the last hit; broadcast scoreboards update about 3-6 s later.
+  const SCORE_UPDATE_DELAY_SECONDS = 3;
+  const finishedRally = [...scoredRallies]
+    .reverse()
+    .find((r) => r.endTime + SCORE_UPDATE_DELAY_SECONDS <= currentTime);
+  const liveScore = finishedRally
+    ? toPlayerOrder(finishedRally.scoreUpper, finishedRally.scoreLower)
+    : firstRally
+    ? toPlayerOrder(
+        Math.max(0, firstRally.scoreUpper - (firstRally.isComplete && firstRally.winnerSide === 'UPPER' ? 1 : 0)),
+        Math.max(0, firstRally.scoreLower - (firstRally.isComplete && firstRally.winnerSide === 'LOWER' ? 1 : 0))
+      )
+    : null;
+  const finalScore = lastRally ? toPlayerOrder(lastRally.scoreUpper, lastRally.scoreLower) : null;
+  const scoreFromScoreboard = rallies.some((r) => r.winReason?.toLowerCase().startsWith('ocr_confirmed'));
+
   return (
     <div className="min-h-[calc(100vh-140px)] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
       {/* Top Header */}
@@ -798,6 +850,26 @@ export const MatchReplayPage: React.FC = () => {
               <span>{isYouTube ? 'BWF TOURNAMENT REPLAY' : 'COACHAI+ 2.0 REPLAY'}</span>
             </span>
           </div>
+          {liveScore && finalScore && (
+            <div className="flex items-center gap-2.5 pt-1" title={scoreFromScoreboard
+              ? 'Tỉ số đọc từ bảng điểm của video (OCR), cập nhật theo thời điểm đang xem'
+              : 'Không đọc được bảng điểm: AI tự đếm số pha thắng từ 0-0 ở đầu video'}>
+              <span className="px-3 py-1 rounded-xl bg-white/10 border border-white/15 font-mono font-black text-lg text-white">
+                <span className="text-blue-400">{liveScore.playerA}</span>
+                <span className="text-white/40 mx-1.5">-</span>
+                <span className="text-amber-400">{liveScore.playerB}</span>
+              </span>
+              <span className="flex flex-col text-[11px] leading-tight">
+                <span className="text-white/60">
+                  {scoreFromScoreboard ? 'Tỉ số tại thời điểm đang xem' : 'Điểm ước tính tại thời điểm đang xem'}
+                </span>
+                <span className="text-white/40">
+                  Cuối video: {finalScore.playerA} - {finalScore.playerB}
+                  {scoreFromScoreboard ? ' (từ bảng điểm)' : ' (ước tính)'}
+                </span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Quick filter by stroke */}
@@ -1212,16 +1284,16 @@ export const MatchReplayPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('STATISTICS')}
+                onClick={() => setActiveTab('TACTICS')}
                 className={`py-1.5 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${
-                  activeTab === 'STATISTICS'
+                  activeTab === 'TACTICS'
                     ? 'bg-brand text-white shadow-glow-blue'
                     : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
-                title="Thống kê"
+                title="Chiến thuật"
               >
-                <BarChart3 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">Thống kê</span>
+                <Target className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span className="truncate">Chiến thuật</span>
               </button>
             </div>
 
@@ -1298,13 +1370,13 @@ export const MatchReplayPage: React.FC = () => {
                               <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
                                 {evt.stroke}
                               </span>
-                              {evt.strokeSide && evt.strokeSide.toUpperCase() !== 'UNKNOWN' && (
+                              {strokeSideLabel(evt.strokeSide) && (
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border ${
-                                  evt.strokeSide.toUpperCase().includes('FOREHAND')
+                                  normalizeStrokeSide(evt.strokeSide) === 'FOREHAND'
                                     ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
                                     : 'bg-purple-500/10 text-purple-300 border-purple-500/20'
                                 }`}>
-                                  {evt.strokeSide.toUpperCase().includes('FOREHAND') ? 'Thuận tay' : 'Trái tay'}
+                                  {strokeSideLabel(evt.strokeSide)}
                                 </span>
                               )}
                             </div>
@@ -1360,15 +1432,17 @@ export const MatchReplayPage: React.FC = () => {
               />
             )}
 
-            {activeTab === 'STATISTICS' && (
-              /* VS-12: Statistics Dashboard */
+            {activeTab === 'TACTICS' && (
+              /* Chiến thuật cạnh video: bấm là tua, không phải cuộn trang */
               <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
                 {statistics ? (
-                  <StatisticsDashboard 
-                    stats={statistics} 
+                  <TacticsBreakdown
+                    tactics={statistics.structuredTactics}
                     playerAName={match.playerAName}
                     playerBName={match.playerBName}
+                    upperPlayer={match.upperPlayer}
                     compact={true}
+                    onSeekTime={handleSeekToTime}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-64 text-center text-white/50 space-y-3">
@@ -1388,7 +1462,7 @@ export const MatchReplayPage: React.FC = () => {
                     ? 'Nhấp chọn để tua trực tiếp cú đánh'
                     : activeTab === 'RALLIES'
                     ? 'Nhấp chọn để phát trọn vẹn pha cầu'
-                    : 'Số liệu tổng hợp & phân tích CoachAI+ 2.0'}
+                    : 'Nhấp ▶ để xem lại đoạn chiến thuật'}
                 </span>
               </span>
               <Target className="w-3.5 h-3.5 text-emerald-400" />
@@ -1405,10 +1479,10 @@ export const MatchReplayPage: React.FC = () => {
             <div>
               <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2.5">
                 <BarChart3 className="w-5 h-5 text-cyan-400" />
-                <span>Báo Cáo Thống Kê & Biểu Đồ Phân Tích Chuyên Sâu Trận Đấu</span>
+                <span>Phân tích trận đấu</span>
               </h2>
               <p className="text-xs text-white/50 mt-0.5">
-                Tổng hợp biểu đồ tròn, biểu đồ cột tần suất, biểu đồ radar 5 trục chiến thuật và bảng định lượng cú đánh giữa {match.playerAName} và {match.playerBName}
+                Cú đánh, chiến thuật và phong cách thi đấu của {match.playerAName} và {match.playerBName}
               </p>
             </div>
             <span className="px-3 py-1 rounded-full bg-brand/15 border border-brand/30 text-sky-300 text-xs font-bold self-start sm:self-auto">
@@ -1420,7 +1494,9 @@ export const MatchReplayPage: React.FC = () => {
             stats={statistics}
             playerAName={match.playerAName}
             playerBName={match.playerBName}
+            upperPlayer={match.upperPlayer}
             compact={false}
+            onSeekTime={handleSeekToTime}
           />
         </section>
       )}

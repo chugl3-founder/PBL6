@@ -226,6 +226,9 @@ export const MatchDetailPage: React.FC = () => {
       let uploadSuccess = false;
 
       // CÁCH 1: Thử S3 Presigned URL
+      // Only retry through the backend when presigning or the S3 PUT fails.
+      // A verification failure must not upload the whole video a second time.
+      let storagePath: string | null = null;
       try {
         const presignRes = await apiClient.post(`/matches/${id}/videos/upload-url`, {
           fileName: selectedFile.name,
@@ -233,13 +236,15 @@ export const MatchDetailPage: React.FC = () => {
           mimeType: selectedFile.type || 'video/mp4'
         });
 
-        const { uploadUrl, storagePath } = presignRes.data;
+        const { uploadUrl, storagePath: presignedStoragePath } = presignRes.data;
+        storagePath = presignedStoragePath;
 
         setUploadStatus('uploading');
         let startTime = Date.now();
         let lastLoaded = 0;
 
         await axios.put(uploadUrl, selectedFile, {
+          timeout: 600000,
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
               const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -257,15 +262,6 @@ export const MatchDetailPage: React.FC = () => {
           }
         });
 
-        setUploadStatus('verifying');
-        const completeRes = await apiClient.post(`/matches/${id}/videos/complete`, {
-          storagePath,
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size
-        });
-
-        setVideo(completeRes.data);
-        uploadSuccess = true;
       } catch (presignErr) {
         console.warn('Presigned PUT không khả dụng, tự động chuyển sang Direct Upload:', presignErr);
 
@@ -275,6 +271,7 @@ export const MatchDetailPage: React.FC = () => {
         formData.append('file', selectedFile);
 
         const directRes = await apiClient.post(`/matches/${id}/videos/direct-upload`, formData, {
+          timeout: 600000,
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
@@ -285,6 +282,19 @@ export const MatchDetailPage: React.FC = () => {
         });
 
         setVideo(directRes.data);
+        uploadSuccess = true;
+        storagePath = null;
+      }
+
+      if (storagePath) {
+        setUploadStatus('verifying');
+        const completeRes = await apiClient.post(`/matches/${id}/videos/complete`, {
+          storagePath,
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size
+        });
+
+        setVideo(completeRes.data);
         uploadSuccess = true;
       }
 
@@ -522,14 +532,14 @@ export const MatchDetailPage: React.FC = () => {
                 </div>
                 <h2 className="text-lg font-bold text-white">Tải Lên Video Trận Đấu</h2>
                 <p className="text-xs text-white/60 mt-1">
-                  Đẩy trực tiếp lên MinIO qua S3 Presigned URL mà không làm nghẽn máy chủ.
+                  Đẩy trực tiếp lên Supabase qua S3 Presigned URL mà không làm nghẽn máy chủ.
                 </p>
               </div>
 
               <input 
                 ref={fileInputRef}
                 type="file" 
-                accept="video/mp4,video/quicktime,video/x-matroska,video/webm"
+                accept="video/mp4"
                 onChange={handleFileSelect}
                 className="hidden" 
               />
@@ -559,7 +569,7 @@ export const MatchDetailPage: React.FC = () => {
                 ) : (
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-white">Kéo thả video hoặc bấm để chọn</p>
-                    <p className="text-xs text-white/40">Hỗ trợ MP4, MOV, MKV, WebM (Tối đa 500MB)</p>
+                    <p className="text-xs text-white/40">Hỗ trợ MP4 (Tối đa 500MB)</p>
                   </div>
                 )}
               </div>
@@ -570,7 +580,7 @@ export const MatchDetailPage: React.FC = () => {
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-white">
                       {uploadStatus === 'presigning' && 'Đang sinh Presigned URL an toàn...'}
-                      {uploadStatus === 'uploading' && `Đang tải trực tiếp lên MinIO (${uploadProgress}%)`}
+                      {uploadStatus === 'uploading' && `Đang tải trực tiếp lên Supabase (${uploadProgress}%)`}
                       {uploadStatus === 'verifying' && 'Đang xác thực file hoàn tất...'}
                       {uploadStatus === 'error' && 'Quá trình tải lên bị gián đoạn'}
                     </span>
