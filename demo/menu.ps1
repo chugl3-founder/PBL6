@@ -10,6 +10,16 @@ $ReplayMatch = '245'
 $ReplayEmail = 'e2e_1794060448341@badminton.vn'
 $ReplayPassword = 'E2eTest@123'
 
+# 360 Total Security removes start-system.ps1 and perf-demo.ps1 after they run, so take them back from git.
+function Invoke-DemoScript($name) {
+    $path = Join-Path $Demo $name
+    if (-not (Test-Path $path)) {
+        Write-Host "$name đã bị phần mềm diệt virus xóa, đang lấy lại từ git ..." -ForegroundColor DarkYellow
+        git -C $Root restore -- "demo/$name"
+    }
+    & $path
+}
+
 function Set-WebEnv {
     $env:E2E_SAMPLE_VIDEO = Join-Path $Demo 'videos\demo_8s.mp4'
     $env:E2E_REPLAY_MATCH_ID = $ReplayMatch
@@ -71,13 +81,13 @@ while ($true) {
     Write-Host '==================================================================' -ForegroundColor Cyan
     $choice = (Read-Host 'Chọn').Trim().ToUpper()
     switch ($choice) {
-        '0' { & (Join-Path $Demo 'start-system.ps1') }
+        '0' { Invoke-DemoScript 'start-system.ps1' }
         '1' { Invoke-Unit }
         '2' { Invoke-Unit -Full }
         '3' { Invoke-WebHeaded }
         '4' { Open-WebUi; continue }
         '5' { Start-Process (Join-Path $Demo 'evidence\web-report\index.html'); continue }
-        '6' { & (Join-Path $Demo 'perf-demo.ps1') }
+        '6' { Invoke-DemoScript 'perf-demo.ps1' }
         '7' { Start-Process (Join-Path $Demo 'evidence\perf-round3.html'); continue }
         'Q' { return }
         default { continue }
