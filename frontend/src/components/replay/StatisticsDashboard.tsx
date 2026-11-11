@@ -33,6 +33,9 @@ export interface MatchStatisticsData {
     axes: string[];
     upper: number[];
     lower: number[];
+    /** 'percent_of_rally_strokes' since the style radar was rebuilt; older analyses have no unit. */
+    unit?: string;
+    extra?: Record<string, { rally_strokes?: number; stroke_types_used?: number; median_flight_seconds?: number | null }>;
   };
   // The AI pipeline stores a plain list; older/mock analyses wrap it in { insights }.
   coachInsights?: CoachInsight[] | { insights: CoachInsight[] };
@@ -88,7 +91,7 @@ const DASHBOARD_TABS: Array<{ key: DashboardTab; label: string; Icon: React.FC<{
 ];
 
 const EmptyTab: React.FC<{ text: string }> = ({ text }) => (
-  <div className="p-8 rounded-2xl bg-[#111c30]/60 border border-white/10 text-center text-xs text-white/50">
+  <div className="p-8 rounded-lg bg-sheet border border-ink/10 text-center text-xs text-ink/55">
     {text}
   </div>
 );
@@ -185,61 +188,61 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
   const hasHandednessData = knownHandedness > 0;
 
   return (
-    <div className="space-y-5 pb-4 text-white animate-fade-in">
+    <div className="space-y-5 pb-4 text-ink animate-fade-in">
       {/* 1. KEY OVERVIEW METRICS CARDS */}
       <div className={`grid ${compact ? 'grid-cols-2 gap-2.5' : 'grid-cols-2 md:grid-cols-4 gap-3'}`}>
-        <div className="p-3.5 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-lg relative overflow-hidden group hover:border-brand/40 transition-all">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-brand/10 rounded-full blur-xl pointer-events-none" />
-          <div className="flex items-center justify-between text-white/50 text-xs font-semibold mb-1.5">
+        <div className="p-3.5 rounded-lg bg-sheet border border-ink/10 relative overflow-hidden group hover:border-pitch/40 transition-all">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-pitch/10 rounded-full blur-xl pointer-events-none" />
+          <div className="flex items-center justify-between text-ink/55 text-xs font-semibold mb-1.5">
             <span>Tổng cú đánh</span>
-            <Activity className="w-4 h-4 text-brand" />
+            <Activity className="w-4 h-4 text-pitch" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black text-white tracking-tight">
+          <div className="text-2xl lg:text-3xl font-black text-ink tracking-tight">
             {stats.totalStrokes}
           </div>
-          <div className="text-[10px] text-white/40 mt-1 flex items-center gap-1">
+          <div className="text-[10px] text-ink/50 mt-1 flex items-center gap-1">
             <span>Toàn trận</span>
           </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-lg relative overflow-hidden group hover:border-amber-400/40 transition-all">
+        <div className="p-3.5 rounded-lg bg-sheet border border-ink/10 relative overflow-hidden group hover:border-amber-400/40 transition-all">
           <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
-          <div className="flex items-center justify-between text-white/50 text-xs font-semibold mb-1.5">
+          <div className="flex items-center justify-between text-ink/55 text-xs font-semibold mb-1.5">
             <span>Số pha cầu</span>
-            <Trophy className="w-4 h-4 text-amber-400" />
+            <Trophy className="w-4 h-4 text-amber-700" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black text-amber-300 tracking-tight">
+          <div className="text-2xl lg:text-3xl font-black text-amber-700 tracking-tight">
             {stats.totalRallies}
           </div>
-          <div className="text-[10px] text-white/40 mt-1 flex items-center gap-1">
+          <div className="text-[10px] text-ink/50 mt-1 flex items-center gap-1">
             <span>Pha trọn vẹn</span>
           </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-lg relative overflow-hidden group hover:border-emerald-400/40 transition-all">
+        <div className="p-3.5 rounded-lg bg-sheet border border-ink/10 relative overflow-hidden group hover:border-emerald-400/40 transition-all">
           <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
-          <div className="flex items-center justify-between text-white/50 text-xs font-semibold mb-1.5">
+          <div className="flex items-center justify-between text-ink/55 text-xs font-semibold mb-1.5">
             <span>Cú đánh TB/pha</span>
-            <BarChart3 className="w-4 h-4 text-emerald-400" />
+            <BarChart3 className="w-4 h-4 text-emerald-700" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black text-emerald-300 tracking-tight">
+          <div className="text-2xl lg:text-3xl font-black text-emerald-700 tracking-tight">
             {typeof stats.avgStrokesPerRally === 'number' ? stats.avgStrokesPerRally.toFixed(1) : stats.avgStrokesPerRally}
           </div>
-          <div className="text-[10px] text-white/40 mt-1 flex items-center gap-1">
+          <div className="text-[10px] text-ink/50 mt-1 flex items-center gap-1">
             <span>Mức giằng co</span>
           </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-lg relative overflow-hidden group hover:border-cyan-400/40 transition-all">
+        <div className="p-3.5 rounded-lg bg-sheet border border-ink/10 relative overflow-hidden group hover:border-cyan-400/40 transition-all">
           <div className="absolute top-0 right-0 w-20 h-20 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
-          <div className="flex items-center justify-between text-white/50 text-xs font-semibold mb-1.5">
+          <div className="flex items-center justify-between text-ink/55 text-xs font-semibold mb-1.5">
             <span>Độ tự tin TB</span>
-            <Sparkles className="w-4 h-4 text-cyan-400" />
+            <Sparkles className="w-4 h-4 text-cyan-700" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black text-cyan-300 tracking-tight">
+          <div className="text-2xl lg:text-3xl font-black text-cyan-700 tracking-tight">
             {(stats.avgConfidence * 100).toFixed(1)}%
           </div>
-          <div className="text-[10px] text-white/40 mt-1 flex items-center gap-1">
+          <div className="text-[10px] text-ink/50 mt-1 flex items-center gap-1">
             <span>CoachAI+ Vision</span>
           </div>
         </div>
@@ -247,7 +250,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
 
       {/* TAB CHUYỂN NHÓM PHÂN TÍCH */}
       {!compact && (
-        <div className="flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 text-xs w-full sm:w-fit overflow-x-auto">
+        <div className="flex items-center gap-1 bg-ink/[0.04] p-1 rounded-lg border border-ink/10 text-xs w-full sm:w-fit overflow-x-auto">
           {DASHBOARD_TABS.map(({ key, label, Icon }) => (
             <button
               key={key}
@@ -255,8 +258,8 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
               onClick={() => setActiveTab(key)}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-all ${
                 activeTab === key
-                  ? 'bg-brand text-white shadow-glow-blue'
-                  : 'text-white/50 hover:text-white hover:bg-white/5'
+                  ? 'bg-pitch text-white '
+                  : 'text-ink/55 hover:text-ink hover:bg-ink/[0.04]'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -271,13 +274,13 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
       <div className={`grid ${compact ? 'grid-cols-1 gap-4' : 'grid-cols-1 lg:grid-cols-12 gap-5'}`}>
         
         {/* DONUT CHART: PHÂN BỐ CÚ ĐÁNH */}
-        <div className={`${compact ? '' : 'lg:col-span-7'} p-4 rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl flex flex-col`}>
-          <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5">
+        <div className={`${compact ? '' : 'lg:col-span-7'} p-4 rounded-lg bg-sheet border border-ink/10 flex flex-col`}>
+          <div className="flex items-center justify-between mb-3 border-b border-ink/10 pb-2.5">
             <div className="flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-brand" />
-              <h3 className="font-bold text-xs lg:text-sm text-white">Phân bố các loại cú đánh</h3>
+              <PieIcon className="w-4 h-4 text-pitch" />
+              <h3 className="font-bold text-xs lg:text-sm text-ink">Phân bố các loại cú đánh</h3>
             </div>
-            <span className="text-[11px] text-white/40 bg-white/5 px-2 py-0.5 rounded-full border border-white/5 font-mono">
+            <span className="text-[11px] text-ink/50 bg-ink/[0.04] px-2 py-0.5 rounded-full border border-ink/10 tabular-nums">
               {stats.totalStrokes} cú
             </span>
           </div>
@@ -309,21 +312,21 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                 {hoveredSlice ? (
                   <>
-                    <span className="text-[10px] text-white/60 uppercase tracking-wider font-semibold">
+                    <span className="text-[10px] text-ink/60 font-semibold">
                       {hoveredSlice}
                     </span>
-                    <span className="text-xl font-black text-white">
+                    <span className="text-xl font-black text-ink">
                       {slices.find(s => s.stroke === hoveredSlice)?.count || 0}
                     </span>
-                    <span className="text-[10px] text-brand font-bold">
+                    <span className="text-[10px] text-pitch font-bold">
                       {slices.find(s => s.stroke === hoveredSlice)?.percentage}%
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className="text-[9px] text-white/50 uppercase tracking-wider font-semibold">CÚ ĐÁNH</span>
-                    <span className="text-2xl font-black text-white">{stats.totalStrokes}</span>
-                    <span className="text-[9px] text-emerald-400 font-semibold">100% Ghi nhận</span>
+                    <span className="text-[9px] text-ink/55 font-semibold">CÚ ĐÁNH</span>
+                    <span className="text-2xl font-black text-ink">{stats.totalStrokes}</span>
+                    <span className="text-[9px] text-emerald-700 font-semibold">100% Ghi nhận</span>
                   </>
                 )}
               </div>
@@ -340,8 +343,8 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
                     onMouseLeave={() => setHoveredSlice(null)}
                     className={`p-1.5 px-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
                       isHovered 
-                        ? 'bg-white/10 border-white/30 scale-[1.02]' 
-                        : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06]'
+                        ? 'bg-ink/[0.06] border-ink/20 scale-[1.02]' 
+                        : 'bg-ink/[0.03] border-ink/10 hover:bg-ink/[0.06]'
                     }`}
                   >
                     <div className="flex items-center gap-1.5 overflow-hidden">
@@ -349,13 +352,13 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
                         className="w-2 h-2 rounded-full flex-shrink-0" 
                         style={{ backgroundColor: slice.color, boxShadow: isHovered ? `0 0 6px ${slice.color}` : 'none' }}
                       />
-                      <span className="truncate font-medium text-white/90">
+                      <span className="truncate font-medium text-ink/85">
                         {STROKE_VIETNAMESE[slice.stroke.toUpperCase()] || slice.stroke}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0 ml-1">
-                      <span className="font-bold text-white font-mono">{slice.count}</span>
-                      <span className="text-[9px] text-white/40 font-mono">({slice.percentage}%)</span>
+                      <span className="font-bold text-ink tabular-nums">{slice.count}</span>
+                      <span className="text-[9px] text-ink/50 tabular-nums">({slice.percentage}%)</span>
                     </div>
                   </div>
                 );
@@ -367,65 +370,65 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         {/* PLAYER HEAD-TO-HEAD & HANDEDNESS RATIO */}
         <div className={`${compact ? '' : 'lg:col-span-5'} space-y-4 min-w-0`}>
           {/* Đối đầu Người chơi A vs B */}
-          <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
-            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
+          <div className={`${compact ? 'p-4' : 'p-5'} rounded-lg bg-sheet border border-ink/10 `}>
+            <div className="flex items-center justify-between mb-4 border-b border-ink/10 pb-3">
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-amber-400" />
-                <h3 className="font-bold text-xs lg:text-sm text-white">So sánh khối lượng cú đánh</h3>
+                <Users className="w-4 h-4 text-amber-700" />
+                <h3 className="font-bold text-xs lg:text-sm text-ink">So sánh khối lượng cú đánh</h3>
               </div>
-              <span className="text-[11px] text-white/40">Upper vs Lower</span>
+              <span className="text-[11px] text-ink/50">Upper vs Lower</span>
             </div>
 
             {/* Tên và số liệu 2 người chơi */}
             <div className="flex items-center justify-between mb-2 text-xs font-semibold">
-              <div className="flex items-center gap-1.5 text-brand min-w-0">
-                <span className="w-2 h-2 rounded-full bg-brand shrink-0" />
+              <div className="flex items-center gap-1.5 text-pitch min-w-0">
+                <span className="w-2 h-2 rounded-full bg-pitch shrink-0" />
                 <span className="truncate max-w-[110px]">{playerAName}</span>
-                <span className="font-bold text-white font-mono shrink-0">({playerAStrokes})</span>
+                <span className="font-bold text-ink tabular-nums shrink-0">({playerAStrokes})</span>
               </div>
-              <div className="flex items-center gap-1.5 text-amber-400 min-w-0">
-                <span className="font-bold text-white font-mono shrink-0">({playerBStrokes})</span>
+              <div className="flex items-center gap-1.5 text-amber-700 min-w-0">
+                <span className="font-bold text-ink tabular-nums shrink-0">({playerBStrokes})</span>
                 <span className="truncate max-w-[110px]">{playerBName}</span>
                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
               </div>
             </div>
 
             {/* Thanh so sánh tương quan */}
-            <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden flex p-0.5 border border-white/10">
+            <div className="h-2.5 w-full bg-ink/[0.04] rounded-full overflow-hidden flex p-0.5 border border-ink/10">
               <div 
-                className="h-full bg-gradient-to-r from-blue-600 to-brand rounded-l-full transition-all duration-500" 
+                className="h-full bg-pitch rounded-l-full transition-all duration-500" 
                 style={{ width: `${playerAPercent}%` }}
               />
               <div 
-                className="h-full bg-gradient-to-r from-amber-500 to-amber-300 rounded-r-full transition-all duration-500" 
+                className="h-full rounded-r-full transition-all duration-500" 
                 style={{ width: `${playerBPercent}%` }}
               />
             </div>
 
-            <div className="flex justify-between items-center text-[10px] text-white/50 mt-1.5 font-mono">
+            <div className="flex justify-between items-center text-[10px] text-ink/55 mt-1.5 tabular-nums">
               <span>{playerAPercent}% khối lượng</span>
               <span>{playerBPercent}% khối lượng</span>
             </div>
           </div>
 
           {/* Kỹ thuật tay cầm vợt (Forehand vs Backhand vs Around-head) */}
-          <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
-            <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+          <div className={`${compact ? 'p-4' : 'p-5'} rounded-lg bg-sheet border border-ink/10 `}>
+            <div className="flex items-center justify-between mb-3 border-b border-ink/10 pb-2">
               <div className="flex items-center gap-2">
-                <Flame className="w-4 h-4 text-emerald-400" />
-                <h4 className="font-bold text-xs text-white uppercase tracking-wider">Kỹ thuật tay thực hiện</h4>
+                <Flame className="w-4 h-4 text-emerald-700" />
+                <h4 className="font-bold text-xs text-ink">Kỹ thuật tay thực hiện</h4>
               </div>
-              <span className="text-[11px] text-white/40 font-mono">Grip</span>
+              <span className="text-[11px] text-ink/50 tabular-nums">Grip</span>
             </div>
 
             <div className="space-y-3">
               {/* Forehand */}
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-white/80">Thuận tay (Forehand)</span>
-                  <span className="font-mono font-bold text-emerald-400">{effectiveForehand} ({forehandPct}%)</span>
+                  <span className="text-ink/75">Thuận tay (Forehand)</span>
+                  <span className="tabular-nums font-bold text-emerald-700">{effectiveForehand} ({forehandPct}%)</span>
                 </div>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                <div className="h-2 w-full bg-ink/[0.04] rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{ width: `${forehandPct}%` }} />
                 </div>
               </div>
@@ -433,18 +436,18 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
               {/* Backhand */}
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-white/80">Trái tay (Backhand)</span>
-                  <span className="font-mono font-bold text-cyan-400">{effectiveBackhand} ({backhandPct}%)</span>
+                  <span className="text-ink/75">Trái tay (Backhand)</span>
+                  <span className="tabular-nums font-bold text-cyan-700">{effectiveBackhand} ({backhandPct}%)</span>
                 </div>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                <div className="h-2 w-full bg-ink/[0.04] rounded-full overflow-hidden">
                   <div className="h-full bg-cyan-400 rounded-full transition-all duration-500" style={{ width: `${backhandPct}%` }} />
                 </div>
               </div>
 
               {!hasHandednessData && (
-                <div className="pt-1.5 border-t border-white/5 text-[11px] text-white/40 italic flex items-center justify-between">
+                <div className="pt-1.5 border-t border-ink/10 text-[11px] text-ink/50 italic flex items-center justify-between">
                   <span>* Chưa phát hiện dữ liệu góc mặt vợt (Grip)</span>
-                  <span className="text-white/30 font-mono text-[10px]">{stats.totalStrokes} cú đánh UNKNOWN</span>
+                  <span className="text-ink/40 tabular-nums text-[10px]">{stats.totalStrokes} cú đánh UNKNOWN</span>
                 </div>
               )}
             </div>
@@ -459,165 +462,140 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         <EmptyTab text="Trận này chưa có dữ liệu phong cách & nhận định. Chạy lại phân tích AI để tạo." />
       )}
 
-      {/* 4. BIỂU ĐỒ RADAR NGŨ GIÁC 5 TRỤC ĐỐI ĐẦU (5-AXIS PENTAGON RADAR CHART) */}
-      {showTab('STYLE') && stats.radarChart?.axes && stats.radarChart.axes.length >= 3 && (() => {
-        const axes = stats.radarChart!.axes;
-        // Radar series are keyed by court side; the legend is keyed by player.
+      {/* 4. PHONG CÁCH ĐÁNH: tỉ lệ 4 nhóm cú (cùng đơn vị %), cộng lại ~100% */}
+      {showTab('STYLE') && stats.radarChart?.unit === 'percent_of_rally_strokes' && (() => {
+        const radar = stats.radarChart!;
+        const axes = radar.axes;
         const upperIsA = upperPlayer === 'PLAYER_A';
-        const playerAVals = (upperIsA ? stats.radarChart!.upper : stats.radarChart!.lower) || [];
-        const playerBVals = (upperIsA ? stats.radarChart!.lower : stats.radarChart!.upper) || [];
+        const series = [
+          { name: playerAName, color: upperIsA ? '#2B59C3' : '#C9701F', values: (upperIsA ? radar.upper : radar.lower) || [], extra: radar.extra?.[upperIsA ? 'upper' : 'lower'] },
+          { name: playerBName, color: upperIsA ? '#C9701F' : '#2B59C3', values: (upperIsA ? radar.lower : radar.upper) || [], extra: radar.extra?.[upperIsA ? 'lower' : 'upper'] },
+        ];
+        const AXES: Record<string, { label: string; hint: string }> = {
+          attack_share: { label: 'Tấn công', hint: 'đập, vồ lưới' },
+          net_share: { label: 'Kéo lưới', hint: 'cú ngắn sát lưới' },
+          defence_share: { label: 'Phòng thủ', hint: 'phông, hất cầu' },
+          placement_share: { label: 'Điều cầu', hint: 'tạt, bỏ nhỏ' },
+        };
         const numAxes = axes.length;
-        const center = 110;
-        const maxR = 75;
-
-        const axisNameVi: Record<string, string> = {
-          'Attack Stroke Share': 'Tấn công',
-          'Defensive Stroke Share': 'Phòng thủ',
-          'Net Stroke Share': 'Gài lưới',
-          'Shot Variety': 'Đa dạng đòn',
-          'Mean Model Confidence': 'Độ tự tin AI',
-          'Fast Stroke Share': 'Nhịp độ nhanh',
-          attack: 'Tấn công',
-          defense: 'Phòng thủ',
-          net_play: 'Gài lưới',
-          consistency: 'Độ tự tin AI',
-          variation: 'Đa dạng đòn',
-          pace: 'Nhịp độ nhanh',
-        };
-
-        const getPoint = (idx: number, val: number) => {
+        const center = 130;
+        const maxR = 82;
+        const top = Math.max(...series.flatMap(sr => sr.values), 0);
+        const scaleMax = Math.max(40, Math.ceil(top / 10) * 10);
+        const point = (idx: number, val: number) => {
           const angle = (Math.PI * 2 * idx) / numAxes - Math.PI / 2;
-          const r = (Math.min(Math.max(val, 0), 100) / 100) * maxR;
-          return {
-            x: center + r * Math.cos(angle),
-            y: center + r * Math.sin(angle),
-          };
+          const r = (Math.min(Math.max(val, 0), scaleMax) / scaleMax) * maxR;
+          return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
         };
-
-        const upperPolygon = axes.map((_, i) => {
-          const pt = getPoint(i, playerAVals[i] ?? 70);
-          return `${pt.x},${pt.y}`;
-        }).join(' ');
-
-        const lowerPolygon = axes.map((_, i) => {
-          const pt = getPoint(i, playerBVals[i] ?? 70);
-          return `${pt.x},${pt.y}`;
-        }).join(' ');
+        // Fixed pixel gap between the outer ring and the axis names, so dots never sit on a label.
+        const labelAt = (idx: number) => {
+          const angle = (Math.PI * 2 * idx) / numAxes - Math.PI / 2;
+          return { x: center + (maxR + 22) * Math.cos(angle), y: center + (maxR + 16) * Math.sin(angle) };
+        };
+        // Ring values sit on the diagonal between the first two axes.
+        const tickAt = (val: number) => {
+          const r = (val / scaleMax) * maxR;
+          return { x: center + r * Math.cos(-Math.PI / 4) + 2, y: center + r * Math.sin(-Math.PI / 4) - 2 };
+        };
+        const ring = (val: number) => axes.map((_, i) => { const pt = point(i, val); return `${pt.x},${pt.y}`; }).join(' ');
+        const fmtSeconds = (v?: number | null) => (v == null ? '–' : `${v.toFixed(2).replace('.', ',')} giây`);
 
         return (
-          <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
-            <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-                <h3 className="font-bold text-xs lg:text-sm text-white">
-                  Biểu Đồ Radar {numAxes} Trục Chỉ Số Chiến Thuật
-                </h3>
+          <div className={`${compact ? 'p-4' : 'p-5'} rounded-lg bg-sheet border border-ink/10`}>
+            <div className="flex items-center justify-between mb-3 border-b border-ink/10 pb-2.5 flex-wrap gap-2">
+              <div>
+                <h3 className="font-semibold text-sm text-ink">Phong cách đánh</h3>
+                <p className="text-xs text-ink/55">Mỗi người dùng nhóm cú nào bao nhiêu phần trăm (không tính giao cầu)</p>
               </div>
-              <div className="flex items-center gap-3 text-[11px]">
-                <span className="flex items-center gap-1.5 text-sky-400 font-semibold">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-sky-400 inline-block" />
-                  {playerAName}
-                </span>
-                <span className="flex items-center gap-1.5 text-amber-400 font-semibold">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" />
-                  {playerBName}
-                </span>
+              <div className="flex items-center gap-3 text-xs text-ink/75">
+                {series.map(sr => (
+                  <span key={sr.name} className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: sr.color }} />
+                    {sr.name}
+                  </span>
+                ))}
               </div>
             </div>
 
             <div className={`grid ${compact ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-12 gap-4'} items-center`}>
-              <div className={`${compact ? '' : 'md:col-span-6'} flex justify-center`}>
-                <svg viewBox="0 0 220 220" className="w-52 h-52">
-                  {/* Lưới đa giác đồng tâm (25%, 50%, 75%, 100%) */}
-                  {[25, 50, 75, 100].map((lv) => {
-                    const pts = axes
-                      .map((_, i) => {
-                        const p = getPoint(i, lv);
-                        return `${p.x},${p.y}`;
-                      })
-                      .join(' ');
-                    return (
-                      <polygon
-                        key={lv}
-                        points={pts}
-                        fill="none"
-                        stroke="rgba(255,255,255,0.12)"
-                        strokeWidth="1"
-                      />
-                    );
+              <div className={`${compact ? '' : 'md:col-span-5'} flex justify-center`}>
+                <svg viewBox="0 0 260 260" className="w-full max-w-[300px] h-auto" role="img" aria-label="Biểu đồ tỉ lệ nhóm cú của hai người chơi">
+                  {[0.25, 0.5, 0.75, 1].map(f => (
+                    <polygon key={f} points={ring(scaleMax * f)} fill="none" stroke="#16201B" strokeOpacity={0.1} />
+                  ))}
+                  {[scaleMax / 2, scaleMax].map(v => {
+                    const t = tickAt(v);
+                    return <text key={v} x={t.x} y={t.y} fontSize="8" fill="#16201B" fillOpacity={0.45}>{v}%</text>;
                   })}
-
-                  {/* Trục nối từ tâm ra đỉnh */}
                   {axes.map((ax, i) => {
-                    const outer = getPoint(i, 100);
-                    const labelPt = getPoint(i, 122);
+                    const outer = point(i, scaleMax);
+                    const label = labelAt(i);
                     return (
                       <g key={ax}>
-                        <line
-                          x1={center}
-                          y1={center}
-                          x2={outer.x}
-                          y2={outer.y}
-                          stroke="rgba(255,255,255,0.15)"
-                          strokeWidth="1"
-                        />
-                        <text
-                          x={labelPt.x}
-                          y={labelPt.y}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          fill="#cbd5e1"
-                          fontSize="8.5"
-                          fontWeight="bold"
-                        >
-                          {axisNameVi[ax] || ax}
+                        <line x1={center} y1={center} x2={outer.x} y2={outer.y} stroke="#16201B" strokeOpacity={0.12} />
+                        <text x={label.x} y={label.y} textAnchor="middle" dominantBaseline="middle" fill="#16201B" fillOpacity={0.75} fontSize="10" fontWeight="600">
+                          {AXES[ax]?.label ?? ax}
                         </text>
                       </g>
                     );
                   })}
-
-                  {/* Đa giác Player A (Upper) */}
-                  <polygon
-                    points={upperPolygon}
-                    fill="rgba(56, 189, 248, 0.28)"
-                    stroke="#38bdf8"
-                    strokeWidth="2"
-                  />
-
-                  {/* Đa giác Player B (Lower) */}
-                  <polygon
-                    points={lowerPolygon}
-                    fill="rgba(251, 191, 36, 0.25)"
-                    stroke="#fbbf24"
-                    strokeWidth="2"
-                  />
+                  {series.map(sr => (
+                    <g key={sr.name}>
+                      <polygon points={axes.map((_, i) => { const pt = point(i, sr.values[i] ?? 0); return `${pt.x},${pt.y}`; }).join(' ')}
+                        fill={sr.color} fillOpacity={0.14} stroke={sr.color} strokeWidth={2} strokeLinejoin="round" />
+                      {axes.map((ax, i) => {
+                        const pt = point(i, sr.values[i] ?? 0);
+                        return (
+                          <circle key={ax} cx={pt.x} cy={pt.y} r={4} fill={sr.color} stroke="#ffffff" strokeWidth={2}>
+                            <title>{`${sr.name}: ${AXES[ax]?.label ?? ax} ${sr.values[i] ?? 0}%`}</title>
+                          </circle>
+                        );
+                      })}
+                    </g>
+                  ))}
                 </svg>
               </div>
 
-              {/* Bảng điểm 5 trục đối đầu */}
-              <div className={`${compact ? '' : 'md:col-span-6'} overflow-x-auto`}>
-                <table className="w-full text-left text-[11px]">
+              <div className={`${compact ? '' : 'md:col-span-7'} overflow-x-auto`}>
+                <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/50 uppercase text-[10px]">
-                      <th className="pb-1.5">Chỉ Số</th>
-                      <th className="pb-1.5 text-right text-sky-400">{playerAName}</th>
-                      <th className="pb-1.5 text-right text-amber-400">{playerBName}</th>
+                    <tr className="border-b border-ink/10 text-ink/55">
+                      <th className="pb-1.5 font-medium">Nhóm cú</th>
+                      {series.map(sr => <th key={sr.name} className="pb-1.5 text-right font-medium text-ink/75">{sr.name}</th>)}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y divide-ink/10">
                     {axes.map((ax, i) => (
                       <tr key={ax}>
-                        <td className="py-1.5 font-medium text-white/90">{axisNameVi[ax] || ax}</td>
-                        <td className="py-1.5 text-right font-mono font-bold text-sky-300">
-                          {playerAVals[i] ?? 70}/100
+                        <td className="py-1.5 text-ink/85">
+                          {AXES[ax]?.label ?? ax} <span className="text-ink/50">({AXES[ax]?.hint})</span>
                         </td>
-                        <td className="py-1.5 text-right font-mono font-bold text-amber-300">
-                          {playerBVals[i] ?? 70}/100
-                        </td>
+                        {series.map(sr => (
+                          <td key={sr.name} className="py-1.5 text-right tabular-nums font-semibold text-ink">{sr.values[i] ?? 0}%</td>
+                        ))}
                       </tr>
                     ))}
+                    <tr>
+                      <td className="py-1.5 text-ink/85">
+                        Nhịp đánh <span className="text-ink/50">(cầu bay tới đối thủ, trung vị)</span>
+                      </td>
+                      {series.map(sr => (
+                        <td key={sr.name} className="py-1.5 text-right tabular-nums font-semibold text-ink">{fmtSeconds(sr.extra?.median_flight_seconds)}</td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 text-ink/85">
+                        Số loại cú hay dùng <span className="text-ink/50">(mỗi loại ≥ 5%)</span>
+                      </td>
+                      {series.map(sr => (
+                        <td key={sr.name} className="py-1.5 text-right tabular-nums font-semibold text-ink">{sr.extra?.stroke_types_used ?? '–'}/7</td>
+                      ))}
+                    </tr>
                   </tbody>
                 </table>
+                <p className="text-[11px] text-ink/50 mt-2 leading-relaxed">
+                  Đây là tỉ lệ loại cú AI nhận ra trong đoạn video, không phải điểm năng lực. Nhịp đánh càng nhỏ thì cầu đi càng nhanh.
+                </p>
               </div>
             </div>
           </div>
@@ -626,28 +604,28 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
 
       {/* 5. COACHAI+ 2.0 RADAR & TACTICAL INSIGHTS */}
       {showTab('STYLE') && coachInsights.length > 0 && (
-        <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-gradient-to-r from-blue-950/40 via-[#111c30]/90 to-cyan-950/40 border border-brand/20 shadow-xl`}>
+        <div className={`${compact ? 'p-4' : 'p-5'} rounded-lg border border-pitch/20 `}>
           <div className="flex items-center gap-2 mb-3">
-            <Lightbulb className="w-4 h-4 text-amber-400 shrink-0" />
-            <h3 className="font-bold text-xs lg:text-sm text-white">Nhận định chuyên môn AI (CoachAI+ Insights)</h3>
+            <Lightbulb className="w-4 h-4 text-amber-700 shrink-0" />
+            <h3 className="font-bold text-xs lg:text-sm text-ink">Nhận định từ AI</h3>
           </div>
 
           <div className={`grid ${compact ? 'grid-cols-1 gap-2.5' : 'grid-cols-1 md:grid-cols-2 gap-3'}`}>
             {coachInsights.map((item, idx) => (
-              <div key={idx} className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-start gap-2.5 min-w-0">
-                <div className="p-1.5 rounded-lg bg-brand/10 border border-brand/20 text-brand shrink-0 mt-0.5">
+              <div key={idx} className="p-3 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-start gap-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-pitch/10 border border-pitch/20 text-pitch shrink-0 mt-0.5">
                   <Sparkles className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1.5 mb-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-white uppercase tracking-wider bg-white/10 px-2 py-0.5 rounded-md border border-white/5">
+                    <span className="text-[11px] font-bold text-ink bg-ink/[0.06] px-2 py-0.5 rounded-md border border-ink/10">
                       {item.category}
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/80 font-medium truncate max-w-[150px]">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-ink/[0.06] text-ink/75 font-medium truncate max-w-[150px]">
                       Mục tiêu: {insightTargetName(item.target)}
                     </span>
                   </div>
-                  <p className="text-[11px] text-white/80 leading-relaxed break-words">
+                  <p className="text-[11px] text-ink/75 leading-relaxed break-words">
                     {item.insight}
                   </p>
                 </div>
@@ -678,25 +656,25 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
         if (list3Gram.length === 0 && list2Gram.length === 0) return null;
 
         return (
-          <div className={`${compact ? 'p-4' : 'p-5'} rounded-2xl bg-[#111c30]/90 border border-white/10 shadow-xl`}>
+          <div className={`${compact ? 'p-4' : 'p-5'} rounded-lg bg-sheet border border-ink/10 `}>
             <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <Award className="w-4 h-4 text-emerald-400 shrink-0" />
-                <h3 className="font-bold text-xs lg:text-sm text-white">
+                <Award className="w-4 h-4 text-emerald-700 shrink-0" />
+                <h3 className="font-bold text-xs lg:text-sm text-ink">
                   Chuỗi cú đánh lặp lại nhiều nhất
                 </h3>
               </div>
 
               {/* Tab Selector: 3-Gram vs 2-Gram */}
-              <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/5 text-[11px]">
+              <div className="flex items-center gap-1 bg-ink/[0.04] p-1 rounded-xl border border-ink/10 text-[11px]">
                 {list3Gram.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setPatternGram('3GRAM')}
                     className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                       patternGram === '3GRAM'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm'
-                        : 'text-white/40 hover:text-white/80'
+                        ? 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/30 shadow-sm'
+                        : 'text-ink/50 hover:text-ink/75'
                     }`}
                   >
                     Chuỗi 3 đòn liên hoàn (3-Gram)
@@ -708,8 +686,8 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
                     onClick={() => setPatternGram('2GRAM')}
                     className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                       patternGram === '2GRAM' || list3Gram.length === 0
-                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm'
-                        : 'text-white/40 hover:text-white/80'
+                        ? 'bg-blue-500/20 text-pa border border-blue-500/30 shadow-sm'
+                        : 'text-ink/50 hover:text-ink/75'
                     }`}
                   >
                     Cặp chuyển tiếp 2 đòn (2-Gram)
@@ -726,15 +704,15 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
                   : [trans.from, trans.to].filter(Boolean).map((s: string) => s.toUpperCase());
 
                 return (
-                  <div key={idx} className="p-2.5 px-3 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between min-w-0 hover:border-white/10 transition-colors">
+                  <div key={idx} className="p-2.5 px-3 rounded-xl bg-ink/[0.03] border border-ink/10 flex items-center justify-between min-w-0 hover:border-ink/10 transition-colors">
                     <div className="flex items-center gap-1.5 text-xs min-w-0 flex-wrap">
                       {parts.map((stroke: string, pIdx: number) => {
                         const color = STROKE_COLORS[stroke] || '#38bdf8';
                         return (
                           <React.Fragment key={pIdx}>
-                            {pIdx > 0 && <span className="text-white/40 text-[10px] shrink-0">➜</span>}
+                            {pIdx > 0 && <span className="text-ink/50 text-[10px] shrink-0">➜</span>}
                             <span
-                              className="px-2 py-0.5 rounded-lg border font-bold uppercase text-[10px] sm:text-[11px] shrink-0 shadow-sm"
+                              className="px-2 py-0.5 rounded-lg border font-bold text-[10px] sm:text-[11px] shrink-0 shadow-sm"
                               style={{
                                 backgroundColor: `${color}22`,
                                 borderColor: `${color}55`,
@@ -747,7 +725,7 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
                         );
                       })}
                     </div>
-                    <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0 ml-2">
+                    <span className="text-[11px] tabular-nums font-bold text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0 ml-2">
                       {trans.count} lần
                     </span>
                   </div>

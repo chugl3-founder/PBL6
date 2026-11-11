@@ -2,10 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
-  Trophy, Calendar, ArrowLeft, CheckCircle2, Clock, 
-  UploadCloud, AlertCircle, RefreshCw, FileVideo, 
-  HardDrive, Sparkles, Check, ExternalLink,
-  AlertTriangle, Ban, RotateCcw, Play, ArrowRight
+  ArrowLeft, CheckCircle2, UploadCloud, AlertCircle, RefreshCw,
+  Sparkles, Check, AlertTriangle, Ban, Play
 } from 'lucide-react';
 import apiClient from '../api/client';
 
@@ -316,49 +314,10 @@ export const MatchDetailPage: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'DRAFT':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Bản nháp (Chờ tải video)</span>
-          </span>
-        );
-      case 'READY':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Video sẵn sàng</span>
-          </span>
-        );
-      case 'ANALYZING':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-300 border border-blue-500/30 animate-pulse">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Đang phân tích AI</span>
-          </span>
-        );
-      case 'ANALYZED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand/10 text-brand border border-brand/30">
-            <Trophy className="w-3.5 h-3.5" />
-            <span>Đã phân tích</span>
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-300 border border-slate-500/30">
-            <span>{status}</span>
-          </span>
-        );
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-140px)] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-pitch border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -366,14 +325,14 @@ export const MatchDetailPage: React.FC = () => {
   if (error || !match) {
     return (
       <div className="min-h-[calc(100vh-140px)] flex flex-col items-center justify-center px-4 text-center">
-        <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4">
+        <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-700 mb-4">
           <AlertCircle className="w-6 h-6" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Không tìm thấy trận đấu</h2>
-        <p className="text-white/60 text-sm max-w-md mb-6">{error || 'Trận đấu không tồn tại hoặc đã bị xóa.'}</p>
+        <h2 className="text-xl font-bold text-ink mb-2">Không tìm thấy trận đấu</h2>
+        <p className="text-ink/60 text-sm max-w-md mb-6">{error || 'Trận đấu không tồn tại hoặc đã bị xóa.'}</p>
         <Link
           to="/my-matches"
-          className="px-6 py-2.5 rounded-full bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors"
+          className="px-6 py-2.5 rounded-full bg-pitch hover:bg-pitch-deep text-white text-sm font-semibold transition-colors"
         >
           Về danh sách trận đấu
         </Link>
@@ -381,523 +340,273 @@ export const MatchDetailPage: React.FC = () => {
     );
   }
 
+  const analyzed = match.status === 'ANALYZED' || match.status === 'COMPLETED' || match.status === 'PUBLISHED';
+  const analyzing = match.status === 'ANALYZING';
+  const upperName = match.upperPlayer === 'PLAYER_B' ? match.playerBName : match.playerAName;
+  const lowerName = match.upperPlayer === 'PLAYER_B' ? match.playerAName : match.playerBName;
+  const players = `${match.playerAName} gặp ${match.playerBName}`;
+  const subtitle = match.title && match.title !== players ? match.title : null;
+  const step = match.status === 'DRAFT' ? 2 : analyzed ? 4 : 3;
+  const progress = analysisStatus?.progressPercent ?? 0;
+  const lastRunFailed = analysisStatus?.status === 'FAILED' || analysisStatus?.status === 'UNSUPPORTED';
+
   return (
-    <div className="relative min-h-[calc(100vh-140px)] w-full py-10 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-      {/* Background Court Ambient */}
-      <div 
-        className="fixed inset-0 bg-cover bg-center brightness-[0.25] pointer-events-none -z-10"
-        style={{ backgroundImage: `url('/images/court-bg.jpg')` }}
-      />
-      <div className="fixed inset-0 bg-slate-950/80 -z-10" />
-
-      {/* Navigation Top */}
-      <div className="mb-8">
-        <Link 
-          to="/my-matches" 
-          className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors mb-4 group"
-        >
-          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
-          <span>Danh sách trận đấu của tôi</span>
+    <div className="w-full py-8 max-w-4xl mx-auto space-y-6">
+      <header className="space-y-3">
+        <Link to="/my-matches" className="inline-flex items-center gap-1.5 text-sm text-ink/60 hover:text-ink transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          <span>Trận của tôi</span>
         </Link>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              {getStatusBadge(match.status)}
-              <span className="text-xs text-white/40 font-mono">ID: #{match.id}</span>
-            </div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">
-              {match.title || `${match.playerAName} vs ${match.playerBName}`}
-            </h1>
-            <div className="flex items-center gap-4 text-xs text-white/60 mt-2">
-              <span className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-brand" />
-                <span>Ngày đấu: {match.matchDate}</span>
-              </span>
-            </div>
-          </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-ink leading-tight">
+            {upperName} <span className="font-normal text-ink/40">gặp</span> {lowerName}
+          </h1>
+          <p className="text-sm text-ink/55 mt-1">
+            {match.matchDate}
+            {subtitle && <> · {subtitle}</>}
+          </p>
         </div>
-      </div>
+      </header>
 
-      {/* Grid Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Left Column: Match Details Card & Video Player */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="rounded-3xl bg-[#0b1220]/80 backdrop-blur-xl border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-brand" />
-                <span>Thông tin trận đấu</span>
-              </h2>
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* What to do next: the only part of this page that changes */}
+        <section className="lg:col-span-7 rounded-lg bg-sheet border border-ink/10 p-6 space-y-5" aria-label="Bước tiếp theo">
+          {!analyzed && (
+            <ol className="flex flex-wrap items-center gap-2 text-xs text-ink/55" aria-label="Các bước">
+              {['Thông tin trận', 'Tải video', 'AI phân tích'].map((label, index) => {
+                const n = index + 1;
+                const done = n < step;
+                const current = n === step;
+                return (
+                  <li key={label} className="flex items-center gap-2" aria-current={current ? 'step' : undefined}>
+                    {index > 0 && <span className="w-6 h-px bg-ink/15" />}
+                    <span
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${
+                        done ? 'bg-pitch text-white' : current ? 'bg-ink text-white' : 'bg-ink/10 text-ink/50'
+                      }`}
+                    >
+                      {done ? <Check className="w-3 h-3" /> : n}
+                    </span>
+                    <span className={current ? 'text-ink font-medium' : ''}>{label}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
 
-            {/* Players Faceoff Card */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Player A */}
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-brand whitespace-nowrap">VẬN ĐỘNG VIÊN A</span>
-                  <span className="text-[10px] uppercase px-2.5 py-0.5 rounded-full bg-brand/20 text-brand font-mono font-bold whitespace-nowrap shrink-0">
-                    {match.upperPlayer === 'PLAYER_A' ? 'Sân trên (Xa)' : 'Sân dưới (Gần)'}
-                  </span>
-                </div>
-                <div className="text-base font-bold text-white flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-brand/20 text-brand flex items-center justify-center font-bold text-xs shrink-0">
-                    A
-                  </div>
-                  <span className="truncate">{match.playerAName}</span>
-                </div>
-              </div>
-
-              {/* Player B */}
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-amber-400 whitespace-nowrap">VẬN ĐỘNG VIÊN B</span>
-                  <span className="text-[10px] uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold whitespace-nowrap shrink-0">
-                    {match.upperPlayer === 'PLAYER_B' ? 'Sân trên (Xa)' : 'Sân dưới (Gần)'}
-                  </span>
-                </div>
-                <div className="text-base font-bold text-white flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
-                    B
-                  </div>
-                  <span className="truncate">{match.playerBName}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Description / Notes */}
-            {match.description && (
-              <div className="space-y-1.5 pt-2">
-                <label className="text-xs font-semibold text-white/50">Ghi chú trận đấu</label>
-                <div className="p-3.5 rounded-xl bg-[#0f172a] border border-white/10 text-sm text-slate-300 leading-relaxed">
-                  {match.description}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Video Preview Card if video exists */}
-          {video && (
-            <div className="rounded-3xl bg-[#0b1220]/80 backdrop-blur-xl border border-white/10 p-6 sm:p-8 space-y-4 shadow-2xl">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <FileVideo className="w-5 h-5 text-emerald-400" />
-                  <span>Video Trận Đấu</span>
-                </h3>
-                <div className="flex items-center gap-3">
-                  <a
-                    href={video.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 hover:underline"
-                    title="Mở video trực tiếp trong tab mới"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Mở tab mới</span>
-                  </a>
-                  <span className="text-xs text-emerald-300 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                    {(video.fileSize / (1024 * 1024)).toFixed(1)} MB
-                  </span>
-                </div>
-              </div>
-
-              <div className="rounded-2xl overflow-hidden border border-white/10 bg-black aspect-video relative group flex items-center justify-center">
-                <video 
-                  src={video.videoUrl} 
-                  controls 
-                  className="w-full h-full object-contain"
-                  preload="metadata"
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-white/50 pt-1">
-                <span className="truncate max-w-[300px]">Tên file: {video.fileName}</span>
-                <span className="font-mono">{video.storagePath}</span>
-              </div>
+          {cancelSuccessMsg && (
+            <div className="px-3 py-2.5 rounded-md bg-pitch-soft text-sm text-pitch-deep flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{cancelSuccessMsg}</span>
             </div>
           )}
-        </div>
+          {analysisError && (
+            <div className="px-3 py-2.5 rounded-md bg-loss/10 text-sm text-loss flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{analysisError}</span>
+            </div>
+          )}
 
-        {/* Right Column: Upload Component & Workflow */}
-        <div className="lg:col-span-5 space-y-6">
-          
-          {/* Video Upload Dropzone (Visible if status is DRAFT or re-upload) */}
           {match.status === 'DRAFT' && (
-            <div className="rounded-3xl bg-[#0b1220]/80 backdrop-blur-xl border border-white/10 p-6 sm:p-8 space-y-5 shadow-2xl">
+            <div className="space-y-4">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand/10 border border-brand/30 text-brand text-xs font-semibold mb-2">
-                  <UploadCloud className="w-3.5 h-3.5" />
-                  <span>S3 DIRECT UPLOAD (≤ 500MB)</span>
-                </div>
-                <h2 className="text-lg font-bold text-white">Tải Lên Video Trận Đấu</h2>
-                <p className="text-xs text-white/60 mt-1">
-                  Đẩy trực tiếp lên Supabase qua S3 Presigned URL mà không làm nghẽn máy chủ.
-                </p>
+                <h2 className="text-lg font-semibold text-ink">Tải video trận đấu lên</h2>
+                <p className="text-sm text-ink/60 mt-1">Video MP4, tối đa 500 MB. Giữ trang này mở cho đến khi tải xong.</p>
               </div>
 
-              <input 
-                ref={fileInputRef}
-                type="file" 
-                accept="video/mp4"
-                onChange={handleFileSelect}
-                className="hidden" 
-              />
-
-              {/* Dropzone Box */}
-              <div 
+              <input ref={fileInputRef} type="file" accept="video/mp4" onChange={handleFileSelect} className="hidden" />
+              <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
-                  selectedFile 
-                    ? 'border-brand/60 bg-brand/5' 
-                    : 'border-white/15 hover:border-brand/40 bg-white/5 hover:bg-white/10'
+                className={`w-full border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  selectedFile ? 'border-pitch/60 bg-pitch-soft/40' : 'border-ink/15 hover:border-pitch/40 bg-ink/[0.02]'
                 }`}
               >
-                <div className="w-12 h-12 rounded-full bg-brand/10 text-brand flex items-center justify-center mx-auto mb-3">
-                  <UploadCloud className="w-6 h-6" />
-                </div>
-
+                <UploadCloud className="w-6 h-6 text-pitch mx-auto mb-2" />
                 {selectedFile ? (
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold text-white truncate max-w-[280px] mx-auto">
-                      {selectedFile.name}
-                    </p>
-                    <p className="text-xs text-brand font-medium">
-                      {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Nhấp để chọn file khác
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-white">Kéo thả video hoặc bấm để chọn</p>
-                    <p className="text-xs text-white/40">Hỗ trợ MP4 (Tối đa 500MB)</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Upload Progress Bar */}
-              {uploadStatus !== 'idle' && (
-                <div className="space-y-2 p-4 rounded-2xl bg-white/5 border border-white/10">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-white">
-                      {uploadStatus === 'presigning' && 'Đang sinh Presigned URL an toàn...'}
-                      {uploadStatus === 'uploading' && `Đang tải trực tiếp lên Supabase (${uploadProgress}%)`}
-                      {uploadStatus === 'verifying' && 'Đang xác thực file hoàn tất...'}
-                      {uploadStatus === 'error' && 'Quá trình tải lên bị gián đoạn'}
+                  <>
+                    <span className="block text-sm font-semibold text-ink truncate">{selectedFile.name}</span>
+                    <span className="block text-xs text-ink/55 mt-0.5">
+                      {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · bấm để chọn video khác
                     </span>
-                    {uploadStatus === 'uploading' && uploadSpeed && (
-                      <span className="text-brand font-mono">{uploadSpeed}</span>
-                    )}
-                  </div>
+                  </>
+                ) : (
+                  <span className="block text-sm font-medium text-ink">Bấm để chọn video</span>
+                )}
+              </button>
 
-                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div 
-                      className={`h-full transition-all duration-300 rounded-full ${
-                        uploadStatus === 'error' ? 'bg-rose-500' : 'bg-brand'
-                      }`}
+              {uploadStatus !== 'idle' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-ink">
+                      {uploadStatus === 'presigning' && 'Đang chuẩn bị tải lên...'}
+                      {uploadStatus === 'uploading' && `Đang tải lên (${uploadProgress}%)`}
+                      {uploadStatus === 'verifying' && 'Đang kiểm tra video...'}
+                      {uploadStatus === 'error' && 'Tải lên bị gián đoạn'}
+                    </span>
+                    {uploadStatus === 'uploading' && uploadSpeed && <span className="text-ink/55 tabular-nums">{uploadSpeed}</span>}
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-ink/10 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 rounded-full ${uploadStatus === 'error' ? 'bg-loss' : 'bg-pitch'}`}
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
                 </div>
               )}
 
-              {/* Error Message */}
               {uploadError && (
-                <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <div className="px-3 py-2.5 rounded-md bg-loss/10 text-sm text-loss flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{uploadError}</span>
                 </div>
               )}
 
-              {/* Actions */}
-              <div>
-                {uploadStatus === 'error' ? (
-                  <button
-                    type="button"
-                    onClick={handleUpload}
-                    className="w-full h-12 rounded-full bg-rose-500 hover:bg-rose-600 text-white font-bold shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
-                  >
+              <button
+                type="button"
+                onClick={handleUpload}
+                disabled={uploadStatus === 'error' ? false : !selectedFile || uploadStatus !== 'idle'}
+                className="w-full h-11 rounded-md bg-pitch hover:bg-pitch-deep disabled:opacity-50 text-white font-semibold transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                {uploadStatus === 'presigning' || uploadStatus === 'uploading' || uploadStatus === 'verifying' ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : uploadStatus === 'error' ? (
+                  <>
                     <RefreshCw className="w-4 h-4" />
-                    <span>Thử lại tải lên</span>
-                  </button>
+                    <span>Thử tải lại</span>
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleUpload}
-                    disabled={!selectedFile || uploadStatus !== 'idle'}
-                    className="w-full h-12 rounded-full bg-brand hover:bg-brand-hover disabled:opacity-50 text-white font-bold shadow-glow-blue transition-all flex items-center justify-center gap-2 text-sm"
-                  >
-                    {uploadStatus === 'presigning' || uploadStatus === 'uploading' || uploadStatus === 'verifying' ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <UploadCloud className="w-4 h-4" />
-                        <span>Bắt đầu tải lên MinIO</span>
-                      </>
-                    )}
-                  </button>
+                  <>
+                    <UploadCloud className="w-4 h-4" />
+                    <span>Tải lên</span>
+                  </>
                 )}
-              </div>
+              </button>
             </div>
           )}
 
-          {/* Stepper Workflow Card */}
-          <div className="rounded-3xl bg-[#0b1220]/80 backdrop-blur-xl border border-white/10 p-6 sm:p-8 space-y-5 shadow-2xl">
-            <h2 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-              <HardDrive className="w-4 h-4 text-brand" />
-              <span>Quy trình xử lý trận đấu</span>
-            </h2>
-
-            <div className="space-y-3.5">
-              {/* Step 1 */}
-              <div className="flex items-start gap-3 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-white">Bước 1: Khởi tạo Metadata</div>
-                  <div className="text-[11px] text-emerald-200/80 mt-0.5">
-                    Đã lưu tên 2 vận động viên & vị trí sân
-                  </div>
-                </div>
+          {match.status === 'READY' && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Video đã sẵn sàng</h2>
+                <p className="text-sm text-ink/60 mt-1">
+                  AI sẽ tìm từng cú đánh và pha cầu. Bạn xem được trận ngay khi AI bắt đầu, kết quả hiện dần theo từng pha.
+                </p>
               </div>
-
-              {/* Step 2 */}
-              <div className={`flex items-start gap-3 p-3 rounded-2xl border ${
-                match.status !== 'DRAFT' 
-                  ? 'bg-emerald-500/10 border-emerald-500/30' 
-                  : 'bg-brand/10 border-brand/30'
-              }`}>
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs ${
-                  match.status !== 'DRAFT'
-                    ? 'bg-emerald-500/20 text-emerald-400'
-                    : 'bg-brand/20 text-brand'
-                }`}>
-                  {match.status !== 'DRAFT' ? <Check className="w-3.5 h-3.5" /> : '2'}
+              {analysisStatus?.status === 'CANCELLED' && (
+                <p className="text-sm text-ink/60">Lần phân tích trước đã dừng. Bấm bên dưới để phân tích lại.</p>
+              )}
+              {lastRunFailed && (
+                <div className="px-3 py-2.5 rounded-md bg-loss/10 text-sm text-loss flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Lần phân tích trước không thành công.{' '}
+                    {analysisStatus?.errorMessage || 'Góc quay không chuẩn hoặc người chơi bị che khuất quá lâu.'}
+                  </span>
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-white">Bước 2: Tải lên video S3 Presigned URL</div>
-                  <div className="text-[11px] text-white/60 mt-0.5">
-                    {match.status !== 'DRAFT'
-                      ? 'Video đã lưu trữ an toàn trên Cloud Storage (S3)'
-                      : 'Đang chờ tải video (≤ 500MB)'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 3 */}
-              <div className={`flex items-start gap-3 p-3 rounded-2xl border ${
-                match.status === 'ANALYZED' || match.status === 'COMPLETED'
-                  ? 'bg-emerald-500/10 border-emerald-500/30'
-                  : match.status === 'ANALYZING'
-                  ? 'bg-blue-500/10 border-blue-500/30'
-                  : match.status === 'READY'
-                  ? 'bg-brand/10 border-brand/30'
-                  : 'bg-white/5 border-white/10 opacity-60'
-              }`}>
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
-                  match.status === 'ANALYZED' || match.status === 'COMPLETED'
-                    ? 'bg-emerald-500/20 text-emerald-400'
-                    : match.status === 'ANALYZING'
-                    ? 'bg-blue-500/20 text-blue-400'
-                    : 'bg-white/10 text-white/50'
-                }`}>
-                  {match.status === 'ANALYZED' || match.status === 'COMPLETED' ? (
-                    <Check className="w-3.5 h-3.5" />
-                  ) : match.status === 'ANALYZING' ? (
-                    <div className="w-2.5 h-2.5 bg-blue-400 rounded-full animate-ping" />
-                  ) : (
-                    '3'
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-white">Bước 3: Phân tích AI CoachAI+ 2.0</div>
-                  <div className="text-[11px] text-white/60 mt-0.5">
-                    {match.status === 'ANALYZED' || match.status === 'COMPLETED'
-                      ? 'Đã trích xuất xong toàn bộ cú đánh, pha cầu & chiến thuật'
-                      : match.status === 'ANALYZING'
-                      ? 'Đang nhận diện động tác & bóc tách điểm số...'
-                      : match.status === 'READY'
-                      ? 'Sẵn sàng kích hoạt Mock Engine AI'
-                      : 'Cần tải xong video trước khi kích hoạt phân tích'}
-                  </div>
-                </div>
-              </div>
-
+              )}
+              <button
+                type="button"
+                onClick={lastRunFailed ? handleRetryAnalysis : handleStartAnalysis}
+                disabled={dispatchingAnalysis || retryingAnalysis}
+                className="w-full h-11 rounded-md bg-pitch hover:bg-pitch-deep disabled:opacity-50 text-white font-semibold transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                {dispatchingAnalysis || retryingAnalysis ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Phân tích trận đấu</span>
+                  </>
+                )}
+              </button>
             </div>
+          )}
 
-            {/* Thông báo hủy thành công */}
-            {cancelSuccessMsg && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{cancelSuccessMsg}</span>
+          {analyzing && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">AI đang phân tích</h2>
+                <p className="text-sm text-ink/60 mt-1">Bạn có thể xem trận ngay, các pha cầu hiện dần khi AI phân tích tới.</p>
               </div>
-            )}
-
-            {/* Error Message for AI Analysis */}
-            {analysisError && (
-              <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{analysisError}</span>
-              </div>
-            )}
-
-            {/* AI Progress Box during ANALYZING kèm nút Cancel (VS-13) */}
-            {match.status === 'ANALYZING' && (
-              <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-blue-300 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                    <span>{analysisStatus?.currentStage || 'Đang kết nối Mock Engine...'}</span>
-                  </span>
-                  <span className="text-white font-mono font-bold">
-                    {analysisStatus?.progressPercent || 15}%
-                  </span>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-ink/70">{analysisStatus?.currentStage || 'Đang khởi động'}</span>
+                  <span className="text-ink font-semibold tabular-nums">{progress}%</span>
                 </div>
-
-                <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-brand transition-all duration-500 rounded-full"
-                    style={{ width: `${analysisStatus?.progressPercent || 15}%` }}
-                  />
-                </div>
-                <div className="flex justify-between items-center text-[11px] text-white/40">
-                  <span>Mô hình: {analysisStatus?.modelName || 'CoachAI+'} ({analysisStatus?.modelVersion || '2.0_pbl6_coachai'})</span>
-                  <span>Mã phản hồi: HTTP 202 Accepted</span>
-                </div>
-
-                {/* Nút hủy phân tích AI (VS-13) */}
-                <div className="pt-2 flex items-center justify-between border-t border-white/5">
-                  <span className="text-[11px] text-white/50">Tiến trình phân tích đang chạy...</span>
-                  <button
-                    type="button"
-                    onClick={handleCancelAnalysis}
-                    disabled={cancellingAnalysis}
-                    className="px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {cancellingAnalysis ? (
-                      <div className="w-3.5 h-3.5 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Ban className="w-3.5 h-3.5" />
-                    )}
-                    <span>Hủy phân tích</span>
-                  </button>
+                <div className="w-full h-2 rounded-full bg-ink/10 overflow-hidden">
+                  <div className="h-full bg-pitch transition-all duration-500 rounded-full" style={{ width: `${progress}%` }} />
                 </div>
               </div>
-            )}
+              <Link
+                to={`/matches/${id}/replay`}
+                className="w-full h-11 rounded-md bg-pitch hover:bg-pitch-deep text-white font-semibold transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <Play className="w-4 h-4 fill-white" />
+                <span>Xem ngay</span>
+              </Link>
+              <button
+                type="button"
+                onClick={handleCancelAnalysis}
+                disabled={cancellingAnalysis}
+                className="inline-flex items-center gap-1.5 text-sm text-ink/55 hover:text-loss transition-colors disabled:opacity-50"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                <span>{cancellingAnalysis ? 'Đang dừng...' : 'Dừng phân tích'}</span>
+              </button>
+            </div>
+          )}
 
-            {/* Banner báo lỗi & Nút thử lại phân tích (Retry) khi FAILED (VS-13) */}
-            {(analysisStatus?.status === 'FAILED' || analysisStatus?.status === 'UNSUPPORTED') && match.status !== 'ANALYZING' && (
-              <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0 mt-0.5">
-                    <AlertTriangle className="w-5 h-5" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm text-rose-300">Phân tích AI thất bại</span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-200 border border-rose-500/30">
-                        {analysisStatus?.errorCode || 'UNSUPPORTED_VIDEO_ANGLE'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-rose-200/80 leading-relaxed">
-                      {analysisStatus?.errorMessage || 'Góc quay video không chuẩn hoặc người chơi bị che khuất trong nhiều khung hình liên tiếp.'}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleRetryAnalysis}
-                  disabled={retryingAnalysis}
-                  className="w-full h-11 rounded-full bg-gradient-to-r from-rose-500 to-amber-600 hover:from-rose-600 hover:to-amber-700 text-white font-bold shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-2 text-xs disabled:opacity-50"
-                >
-                  {retryingAnalysis ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <RotateCcw className="w-4 h-4" />
-                      <span>Thử lại phân tích AI (Retry)</span>
-                    </>
-                  )}
-                </button>
+          {analyzed && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Đã phân tích xong</h2>
+                <p className="text-sm text-ink/60 mt-1">Xem lại trận, những điểm bị mất và các pha cầu đáng chú ý.</p>
               </div>
-            )}
+              <Link
+                to={`/matches/${id}/replay`}
+                className="w-full h-11 rounded-md bg-pitch hover:bg-pitch-deep text-white font-semibold transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <Play className="w-4 h-4 fill-white" />
+                <span>Xem lại trận đấu</span>
+              </Link>
+              <button
+                type="button"
+                onClick={handleStartAnalysis}
+                disabled={dispatchingAnalysis}
+                className="inline-flex items-center gap-1.5 text-sm text-ink/55 hover:text-ink transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>{dispatchingAnalysis ? 'Đang gửi...' : 'Phân tích lại'}</span>
+              </button>
+            </div>
+          )}
+        </section>
 
-            {/* Thông báo phiên trước đó đã bị hủy */}
-            {analysisStatus?.status === 'CANCELLED' && match.status !== 'ANALYZING' && (
-              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
-                <Ban className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Phiên phân tích trước đó đã được hủy thành công. Bạn có thể nhấn bắt đầu lại bên dưới.</span>
-              </div>
-            )}
-
-            {/* Next Action CTA if READY */}
-            {match.status === 'READY' && (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleStartAnalysis}
-                  disabled={dispatchingAnalysis}
-                  className="w-full h-12 rounded-full bg-gradient-to-r from-brand to-blue-600 hover:from-brand-hover hover:to-blue-500 disabled:opacity-50 text-white font-bold shadow-glow-blue transition-all flex items-center justify-center gap-2 text-sm"
-                >
-                  {dispatchingAnalysis ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Bắt đầu Phân tích AI</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-
-            {/* Streaming: AI đang chạy nhưng Replay đã xem được, kết quả hiện dần theo từng pha cầu */}
-            {analysisStatus?.status === 'PROCESSING' && match.status !== 'ANALYZED' && match.status !== 'COMPLETED' && (
-              <div className="pt-2">
-                <Link
-                  to={`/matches/${id}/replay`}
-                  className="w-full h-12 rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 hover:opacity-95 text-white font-bold shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 text-sm group"
-                >
-                  <Play className="w-4 h-4 fill-white" />
-                  <span>Xem ngay — AI phân tích song song</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
-              </div>
-            )}
-
-            {/* CTA if ANALYZED / COMPLETED */}
-            {(match.status === 'ANALYZED' || match.status === 'COMPLETED') && (
-              <div className="pt-2 space-y-3">
-                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>Trận đấu đã phân tích thành công! Dữ liệu Replay & Thống kê đã sẵn sàng.</span>
-                </div>
-                <Link
-                  to={`/matches/${id}/replay`}
-                  className="w-full h-12 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:opacity-95 text-white font-bold shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 text-sm group"
-                >
-                  <Play className="w-4 h-4 fill-white" />
-                  <span>Xem Video Replay & Thống Kê AI</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleStartAnalysis}
-                  disabled={dispatchingAnalysis}
-                  className="w-full h-11 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 font-medium transition-all flex items-center justify-center gap-2 text-xs"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Phân tích lại (Re-analyze)</span>
-                </button>
-              </div>
-            )}
-
-
-          </div>
-
-        </div>
-
+        {/* Who plays on which side: fixed facts, kept quiet */}
+        <aside className="lg:col-span-5 rounded-lg bg-sheet border border-ink/10 p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-ink/60">Hai vận động viên</h2>
+          <ul className="space-y-3">
+            {[
+              { name: upperName, side: 'Sân trên, phía xa camera', bar: 'bg-pa' },
+              { name: lowerName, side: 'Sân dưới, gần camera', bar: 'bg-pb' },
+            ].map(row => (
+              <li key={row.side} className="flex items-center gap-3">
+                <span className={`w-1 h-9 rounded-full ${row.bar}`} />
+                <span>
+                  <span className="block font-semibold text-ink">{row.name}</span>
+                  <span className="block text-xs text-ink/55">{row.side}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {match.description && (
+            <p className="text-sm text-ink/70 leading-relaxed border-t border-ink/10 pt-4">{match.description}</p>
+          )}
+          {video && match.status === 'READY' && (
+            <video src={video.videoUrl} controls preload="metadata" className="w-full rounded-md bg-black aspect-video" />
+          )}
+        </aside>
       </div>
     </div>
   );

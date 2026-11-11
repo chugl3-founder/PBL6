@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, Zap, Activity, Wind, ArrowRight } from 'lucide-react';
+import { Target, Zap, Wind, ArrowRight } from 'lucide-react';
 import { strokeSideLabel } from '../../utils/strokeSide';
 
 export interface AiEventData {
@@ -29,6 +29,8 @@ interface Court2DViewerProps {
   playerAName: string;
   playerBName: string;
   upperPlayer: string;
+  /** Narrow side panel: court and player key only; the shot details are shown elsewhere. */
+  compact?: boolean;
 }
 
 export const Court2DViewer: React.FC<Court2DViewerProps> = ({
@@ -36,6 +38,7 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
   playerAName,
   playerBName,
   upperPlayer,
+  compact = false,
 }) => {
   // Tên người chơi
   const upperPlayerName = upperPlayer === 'PLAYER_A' ? playerAName : playerBName;
@@ -111,25 +114,15 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
   const trajectoryAngle = (Math.atan2(deltaY, deltaX) * 180) / Math.PI;
 
   return (
-    <div className="rounded-3xl bg-[#0b1220]/90 border border-white/10 p-5 backdrop-blur-xl shadow-2xl flex flex-col space-y-4">
-      {/* Header Widget */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_#34d399]" />
-          <span className="text-sm font-bold uppercase tracking-wider text-white">
-            Mô Phỏng 2D Mặt Sân Nằm Ngang (Radar Court)
-          </span>
+    <div className={compact ? 'flex flex-col space-y-2' : 'rounded-xl bg-sheet border border-ink/10 p-5 flex flex-col space-y-4'}>
+      {!compact && (
+        <div className="border-b border-ink/10 pb-3">
+          <span className="text-sm font-semibold text-ink">Sơ đồ sân nhìn từ trên xuống</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-emerald-300 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
-            <Activity className="w-3 h-3" />
-            <span>Smooth Animation</span>
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* SVG SÂN NẰM NGANG (HORIZONTAL VIEW) */}
-      <div className="relative w-full aspect-[600/320] bg-[#063018] rounded-2xl border-2 border-white/20 shadow-inner overflow-hidden p-2">
+      <div className="relative w-full aspect-[600/320] bg-sheet rounded-lg border-2 border-ink/15 shadow-inner overflow-hidden p-2">
         <svg
           viewBox="0 0 600 320"
           className="w-full h-full"
@@ -251,7 +244,7 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
                 <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="4s" repeatCount="indefinite" />
               </circle>
             )}
-            <circle r="13" fill="#3b82f6" stroke="#ffffff" strokeWidth="2.5" className="shadow-lg" />
+            <circle r="13" fill="#3b82f6" stroke="#ffffff" strokeWidth="2.5" className="" />
             <text y="4" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">
               {upperPlayerName.substring(0, 1).toUpperCase()}
             </text>
@@ -268,7 +261,7 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
                 <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="4s" repeatCount="indefinite" />
               </circle>
             )}
-            <circle r="13" fill="#f59e0b" stroke="#ffffff" strokeWidth="2.5" className="shadow-lg" />
+            <circle r="13" fill="#f59e0b" stroke="#ffffff" strokeWidth="2.5" className="" />
             <text y="4" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">
               {lowerPlayerName.substring(0, 1).toUpperCase()}
             </text>
@@ -276,35 +269,50 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
         </svg>
 
         {/* Legend nhãn bên sân */}
-        <div className="absolute top-3 left-4 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-blue-500/30 text-xs text-blue-300 font-bold flex items-center gap-1.5 shadow-lg">
-          <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-          <span>{upperPlayerName} (Sân Trái)</span>
+        {!compact && (<>
+        <div className="absolute top-3 left-4 bg-ink/[0.04] px-3 py-1.5 rounded-xl border border-blue-500/30 text-xs text-blue-700 font-bold flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-pa" />
+          <span>{upperPlayerName} (xa camera)</span>
         </div>
 
-        <div className="absolute top-3 right-4 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/30 text-xs text-amber-300 font-bold flex items-center gap-1.5 shadow-lg">
+        <div className="absolute top-3 right-4 bg-ink/[0.04] px-3 py-1.5 rounded-xl border border-amber-500/30 text-xs text-amber-700 font-bold flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-          <span>{lowerPlayerName} (Sân Phải)</span>
+          <span>{lowerPlayerName} (gần camera)</span>
         </div>
+        </>)}
       </div>
 
+      {compact && (
+        <div className="flex items-center justify-between gap-2 text-[11px] text-ink/70">
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-pa shrink-0" />
+            <span className="truncate">{upperPlayerName} · trái</span>
+          </span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+            <span className="truncate">{lowerPlayerName} · phải</span>
+          </span>
+        </div>
+      )}
+
       {/* THẺ TRỰC QUAN HÓA CÚ ĐÁNH HIỆN TẠI (STROKE VISUAL CARD) */}
-      {currentEvent ? (
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+      {compact ? null : currentEvent ? (
+        <div className="p-4 rounded-lg bg-ink/[0.04] border border-ink/10 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/10 pb-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-white/50 font-mono">Cú đánh #{currentEvent.eventOrder}</span>
-              <span className="text-white/30">•</span>
-              <span className="text-xs font-semibold text-white/80">Thời điểm: {currentEvent.timeSeconds.toFixed(2)}s</span>
+              <span className="text-xs text-ink/55 tabular-nums">Cú đánh #{currentEvent.eventOrder}</span>
+              <span className="text-ink/40">•</span>
+              <span className="text-xs font-semibold text-ink/75">Thời điểm: {currentEvent.timeSeconds.toFixed(2)}s</span>
             </div>
             <div className="flex items-center gap-2">
               <span
-                className="px-3 py-1 rounded-full text-xs font-black text-white shadow-md flex items-center gap-1.5 tracking-wider uppercase"
+                className="px-3 py-1 rounded-full text-xs font-black text-ink flex items-center gap-1.5"
                 style={{ backgroundColor: strokeColor }}
               >
                 <span>{currentEvent.stroke}</span>
               </span>
               {strokeSideLabel(currentEvent.strokeSide) && (
-                <span className="px-2.5 py-1 rounded-full bg-white/10 text-white/80 text-[11px] font-semibold border border-white/10">
+                <span className="px-2.5 py-1 rounded-full bg-ink/[0.06] text-ink/75 text-[11px] font-semibold border border-ink/10">
                   {strokeSideLabel(currentEvent.strokeSide)}
                 </span>
               )}
@@ -312,54 +320,54 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-0.5">
-              <span className="text-white/40 text-[11px]">Người vung vợt:</span>
-              <div className="font-bold text-white truncate flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${currentEvent.playerSide === 'UPPER' ? 'bg-blue-400' : 'bg-amber-400'}`} />
+            <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 space-y-0.5">
+              <span className="text-ink/50 text-[11px]">Người vung vợt:</span>
+              <div className="font-bold text-ink truncate flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${currentEvent.playerSide === 'UPPER' ? 'bg-pa' : 'bg-amber-400'}`} />
                 <span>{currentEvent.playerSide === 'UPPER' ? upperPlayerName : lowerPlayerName}</span>
               </div>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-0.5">
-              <span className="text-white/40 text-[11px]">Vận tốc cầu:</span>
-              <div className="font-mono font-bold text-amber-300 flex items-center gap-1">
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 space-y-0.5">
+              <span className="text-ink/50 text-[11px]">Vận tốc cầu:</span>
+              <div className="tabular-nums font-bold text-amber-700 flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 text-amber-700" />
                 <span>{currentEvent.averageShuttleSpeedImagePerSecond ? `${currentEvent.averageShuttleSpeedImagePerSecond.toFixed(1)} px/s` : 'N/A'}</span>
               </div>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-0.5">
-              <span className="text-white/40 text-[11px]">Độ tin cậy AI:</span>
-              <div className="font-mono font-bold text-emerald-300 flex items-center gap-1">
-                <Target className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 space-y-0.5">
+              <span className="text-ink/50 text-[11px]">Độ tin cậy AI:</span>
+              <div className="tabular-nums font-bold text-emerald-700 flex items-center gap-1">
+                <Target className="w-3.5 h-3.5 text-emerald-700" />
                 <span>{(currentEvent.confidence * 100).toFixed(1)}%</span>
               </div>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-0.5">
-              <span className="text-white/40 text-[11px]">Trạng thái:</span>
-              <div className="font-semibold text-sky-300 flex items-center gap-1 capitalize">
-                <Wind className="w-3.5 h-3.5 text-sky-400" />
+            <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 space-y-0.5">
+              <span className="text-ink/50 text-[11px]">Trạng thái:</span>
+              <div className="font-semibold text-sky-700 flex items-center gap-1 capitalize">
+                <Wind className="w-3.5 h-3.5 text-sky-700" />
                 <span>{currentEvent.attackStateRule || 'Rallying'}</span>
               </div>
             </div>
           </div>
 
           {/* Vùng tiếp xúc -> Vùng rơi */}
-          <div className="flex items-center justify-between p-2.5 rounded-xl bg-brand/10 border border-brand/20 text-xs text-white/80">
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-pitch/10 border border-pitch/20 text-xs text-ink/75">
             <div className="flex items-center gap-1.5">
-              <span className="text-white/50">Khu vực đánh:</span>
-              <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">Ô {currentEvent.hittingArea3x3 || 5}/9</span>
+              <span className="text-ink/55">Khu vực đánh:</span>
+              <span className="font-bold text-ink bg-ink/[0.06] px-2 py-0.5 rounded-md">Ô {currentEvent.hittingArea3x3 ?? "?"}/9</span>
             </div>
-            <ArrowRight className="w-4 h-4 text-brand animate-pulse" />
+            <ArrowRight className="w-4 h-4 text-pitch" />
             <div className="flex items-center gap-1.5">
-              <span className="text-white/50">Điểm rơi dự đoán:</span>
-              <span className="font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md">Ô {currentEvent.landingArea3x3Proxy || 2}/9</span>
+              <span className="text-ink/55">Cầu rơi (ước lượng):</span>
+              <span className="font-bold text-emerald-700 bg-emerald-500/20 px-2 py-0.5 rounded-md">Ô {currentEvent.landingArea3x3Proxy ?? "?"}/9</span>
             </div>
           </div>
         </div>
       ) : (
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center text-xs text-white/40">
+        <div className="p-4 rounded-lg bg-ink/[0.04] border border-ink/10 text-center text-xs text-ink/50">
           Chưa chọn cú đánh nào trên timeline
         </div>
       )}

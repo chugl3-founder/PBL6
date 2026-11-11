@@ -34,11 +34,25 @@ export default {
         court: {
           blue: '#007aff',
           light: '#38bdf8',
-        }
+        },
+        // "Court" identity (match pages): the green of a BWF mat, white lines, scoreboard type.
+        ground: '#EEF1EE', // page background: cool pale grey-green, not cream
+        sheet: '#FFFFFF',  // reading surfaces
+        ink: '#16201B',    // text: green-black
+        pitch: {
+          DEFAULT: '#2E7D5B', // primary: court mat green
+          deep: '#1F5E43',
+          soft: '#DCEBE2',
+        },
+        pa: '#2B59C3',   // player on the upper side of the court
+        pb: '#C9701F',   // player on the lower side of the court
+        loss: '#C2413A', // only for lost points
       },
       fontFamily: {
         heading: ['Montserrat', 'sans-serif'],
         sans: ['Inter', 'sans-serif'],
+        vn: ['"Be Vietnam Pro"', 'system-ui', 'sans-serif'],
+        score: ['"Barlow Condensed"', '"Be Vietnam Pro"', 'sans-serif'],
       },
       borderRadius: {
         'fig-sm': '4px',
