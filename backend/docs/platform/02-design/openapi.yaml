@@ -715,6 +715,46 @@ paths:
         '403':
           $ref: '#/components/responses/ForbiddenError'
 
+  /api/matches/{id}/analysis/focus:
+    post:
+      tags: [AI Analysis]
+      summary: Báo vị trí người xem tua tới để GPU worker ưu tiên phân tích đoạn đó (streaming)
+      description: >
+        Chỉ có tác dụng khi phiên hiện tại đang QUEUED/PROCESSING; phiên đã kết thúc thì bỏ qua
+        và vẫn trả 202. Worker đọc vị trí này và quét đoạn video đó trước; kết quả cuối không đổi.
+      operationId: focusAiAnalysis
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seconds]
+              properties:
+                seconds:
+                  type: number
+                  minimum: 0
+                  example: 2400.5
+      responses:
+        '202':
+          description: Đã ghi nhận vị trí ưu tiên
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResponse'
+        '400':
+          description: seconds thiếu hoặc âm
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
   # =========================================================================
   # 6. REPLAY & ANALYTICS DATA (EVENTS, RALLIES, STATISTICS)
   # =========================================================================
@@ -1807,6 +1847,26 @@ components:
           type: string
           nullable: true
           example: null
+        analyzedUntilSeconds:
+          type: number
+          nullable: true
+          description: Streaming analysis — provisional events/rallies are complete up to this second while status is PROCESSING.
+          example: 754.2
+        videoDurationSeconds:
+          type: number
+          nullable: true
+          example: 3600.0
+        analyzedRanges:
+          type: array
+          nullable: true
+          description: Streaming analysis — [start, end] seconds whose provisional hits are final (several ranges after a viewer seek).
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number
+          example: [[0.0, 754.2], [2390.0, 2610.4]]
         courtCorners:
           type: array
           nullable: true

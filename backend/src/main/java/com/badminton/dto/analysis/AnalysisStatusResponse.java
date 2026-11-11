@@ -22,5 +22,10 @@ public class AnalysisStatusResponse {
     private OffsetDateTime startedAt;
     private OffsetDateTime completedAt;
     private String errorMessage;
+    /** Streaming analysis: results shown on the replay are complete up to this second. */
+    private Double analyzedUntilSeconds;
+    private Double videoDurationSeconds;
+    /** [[start, end], ...] seconds whose provisional hits are final; null when not streaming. */
+    private java.util.List<java.util.List<Double>> analyzedRanges;
 }
 

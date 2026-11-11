@@ -115,6 +115,7 @@ public class AnalysisService {
         }
 
         AiAnalysis analysis = analysisOpt.get();
+        java.util.List<java.util.List<Double>> analyzedRanges = parseAnalyzedRanges(analysis.getAnalyzedRanges());
         int progress = mockAiEngineService.getProgress(analysis.getId());
         String currentStage = mockAiEngineService.getCurrentStage(analysis.getId());
 
@@ -124,8 +125,22 @@ public class AnalysisService {
         } else if ("FAILED".equalsIgnoreCase(analysis.getStatus())) {
             currentStage = "failed";
         } else if ("PROCESSING".equalsIgnoreCase(analysis.getStatus()) && progress == 0) {
-            progress = 50;
-            currentStage = "Đang xử lý phân tích AI qua GPU Worker";
+            if (analysis.getAnalyzedUntilSeconds() != null && analysis.getVideoDurationSeconds() != null
+                    && analysis.getVideoDurationSeconds().signum() > 0) {
+                // The GPU worker streams results; progress is the share of the video they cover
+                // (several ranges once the viewer has made the worker jump ahead).
+                double duration = analysis.getVideoDurationSeconds().doubleValue();
+                double covered = analyzedRanges != null
+                        ? analyzedRanges.stream().mapToDouble(r -> Math.max(0, r.get(1) - r.get(0))).sum()
+                        : analysis.getAnalyzedUntilSeconds().doubleValue();
+                progress = (int) Math.min(99, Math.floor(covered * 100 / duration));
+                currentStage = "streaming: Đang phân tích, kết quả hiện dần trên Replay";
+            } else {
+                // No streamed progress yet (video download, model warm-up): start from 0 so the
+                // bar never jumps back once the first real progress arrives.
+                progress = 0;
+                currentStage = "Đang khởi động GPU Worker (tải video, nạp model)";
+            }
         }
 
         return AnalysisStatusResponse.builder()
@@ -139,7 +154,50 @@ public class AnalysisService {
                 .startedAt(analysis.getStartedAt())
                 .completedAt(analysis.getCompletedAt())
                 .errorMessage(analysis.getErrorMessage())
+                .analyzedUntilSeconds(analysis.getAnalyzedUntilSeconds() != null ? analysis.getAnalyzedUntilSeconds().doubleValue() : null)
+                .videoDurationSeconds(analysis.getVideoDurationSeconds() != null ? analysis.getVideoDurationSeconds().doubleValue() : null)
+                .analyzedRanges(analyzedRanges)
                 .build();
+    }
+
+    private java.util.List<java.util.List<Double>> parseAnalyzedRanges(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                    json, new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.List<Double>>>() {});
+        } catch (Exception e) {
+            log.warn("Không đọc được analyzed_ranges: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Ghi lại vị trí người xem tua tới khi phân tích đang chạy; GPU worker đọc giá trị này và quét đoạn đó trước.
+     * Phiên đã kết thúc thì bỏ qua (không lỗi), vì người xem có thể tua ngay lúc phân tích vừa xong.
+     */
+    @Transactional
+    public AnalysisStatusResponse focusAnalysis(Long matchId, Double seconds, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
+
+        Match match = matchRepository.findById(matchId)
+                .filter(m -> m.getDeletedAt() == null)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+
+        if (!match.getOwner().getId().equals(user.getId()) && !"ROLE_ADMIN".equals(user.getRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
+        }
+
+        aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
+                .or(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId))
+                .ifPresent(a -> aiAnalysisRepository.updateFocusIfRunning(
+                        a.getId(),
+                        java.math.BigDecimal.valueOf(seconds).setScale(2, java.math.RoundingMode.HALF_UP),
+                        OffsetDateTime.now()));
+
+        return getAnalysisStatus(matchId, userEmail);
     }
 
     @Transactional(readOnly = true)
