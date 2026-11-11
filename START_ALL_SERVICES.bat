@@ -15,8 +15,15 @@ start "2. Frontend (React Vite 5173)" cmd /k "cd /d "%~dp0frontend" && npm run d
 
 ping 127.0.0.1 -n 3 >nul
 
+rem START_WEB_ONLY.bat passes "web" when the AI worker runs on a rented GPU machine instead.
+if /i "%~1"=="web" (
+    echo [3/3] Bo qua AI Worker: worker dang chay tren may GPU thue.
+    goto :done
+)
 echo [3/3] Dang khoi dong AI Worker (CloudAMQP Consumer)...
 start "3. AI Worker (PyTorch Pipeline)" cmd /k "cd /d "%~dp0backend\integrations\ai-worker" && python worker.py"
+
+:done
 
 echo.
 echo ========================================================
