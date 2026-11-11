@@ -21,12 +21,13 @@ import logging
 import os
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 import pika
-from psycopg2.extras import Json
+from psycopg2.extras import Json, execute_values
 
 from app.config import settings
 from app.infrastructure.database import (
@@ -54,6 +55,259 @@ AMQP_URL = settings.amqp_url
 QUEUE_NAME = settings.queue_name
 
 
+def _insert_rows(cur, sql: str, rows: List[tuple], template: str, fetch: bool = False):
+    """Insert all rows in one round trip; the database is remote, so one statement per row is slow."""
+    if not rows:
+        return []
+    return execute_values(cur, sql, rows, template=template, page_size=max(len(rows), 1), fetch=fetch)
+
+
+def _insert_events(cur, analysis_id: int, predictions: List[Dict[str, Any]]) -> Dict[int, int]:
+    """Insert one ai_events row per prediction; returns event_order -> ai_events.id."""
+    event_rows: List[tuple] = []
+
+    for idx, pred in enumerate(predictions):
+        event_order = idx + 1
+        analytics = pred.get("analytics") or {}
+        hit_frame = int(pred.get("frame", pred.get("hit_frame", 0)))
+        refined_frame = pred.get("refined_frame", hit_frame)
+        time_sec = pred.get("time_seconds", 0.0)
+        player_side = str(pred.get("hitter", pred.get("player_side", "LOWER"))).upper()
+        stroke = str(pred.get("stroke", "CLEAR")).upper()
+        stroke_side = str(pred.get("stroke_side", "UNKNOWN")).upper()
+        # Aroundhead is an overhead forehand; the model separates it poorly, so store it as forehand.
+        if stroke_side in ("AROUNDHEAD", "AROUND_HEAD"):
+            stroke_side = "FOREHAND"
+        conf = float(pred.get("confidence", 0.85))
+        hit_score = float(pred.get("hit_score", 0.90))
+        ball_round = int(pred.get("ball_round", event_order))
+        rally_number = int(pred.get("rally", 1))
+
+        top2_json = Json(pred.get("top2", [stroke.lower()]))
+        crop_box_json = Json(pred.get("crop_box", []))
+        player_pos_json = Json(analytics.get("player_position_court"))
+        opp_pos_json = Json(analytics.get("opponent_position_court"))
+        shuttle_proj_json = Json(analytics.get("contact_shuttle_projection_court"))
+        hitting_area = analytics.get("hitting_area_3x3")
+
+        event_rows.append((
+                analysis_id,
+                event_order,
+                rally_number,
+                pred.get("hitter_name"),
+                max(0, hit_frame - 15),
+                hit_frame,
+                hit_frame + 15,
+                refined_frame,
+                pred.get("contact_offset", 0),
+                time_sec,
+                player_side,
+                stroke,
+                stroke_side,
+                conf,
+                hit_score,
+                ball_round,
+                analytics.get("gap_from_previous_hit_seconds"),
+                top2_json,
+                pred.get("tta_used"),
+                pred.get("tta_windows"),
+                crop_box_json,
+                player_pos_json,
+                opp_pos_json,
+                shuttle_proj_json,
+                analytics.get("contact_height_image_ratio"),
+                hitting_area,
+                Json(analytics.get("landing_position_court_proxy")),
+                analytics.get("landing_area_3x3_proxy"),
+                analytics.get("landing_proxy_frame"),
+                analytics.get("landing_proxy_confidence"),
+                analytics.get("landing_is_proxy", True),
+                analytics.get("flight_time_to_next_hit_seconds"),
+                analytics.get("average_shuttle_speed_image_per_second"),
+                analytics.get("average_wrist_speed_image_per_second"),
+                analytics.get("shuttle_visibility_ratio"),
+                analytics.get("attack_state_rule"),
+        ))
+
+    returned = _insert_rows(
+        cur,
+        """
+        INSERT INTO ai_events (
+            analysis_id, event_order, rally_number, hitter_name,
+            start_frame, hit_frame, end_frame,
+            refined_frame, contact_offset, time_seconds, player_side,
+            stroke, stroke_side, confidence, hit_score, ball_round,
+            gap_from_previous_hit_seconds, top2, tta_used, tta_windows, crop_box,
+            player_position_court, opponent_position_court,
+            contact_shuttle_projection_court, contact_height_image_ratio,
+            hitting_area_3x3, landing_position_court_proxy,
+            landing_area_3x3_proxy, landing_proxy_frame,
+            landing_proxy_confidence, landing_is_proxy,
+            flight_time_to_next_hit_seconds,
+            average_shuttle_speed_image_per_second,
+            average_wrist_speed_image_per_second,
+            shuttle_visibility_ratio, attack_state_rule,
+            created_at
+        ) VALUES %s RETURNING id, event_order
+        """,
+        event_rows,
+        "(" + ", ".join(["%s"] * 36) + ", NOW())",
+        fetch=True,
+    )
+    return {int(event_order): int(event_id) for event_id, event_order in returned}
+
+
+FOCUS_POLL_SECONDS = 2.0
+
+
+class ProgressWriter:
+    """Store provisional results while the pipeline runs, on a background thread.
+
+    Only the newest report is kept: the database is remote, and the pipeline must never
+    wait for it. Each write replaces the provisional ai_events/rallies of the analysis
+    (they are cumulative), and is skipped once the analysis is no longer PROCESSING,
+    e.g. after a cancel. The final save replaces these rows with the complete result.
+    """
+
+    def __init__(self, analysis_id: int, match_id: int):
+        self.analysis_id = analysis_id
+        self.match_id = match_id
+        self._latest: Dict[str, Any] | None = None
+        self._focus: tuple[str, float] | None = None
+        self._lock = threading.Lock()
+        self._wake = threading.Event()
+        self._closed = False
+        self._thread = threading.Thread(target=self._run, name="progress-writer", daemon=True)
+        self._thread.start()
+
+    def submit(self, payload: Dict[str, Any]) -> None:
+        with self._lock:
+            # A progress-only report must not drop hits a pending report still carries.
+            if self._latest is not None and "predictions" in self._latest and "predictions" not in payload:
+                payload = {**self._latest, **payload}
+            self._latest = payload
+        self._wake.set()
+
+    def close(self) -> None:
+        """Write the pending report, then stop; called before the final save."""
+        self._closed = True
+        self._wake.set()
+        self._thread.join()
+
+    def focus(self) -> tuple[str, float] | None:
+        """(version, seconds) of the viewer's latest seek into unanalysed video, for the pipeline."""
+        with self._lock:
+            return self._focus
+
+    def _run(self) -> None:
+        while True:
+            # Wake at least every FOCUS_POLL_SECONDS: a viewer's seek must reach the pipeline
+            # even while it has no new results to store.
+            self._wake.wait(timeout=FOCUS_POLL_SECONDS)
+            self._wake.clear()
+            with self._lock:
+                payload, self._latest = self._latest, None
+            try:
+                if payload is not None:
+                    self._write(payload)
+                elif not self._closed:
+                    self._poll_focus()
+            except Exception as e:  # noqa: BLE001 - provisional data is best effort
+                logger.warning(f"Could not store provisional results or read the viewer focus: {e}")
+            if self._closed:
+                with self._lock:
+                    if self._latest is None:
+                        return
+
+    def _remember_focus(self, seconds, requested_at) -> None:
+        if seconds is None or requested_at is None:
+            return
+        focus = (requested_at.isoformat(), float(seconds))
+        with self._lock:
+            changed = focus != self._focus
+            self._focus = focus
+        if changed:
+            logger.info(f"Viewer focus at {float(seconds):.1f}s; the worker analyses there first")
+
+    def _poll_focus(self) -> None:
+        conn = get_connection()
+        try:
+            with conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT focus_seconds, focus_requested_at FROM ai_analyses WHERE id = %s",
+                    (self.analysis_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    self._remember_focus(*row)
+        finally:
+            conn.close()
+
+    def _write(self, payload: Dict[str, Any]) -> None:
+        conn = get_connection()
+        try:
+            with conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT status, focus_seconds, focus_requested_at FROM ai_analyses WHERE id = %s FOR UPDATE",
+                    (self.analysis_id,),
+                )
+                row = cur.fetchone()
+                if not row or row[0] != "PROCESSING":
+                    return
+                self._remember_focus(row[1], row[2])
+                cur.execute(
+                    """
+                    UPDATE ai_analyses
+                    SET analyzed_until_seconds = %s, video_duration_seconds = %s,
+                        analyzed_ranges = %s, updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (
+                        payload["analyzed_until_seconds"],
+                        payload["duration_seconds"],
+                        Json(payload.get("analyzed_ranges")),
+                        self.analysis_id,
+                    ),
+                )
+                predictions = payload.get("predictions")
+                if predictions is None:
+                    return
+                cur.execute("DELETE FROM rallies WHERE analysis_id = %s", (self.analysis_id,))
+                cur.execute("DELETE FROM ai_events WHERE analysis_id = %s", (self.analysis_id,))
+                event_ids = _insert_events(cur, self.analysis_id, predictions)
+                rally_rows: List[tuple] = []
+                for rally in payload.get("rallies", []):
+                    orders = [
+                        idx + 1 for idx, pred in enumerate(predictions)
+                        if int(pred.get("rally", 1)) == int(rally["rally_id"])
+                    ]
+                    if not orders:
+                        continue
+                    rally_rows.append((
+                        self.match_id, self.analysis_id, int(rally["rally_id"]),
+                        event_ids[orders[0]], event_ids[orders[-1]],
+                        rally["start_time_seconds"], rally["end_time_seconds"], rally["duration_seconds"],
+                        int(rally["hits_count"]),
+                    ))
+                _insert_rows(
+                    cur,
+                    """
+                    INSERT INTO rallies (
+                        match_id, analysis_id, rally_number, start_event_id, end_event_id,
+                        start_time, end_time, duration, total_strokes, created_at
+                    ) VALUES %s
+                    """,
+                    rally_rows,
+                    "(" + ", ".join(["%s"] * 9) + ", NOW())",
+                )
+            logger.info(
+                f"Provisional results: {len(predictions)} hits, {len(rally_rows)} rallies, "
+                f"analysed to {payload['analyzed_until_seconds']}s / {payload['duration_seconds']}s"
+            )
+        finally:
+            conn.close()
+
+
 def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[str, Any]):
     logger.info(f"Saving AI analysis results to Supabase DB for Analysis ID {analysis_id}...")
     conn = get_connection()
@@ -74,111 +328,10 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
         cur.execute("DELETE FROM ai_events WHERE analysis_id = %s", (analysis_id,))
 
         # 1. Lưu từng sự kiện cú đánh vào ai_events
-        created_event_ids: Dict[int, int] = {}  # mapping: event_order -> db_event_id
-
-        for idx, pred in enumerate(predictions):
-            event_order = idx + 1
-            analytics = pred.get("analytics") or {}
-            hit_frame = int(pred.get("frame", pred.get("hit_frame", 0)))
-            refined_frame = pred.get("refined_frame", hit_frame)
-            time_sec = pred.get("time_seconds", 0.0)
-            player_side = str(pred.get("hitter", pred.get("player_side", "LOWER"))).upper()
-            stroke = str(pred.get("stroke", "CLEAR")).upper()
-            stroke_side = str(pred.get("stroke_side", "UNKNOWN")).upper()
-            # Aroundhead is an overhead forehand; the model separates it poorly, so store it as forehand.
-            if stroke_side in ("AROUNDHEAD", "AROUND_HEAD"):
-                stroke_side = "FOREHAND"
-            conf = float(pred.get("confidence", 0.85))
-            hit_score = float(pred.get("hit_score", 0.90))
-            ball_round = int(pred.get("ball_round", event_order))
-            rally_number = int(pred.get("rally", 1))
-
-            top2_json = Json(pred.get("top2", [stroke.lower()]))
-            crop_box_json = Json(pred.get("crop_box", []))
-            player_pos_json = Json(analytics.get("player_position_court"))
-            opp_pos_json = Json(analytics.get("opponent_position_court"))
-            shuttle_proj_json = Json(analytics.get("contact_shuttle_projection_court"))
-            hitting_area = analytics.get("hitting_area_3x3")
-
-            cur.execute(
-                """
-                INSERT INTO ai_events (
-                    analysis_id, event_order, rally_number, hitter_name,
-                    start_frame, hit_frame, end_frame,
-                    refined_frame, contact_offset, time_seconds, player_side,
-                    stroke, stroke_side, confidence, hit_score, ball_round,
-                    gap_from_previous_hit_seconds, top2, tta_used, tta_windows, crop_box,
-                    player_position_court, opponent_position_court,
-                    contact_shuttle_projection_court, contact_height_image_ratio,
-                    hitting_area_3x3, landing_position_court_proxy,
-                    landing_area_3x3_proxy, landing_proxy_frame,
-                    landing_proxy_confidence, landing_is_proxy,
-                    flight_time_to_next_hit_seconds,
-                    average_shuttle_speed_image_per_second,
-                    average_wrist_speed_image_per_second,
-                    shuttle_visibility_ratio, attack_state_rule,
-                    created_at
-                ) VALUES (
-                    %s, %s, %s, %s,
-                    %s, %s, %s,
-                    %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s,
-                    %s, %s,
-                    %s, %s,
-                    %s, %s,
-                    %s, %s,
-                    %s, %s,
-                    %s,
-                    %s,
-                    %s,
-                    %s, %s,
-                    NOW()
-                ) RETURNING id;
-                """,
-                (
-                    analysis_id,
-                    event_order,
-                    rally_number,
-                    pred.get("hitter_name"),
-                    max(0, hit_frame - 15),
-                    hit_frame,
-                    hit_frame + 15,
-                    refined_frame,
-                    pred.get("contact_offset", 0),
-                    time_sec,
-                    player_side,
-                    stroke,
-                    stroke_side,
-                    conf,
-                    hit_score,
-                    ball_round,
-                    analytics.get("gap_from_previous_hit_seconds"),
-                    top2_json,
-                    pred.get("tta_used"),
-                    pred.get("tta_windows"),
-                    crop_box_json,
-                    player_pos_json,
-                    opp_pos_json,
-                    shuttle_proj_json,
-                    analytics.get("contact_height_image_ratio"),
-                    hitting_area,
-                    Json(analytics.get("landing_position_court_proxy")),
-                    analytics.get("landing_area_3x3_proxy"),
-                    analytics.get("landing_proxy_frame"),
-                    analytics.get("landing_proxy_confidence"),
-                    analytics.get("landing_is_proxy", True),
-                    analytics.get("flight_time_to_next_hit_seconds"),
-                    analytics.get("average_shuttle_speed_image_per_second"),
-                    analytics.get("average_wrist_speed_image_per_second"),
-                    analytics.get("shuttle_visibility_ratio"),
-                    analytics.get("attack_state_rule"),
-                ),
-            )
-            created_event_id = cur.fetchone()[0]
-            created_event_ids[event_order] = created_event_id
+        created_event_ids = _insert_events(cur, analysis_id, predictions)
 
         # 2. Lưu từng hiệp đấu vào rallies
+        rally_rows: List[tuple] = []
         for r_idx, r in enumerate(rallies_data):
             rally_num = r_idx + 1
             rally_num = int(r.get("rally_id", rally_num))
@@ -197,22 +350,7 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
             end_t = float(r.get("end_time_seconds", start_t))
             dur = float(r.get("duration_seconds", max(0.0, end_t - start_t)))
 
-            cur.execute(
-                """
-                INSERT INTO rallies (
-                    match_id, analysis_id, rally_number, start_event_id, end_event_id,
-                    start_time, end_time, duration, total_strokes, boundary_type,
-                    server_side, winner_side, win_reason, score_upper, score_lower,
-                    score_text, stroke_sequence, is_complete, partial_start, partial_end,
-                    created_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, NOW()
-                );
-                """,
-                (
+            rally_rows.append((
                     match_id,
                     analysis_id,
                     rally_num,
@@ -233,8 +371,21 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
                     bool(r.get("is_complete", True)),
                     bool(r.get("partial_start", False)),
                     bool(r.get("partial_end", False)),
-                ),
-            )
+            ))
+        _insert_rows(
+            cur,
+            """
+            INSERT INTO rallies (
+                match_id, analysis_id, rally_number, start_event_id, end_event_id,
+                start_time, end_time, duration, total_strokes, boundary_type,
+                server_side, winner_side, win_reason, score_upper, score_lower,
+                score_text, stroke_sequence, is_complete, partial_start, partial_end,
+                created_at
+            ) VALUES %s
+            """,
+            rally_rows,
+            "(" + ", ".join(["%s"] * 20) + ", NOW())",
+        )
 
         # 3. Lưu bảng thống kê trận đấu match_statistics
         total_strokes = len(predictions)
@@ -288,6 +439,7 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
 
         # 4. Cập nhật bản ghi ai_analyses sang COMPLETED với dữ liệu chiến thuật chi tiết
         structured_tactics = result.get("structured_tactics", {})
+        tactic_rows: List[tuple] = []
         for tactic_row in structured_tactics.get("rallies", []):
             primary_tactic = tactic_row.get("primary_tactic", "no_tactic")
             detected = tactic_row.get("detected_tactics", []) or [{
@@ -298,18 +450,7 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
             }]
             for tactic in detected:
                 for interval in tactic.get("intervals") or [{}]:
-                    cur.execute(
-                        """
-                        INSERT INTO tactic_detections (
-                            analysis_id, rally_number, player_side, player_name,
-                            tactic_code, tactic_label, is_primary,
-                            start_ball_round, end_ball_round, shot_count,
-                            evidence_quality, confidence_calibrated,
-                            uses_landing_proxy, created_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s,
-                                  %s, %s, %s, %s, %s, %s, NOW())
-                        """,
-                        (
+                    tactic_rows.append((
                             analysis_id, tactic_row.get("rally_id", 1),
                             str(tactic_row.get("player", "upper")).upper(),
                             tactic_row.get("player_name"),
@@ -322,57 +463,80 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
                             tactic.get("evidence_quality"),
                             bool(tactic.get("confidence_calibrated", False)),
                             bool(tactic.get("uses_landing_proxy", False)),
-                        ),
-                    )
+                    ))
+        _insert_rows(
+            cur,
+            """
+            INSERT INTO tactic_detections (
+                analysis_id, rally_number, player_side, player_name,
+                tactic_code, tactic_label, is_primary,
+                start_ball_round, end_ball_round, shot_count,
+                evidence_quality, confidence_calibrated,
+                uses_landing_proxy, created_at
+            ) VALUES %s
+            """,
+            tactic_rows,
+            "(" + ", ".join(["%s"] * 13) + ", NOW())",
+        )
 
+        profile_rows: List[tuple] = []
         for side, profile in result.get("player_profiles", {}).items():
             radar = profile.get("radar_attributes", {})
             playstyle = profile.get("playstyle", {})
-            cur.execute(
-                """
-                INSERT INTO player_analysis_profiles (
-                    analysis_id, player_side, player_name, total_shots,
-                    playstyle_label, playstyle_description, attack_score,
-                    defense_score, net_control_score, shot_variety_score,
-                    consistency_score, pace_score,
-                    created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s,
-                          %s, %s, %s, %s, %s, %s, NOW(), NOW())
-                """,
-                (
+            profile_rows.append((
                     analysis_id, side.upper(), profile.get("player_name"),
                     profile.get("total_shots", 0), playstyle.get("label"),
                     playstyle.get("description"), radar.get("attack"),
                     radar.get("defense"), radar.get("net_control"),
                     radar.get("shot_variety"), radar.get("consistency"),
                     radar.get("pace"),
-                ),
-            )
+            ))
+        _insert_rows(
+            cur,
+            """
+            INSERT INTO player_analysis_profiles (
+                analysis_id, player_side, player_name, total_shots,
+                playstyle_label, playstyle_description, attack_score,
+                defense_score, net_control_score, shot_variety_score,
+                consistency_score, pace_score,
+                created_at, updated_at
+            ) VALUES %s
+            """,
+            profile_rows,
+            "(" + ", ".join(["%s"] * 12) + ", NOW(), NOW())",
+        )
 
         movement = result.get("movement", {})
+        movement_rows: List[tuple] = []
         for movement_row in movement.get("rallies", []):
             distances = movement_row.get("lower_bound_distance_meters", {})
             samples = movement_row.get("position_samples", {})
-            cur.execute(
-                """
-                INSERT INTO rally_movement_metrics (
-                    analysis_id, rally_number, upper_distance_meters,
-                    lower_distance_meters, upper_position_samples,
-                    lower_position_samples, is_full_tracking_distance, created_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-                """,
-                (
+            movement_rows.append((
                     analysis_id, movement_row.get("rally_id", 1),
                     distances.get("upper"), distances.get("lower"),
                     samples.get("upper", 0), samples.get("lower", 0),
                     bool(movement.get("is_full_tracking_distance", False)),
-                ),
-            )
+            ))
+        _insert_rows(
+            cur,
+            """
+            INSERT INTO rally_movement_metrics (
+                analysis_id, rally_number, upper_distance_meters,
+                lower_distance_meters, upper_position_samples,
+                lower_position_samples, is_full_tracking_distance, created_at
+            ) VALUES %s
+            """,
+            movement_rows,
+            "(" + ", ".join(["%s"] * 7) + ", NOW())",
+        )
 
         cur.execute(
             """
             UPDATE ai_analyses
             SET status = 'COMPLETED',
+                analyzed_until_seconds = video_duration_seconds,
+                analyzed_ranges = CASE WHEN video_duration_seconds IS NULL THEN NULL
+                    ELSE jsonb_build_array(jsonb_build_array(0, video_duration_seconds)) END,
                 completed_at = NOW(),
                 updated_at = NOW(),
                 summary_data = %s,
@@ -461,7 +625,14 @@ def _checkpoint(name: str, fallback: Path) -> Path:
     return path if path.exists() else fallback
 
 
-def run_ai_pipeline(video_path: Path, output_path: Path, player_upper: str, player_lower: str) -> Dict[str, Any]:
+def run_ai_pipeline(
+    video_path: Path,
+    output_path: Path,
+    player_upper: str,
+    player_lower: str,
+    on_progress: Callable[[Dict[str, Any]], None] | None = None,
+    focus: Callable[[], tuple[str, float] | None] | None = None,
+) -> Dict[str, Any]:
     from run_pipeline import analyze_badminton_video
 
     return analyze_badminton_video(
@@ -487,6 +658,8 @@ def run_ai_pipeline(video_path: Path, output_path: Path, player_upper: str, play
         serve_rescue_threshold=0.40,
         bridge_rescue_threshold=0.55,
         alternation_gap_frames=60,
+        on_progress=on_progress,
+        focus=focus,
     )
 
 
@@ -548,7 +721,15 @@ def process_job(payload: Dict[str, Any]):
         output_json_path = Path(tmpdir) / f"match_{match_id}_analysis.json"
         player_upper, player_lower = fetch_court_player_names(match_id)
         logger.info(f"Launching AI pipeline inference on GPU...")
-        result = run_ai_pipeline(temp_video_path, output_json_path, player_upper, player_lower)
+        # Provisional rallies appear on the replay page while the rest of the video is analysed.
+        progress = ProgressWriter(analysis_id, match_id)
+        try:
+            result = run_ai_pipeline(
+                temp_video_path, output_json_path, player_upper, player_lower,
+                on_progress=progress.submit, focus=progress.focus,
+            )
+        finally:
+            progress.close()
 
         save_ai_results_to_database(analysis_id, match_id, result)
         logger.info(f"=== [JOB COMPLETED] Successfully analyzed Match {match_id} ===")
