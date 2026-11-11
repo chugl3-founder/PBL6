@@ -6,6 +6,7 @@ import com.badminton.dto.video.VideoCompleteRequest;
 import com.badminton.dto.video.VideoResponse;
 import com.badminton.dto.video.VideoUploadUrlRequest;
 import com.badminton.dto.video.VideoUploadUrlResponse;
+import com.badminton.dto.video.YoutubeVideoRequest;
 import com.badminton.entity.Match;
 import com.badminton.entity.User;
 import com.badminton.entity.Video;
@@ -31,6 +32,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -255,6 +258,54 @@ public class VideoService {
                 matchId, storagePath, file.getSize());
 
         return mapToVideoResponse(savedVideo);
+    }
+
+    /** youtube.com/watch?v=, youtu.be/, /shorts/, /live/ and /embed/ links, with or without www or m. */
+    private static final Pattern YOUTUBE_ID = Pattern.compile(
+            "^(?:https?://)?(?:(?:www\\.|m\\.|music\\.)?youtube\\.com/(?:watch\\?(?:.*&)?v=|shorts/|live/|embed/)|youtu\\.be/)([A-Za-z0-9_-]{11})(?:[?&#/].*)?$");
+
+    /** The 11-character video id of a YouTube link, or empty when the link is not one. */
+    public static java.util.Optional<String> parseYoutubeId(String url) {
+        if (url == null) return java.util.Optional.empty();
+        Matcher m = YOUTUBE_ID.matcher(url.trim());
+        return m.matches() ? java.util.Optional.of(m.group(1)) : java.util.Optional.empty();
+    }
+
+    /**
+     * Uses a YouTube video as the match video. Nothing is copied to storage: the AI worker downloads the
+     * video itself when the analysis starts, and the replay page plays it through the YouTube player.
+     */
+    @Transactional
+    public VideoResponse attachYoutubeVideo(Long matchId, YoutubeVideoRequest request, String userEmail) {
+        User user = findUserByEmail(userEmail);
+        Match match = findMatchById(matchId);
+        checkOwnership(match, user);
+
+        if ("ANALYZING".equals(match.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, ErrorType.VALIDATION, "ERR_MATCH_ANALYZING",
+                    "Trận đang được phân tích, không thể đổi video lúc này.");
+        }
+        String videoId = parseYoutubeId(request.url()).orElseThrow(() -> new ApiException(
+                HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_INVALID_YOUTUBE_URL",
+                "Link không phải video YouTube. Hãy dán link dạng youtube.com/watch?v=… hoặc youtu.be/…"));
+        String canonicalUrl = "https://www.youtube.com/watch?v=" + videoId;
+
+        Video video = videoRepository.findByMatchId(matchId)
+                .orElse(Video.builder().match(match).build());
+        video.setVideoSourceType("YOUTUBE");
+        video.setYoutubeUrl(canonicalUrl);
+        video.setYoutubeVideoId(videoId);
+        video.setFileName("youtube-" + videoId + ".mp4");
+        video.setStoragePath("youtube/" + videoId);
+        video.setFileSize(null);
+        video.setStatus("READY");
+        Video saved = videoRepository.save(video);
+
+        match.setStatus("READY");
+        matchRepository.save(match);
+
+        log.info("Gắn video YouTube cho match ID={}: videoId={}", matchId, videoId);
+        return mapToVideoResponse(saved);
     }
 
     @Transactional(readOnly = true)

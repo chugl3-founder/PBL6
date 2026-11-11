@@ -499,6 +499,46 @@ paths:
         '403':
           $ref: '#/components/responses/ForbiddenError'
 
+  /api/matches/{id}/videos/youtube:
+    post:
+      tags: [Videos]
+      summary: Dùng video YouTube làm video trận đấu
+      description: >-
+        Lưu link YouTube thay cho file tải lên, không sao chép video vào kho lưu trữ. Khi bắt đầu phân tích,
+        AI Worker tự tải video từ YouTube; trang xem lại phát video qua trình phát YouTube.
+      operationId: attachYoutubeVideo
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/YoutubeVideoRequest'
+      responses:
+        '200':
+          description: Đã lưu video YouTube, trận chuyển sang READY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoResponse'
+        '400':
+          description: Link không phải video YouTube (ERR_INVALID_YOUTUBE_URL)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          description: Trận đang được phân tích (ERR_MATCH_ANALYZING)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/matches/{id}/video:
     get:
       tags: [Videos]
@@ -1724,6 +1764,16 @@ components:
         expiresInSeconds:
           type: integer
           example: 900
+
+    YoutubeVideoRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          maxLength: 500
+          description: Link youtube.com/watch?v=, youtu.be/, /shorts/, /live/ hoặc /embed/
+          example: https://youtu.be/E3V9GWOr-_o
 
     VideoCompleteRequest:
       type: object

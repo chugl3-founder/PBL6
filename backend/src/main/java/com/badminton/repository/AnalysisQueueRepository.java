@@ -38,12 +38,15 @@ public class AnalysisQueueRepository {
                 FROM videos v JOIN analyzing a ON a.id = v.match_id
                 RETURNING id, video_id
             )
-            SELECT c.id, v.storage_path FROM created c JOIN videos v ON v.id = c.video_id
+            SELECT c.id, v.storage_path, v.video_source_type, v.youtube_url FROM created c JOIN videos v ON v.id = c.video_id
             """.formatted(DISPATCHABLE_MATCH);
 
     private final JdbcTemplate jdbcTemplate;
 
-    public record QueuedAnalysis(Long analysisId, String videoStoragePath) {
+    public record QueuedAnalysis(Long analysisId, String videoStoragePath, String videoSourceType, String youtubeUrl) {
+        public boolean fromYoutube() {
+            return "YOUTUBE".equalsIgnoreCase(videoSourceType) && youtubeUrl != null;
+        }
     }
 
     /** Empty when the match is missing or deleted, the user is not its owner, or its video is not ready. */
@@ -56,7 +59,7 @@ public class AnalysisQueueRepository {
             statement.execute();
             statement.getMoreResults();
             try (ResultSet row = statement.getResultSet()) {
-                return row.next() ? new QueuedAnalysis(row.getLong(1), row.getString(2)) : null;
+                return row.next() ? new QueuedAnalysis(row.getLong(1), row.getString(2), row.getString(3), row.getString(4)) : null;
             }
         });
         return Optional.ofNullable(queued);

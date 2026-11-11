@@ -51,6 +51,10 @@ public class AnalysisService {
             job.put("analysisId", queued.analysisId());
             job.put("matchId", matchId);
             job.put("videoStoragePath", queued.videoStoragePath());
+            if (queued.fromYoutube()) {
+                // The worker downloads the video from YouTube instead of object storage.
+                job.put("youtubeUrl", queued.youtubeUrl());
+            }
 
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             String payload = mapper.writeValueAsString(job);
