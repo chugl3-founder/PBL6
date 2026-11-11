@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
   ArrowLeft, CheckCircle2, UploadCloud, AlertCircle, RefreshCw,
-  Sparkles, Check, AlertTriangle, Ban, Play
+  Sparkles, Check, AlertTriangle, Ban, Play, Youtube, Link2
 } from 'lucide-react';
 import apiClient from '../api/client';
 
@@ -29,9 +29,15 @@ interface VideoData {
   storagePath: string;
   videoUrl: string;
   mimeType: string;
-  fileSize: number;
+  fileSize: number | null;
   status: string;
+  videoSourceType?: string;
+  youtubeVideoId?: string | null;
 }
+
+/** Same patterns the backend accepts: watch?v=, youtu.be/, /shorts/, /live/ and /embed/ links. */
+const YOUTUBE_ID = /^(?:https?:\/\/)?(?:(?:www\.|m\.|music\.)?youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})(?:[?&#/].*)?$/;
+const parseYoutubeId = (url: string) => url.trim().match(YOUTUBE_ID)?.[1] ?? null;
 
 interface AnalysisStatusData {
   analysisId: number | null;
@@ -67,6 +73,13 @@ export const MatchDetailPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadSpeed, setUploadSpeed] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // A YouTube link instead of a file
+  const [videoSource, setVideoSource] = useState<'file' | 'youtube'>('file');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeSaving, setYoutubeSaving] = useState(false);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const youtubeId = parseYoutubeId(youtubeUrl);
 
   const fetchAnalysisStatus = async () => {
     try {
@@ -211,6 +224,27 @@ export const MatchDetailPage: React.FC = () => {
     setUploadError(null);
     setUploadStatus('idle');
     setUploadProgress(0);
+  };
+
+  const handleUseYoutube = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    if (!youtubeId) {
+      setYoutubeError('Link chưa đúng. Hãy dán link dạng youtube.com/watch?v=… hoặc youtu.be/…');
+      return;
+    }
+    setYoutubeSaving(true);
+    setYoutubeError(null);
+    try {
+      const res = await apiClient.post(`/matches/${id}/videos/youtube`, { url: youtubeUrl.trim() });
+      setVideo(res.data);
+      if (match) setMatch({ ...match, status: 'READY' });
+      setYoutubeUrl('');
+    } catch (err: any) {
+      setYoutubeError(err.response?.data?.message || 'Không lưu được link YouTube. Hãy thử lại.');
+    } finally {
+      setYoutubeSaving(false);
+    }
   };
 
   const handleUpload = async () => {
@@ -410,9 +444,99 @@ export const MatchDetailPage: React.FC = () => {
           {match.status === 'DRAFT' && (
             <div className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold text-ink">Tải video trận đấu lên</h2>
-                <p className="text-sm text-ink/60 mt-1">Video MP4, tối đa 500 MB. Giữ trang này mở cho đến khi tải xong.</p>
+                <h2 className="text-lg font-semibold text-ink">Video trận đấu</h2>
+                <p className="text-sm text-ink/60 mt-1">
+                  {videoSource === 'file'
+                    ? 'Video MP4, tối đa 500 MB. Giữ trang này mở cho đến khi tải xong.'
+                    : 'Dán link một video YouTube công khai. AI tự tải video về khi bắt đầu phân tích.'}
+                </p>
               </div>
+
+              <div role="tablist" aria-label="Nguồn video" className="inline-flex p-1 rounded-lg bg-ink/[0.06]">
+                {([
+                  { key: 'file', label: 'Tải file lên', icon: UploadCloud },
+                  { key: 'youtube', label: 'Link YouTube', icon: Youtube },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={videoSource === tab.key}
+                    onClick={() => setVideoSource(tab.key)}
+                    disabled={uploadStatus === 'presigning' || uploadStatus === 'uploading' || uploadStatus === 'verifying' || youtubeSaving}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ${
+                      videoSource === tab.key ? 'bg-sheet text-ink shadow-sm' : 'text-ink/60 hover:text-ink'
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {videoSource === 'youtube' ? (
+                <form onSubmit={handleUseYoutube} className="space-y-3">
+                  <label htmlFor="youtube-url" className="sr-only">Link YouTube</label>
+                  <div className="relative">
+                    <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" aria-hidden />
+                    <input
+                      id="youtube-url"
+                      type="url"
+                      inputMode="url"
+                      autoComplete="off"
+                      value={youtubeUrl}
+                      onChange={e => {
+                        setYoutubeUrl(e.target.value);
+                        setYoutubeError(null);
+                      }}
+                      placeholder="https://www.youtube.com/watch?v=…"
+                      className="w-full h-11 pl-9 pr-3 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/40 focus:outline-none focus:border-pitch"
+                    />
+                  </div>
+
+                  {youtubeId ? (
+                    <div className="flex items-center gap-3 rounded-md border border-pitch/30 bg-pitch-soft/40 p-2">
+                      <img
+                        src={`https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`}
+                        alt=""
+                        className="w-28 aspect-video rounded object-cover bg-ink/10 shrink-0"
+                      />
+                      <div className="min-w-0 text-sm">
+                        <p className="font-medium text-ink">Đã nhận ra video</p>
+                        <p className="text-ink/55 truncate">youtu.be/{youtubeId}</p>
+                      </div>
+                    </div>
+                  ) : youtubeUrl.trim() ? (
+                    <p className="text-sm text-ink/55">Chưa nhận ra link. Link cần có dạng youtube.com/watch?v=… hoặc youtu.be/…</p>
+                  ) : null}
+
+                  {youtubeError && (
+                    <div className="px-3 py-2.5 rounded-md bg-loss/10 text-sm text-loss flex items-center gap-2" role="alert">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{youtubeError}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={!youtubeId || youtubeSaving}
+                    className="w-full h-11 rounded-md bg-pitch hover:bg-pitch-deep disabled:opacity-50 text-white font-semibold transition-colors flex items-center justify-center gap-2 text-sm"
+                  >
+                    {youtubeSaving ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Youtube className="w-4 h-4" />
+                        <span>Dùng video này</span>
+                      </>
+                    )}
+                  </button>
+                  <p className="text-xs text-ink/50">
+                    Nên chọn video quay từ camera phía sau sân như truyền hình, không phải video ngắn hay video đã cắt ghép.
+                  </p>
+                </form>
+              ) : (
+              <>
 
               <input ref={fileInputRef} type="file" accept="video/mp4" onChange={handleFileSelect} className="hidden" />
               <button
@@ -482,6 +606,8 @@ export const MatchDetailPage: React.FC = () => {
                   </>
                 )}
               </button>
+              </>
+              )}
             </div>
           )}
 
@@ -604,7 +730,17 @@ export const MatchDetailPage: React.FC = () => {
             <p className="text-sm text-ink/70 leading-relaxed border-t border-ink/10 pt-4">{match.description}</p>
           )}
           {video && match.status === 'READY' && (
-            <video src={video.videoUrl} controls preload="metadata" className="w-full rounded-md bg-black aspect-video" />
+            video.videoSourceType === 'YOUTUBE' && video.youtubeVideoId ? (
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}`}
+                title="Video trận đấu trên YouTube"
+                allow="encrypted-media; picture-in-picture"
+                allowFullScreen
+                className="w-full rounded-md bg-black aspect-video"
+              />
+            ) : (
+              <video src={video.videoUrl} controls preload="metadata" className="w-full rounded-md bg-black aspect-video" />
+            )
           )}
         </aside>
       </div>

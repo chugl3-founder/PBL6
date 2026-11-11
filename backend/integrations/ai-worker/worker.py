@@ -35,7 +35,7 @@ from app.infrastructure.database import (
     get_connection,
     update_analysis_status,
 )
-from app.infrastructure.object_storage import download_video
+from app.infrastructure.object_storage import download_video, download_youtube_video
 
 # Configure paths to import AI_Classifier modules
 AI_CLASSIFIER_ROOT = settings.ai_classifier_root
@@ -694,8 +694,13 @@ def process_job(payload: Dict[str, Any]):
         raise RuntimeError(f"Database unavailable, analysis {analysis_id} not started")
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-        temp_video_path = Path(tmpdir) / Path(storage_path).name
-        download_video(storage_path, temp_video_path)
+        youtube_url = payload.get("youtubeUrl")
+        if youtube_url:
+            temp_video_path = Path(tmpdir) / f"match_{match_id}_youtube.mp4"
+            download_youtube_video(youtube_url, temp_video_path)
+        else:
+            temp_video_path = Path(tmpdir) / Path(storage_path).name
+            download_video(storage_path, temp_video_path)
 
         # Fall back to skeleton mode when AI_Classifier is not available (e.g. a CPU-only container).
         try:
