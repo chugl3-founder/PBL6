@@ -17,6 +17,10 @@ import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { CreateMatchPage } from '../pages/CreateMatchPage';
 import { MatchDetailPage } from '../pages/MatchDetailPage';
+import { PlayersPage } from '../pages/PlayersPage';
+import { PlayerProfilePage } from '../pages/PlayerProfilePage';
+import { ScoutingListPage } from '../pages/ScoutingListPage';
+import { ScoutingReportPage } from '../pages/ScoutingReportPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -42,6 +46,25 @@ export const AppRouter: React.FC = () => {
         <Route index element={<HomePage />} />
         <Route path="public-matches" element={<PublicMatchesPage />} />
         <Route path="public-matches/:id/replay" element={<MatchReplayPage />} />
+        <Route path="players" element={<PlayersPage />} />
+        <Route path="players/:name" element={<PlayerProfilePage />} />
+        <Route path="scouting/shared/:token" element={<ScoutingReportPage />} />
+        <Route
+          path="scouting"
+          element={
+            <AuthGuard>
+              <ScoutingListPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="scouting/:id"
+          element={
+            <AuthGuard>
+              <ScoutingReportPage />
+            </AuthGuard>
+          }
+        />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
