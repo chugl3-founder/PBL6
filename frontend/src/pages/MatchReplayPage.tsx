@@ -41,6 +41,38 @@ interface VideoData {
   durationSeconds?: number;
 }
 
+interface AnalysisLiveStatus {
+  status: string;
+  progressPercent?: number;
+  analyzedUntilSeconds?: number | null;
+  videoDurationSeconds?: number | null;
+  analyzedRanges?: [number, number][] | null;
+}
+
+const LIVE_STATUSES = ['QUEUED', 'PROCESSING'];
+const LIVE_POLL_MS = 3000;
+
+// Mức 2: tua vào đoạn chưa phân tích thì báo backend để GPU worker quét đoạn đó trước.
+const FOCUS_RESEND_GAP_S = 15;
+const FOCUS_MIN_INTERVAL_MS = 3000;
+// Worker bắt đầu quét trước điểm tua ~10 s và cần thêm ~25 s video để chốt pha cầu đầu tiên.
+const FOCUS_VIDEO_SECONDS_TO_FIRST_RALLY = 35;
+const DEFAULT_AI_SPEED = 3; // giây video phân tích được mỗi giây (đo thực tế ~3.3x)
+
+const coveredSeconds = (ranges: [number, number][]) =>
+  ranges.reduce((total, [start, end]) => total + Math.max(0, end - start), 0);
+
+const isAnalyzedAt = (ranges: [number, number][], seconds: number) =>
+  ranges.some(([start, end]) => seconds >= start && seconds <= end);
+
+const formatClock = (seconds: number) => {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+};
+
 export const MatchReplayPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
@@ -55,6 +87,17 @@ export const MatchReplayPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'STROKES' | 'RALLIES' | 'TACTICS'>('STROKES');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Phân tích dạng streaming: GPU worker ghi kết quả tạm theo từng rally trong lúc chạy
+  const [analysisLive, setAnalysisLive] = useState<AnalysisLiveStatus | null>(null);
+  const isAnalysisLive = !isPublic && LIVE_STATUSES.includes(analysisLive?.status ?? '');
+  // Các đoạn đã có kết quả cuối; sau khi tua, AI có thể đã làm nhiều đoạn rời nhau
+  const liveRanges: [number, number][] | null = isAnalysisLive
+    ? (analysisLive?.analyzedRanges ??
+        (analysisLive?.analyzedUntilSeconds != null ? [[0, analysisLive.analyzedUntilSeconds]] : []))
+    : null;
+  // Tốc độ AI đo từ các lần cập nhật trạng thái, để ước lượng thời gian chờ
+  const aiSpeedSamplesRef = useRef<{ at: number; covered: number }[]>([]);
+  const focusSentRef = useRef<{ seconds: number; at: number } | null>(null);
 
   // Video playback state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -140,13 +183,29 @@ export const MatchReplayPage: React.FC = () => {
           setDuration(Number(videoRes.data.durationSeconds));
         }
 
+        // 2b. Trạng thái phân tích: khi AI còn đang chạy, Replay vẫn mở được và kết quả hiện dần
+        let streaming = false;
+        if (!isPublic) {
+          try {
+            const statusRes = await apiClient.get(`/matches/${id}/analysis/status`);
+            setAnalysisLive(statusRes.data);
+            streaming = LIVE_STATUSES.includes(statusRes.data?.status);
+          } catch {
+            setAnalysisLive(null);
+          }
+        }
+
         // 3. Lấy danh sách AI events phục vụ timeline & 2D radar
         const eventsEndpoint = isPublic ? `/public-matches/${id}/events` : `/matches/${id}/analysis/events`;
-        const eventsRes = await apiClient.get(eventsEndpoint);
-        setEvents(eventsRes.data);
-
-        if (eventsRes.data.length > 0) {
-          setSelectedEvent(eventsRes.data[0]);
+        try {
+          const eventsRes = await apiClient.get(eventsEndpoint);
+          setEvents(eventsRes.data);
+          if (eventsRes.data.length > 0) {
+            setSelectedEvent(eventsRes.data[0]);
+          }
+        } catch (eErr) {
+          // Đang phân tích nhưng chưa có rally nào: vẫn cho xem video
+          if (!streaming) throw eErr;
         }
 
         // 4. Lấy danh sách Rallies (VS-11)
@@ -181,6 +240,94 @@ export const MatchReplayPage: React.FC = () => {
       fetchData();
     }
   }, [id, isPublic]);
+
+  useEffect(() => {
+    if (!liveRanges) return;
+    const samples = aiSpeedSamplesRef.current;
+    samples.push({ at: Date.now(), covered: coveredSeconds(liveRanges) });
+    while (samples.length > 2 && samples[samples.length - 1].at - samples[0].at > 60000) samples.shift();
+  }, [analysisLive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const aiSpeed = (() => {
+    const samples = aiSpeedSamplesRef.current;
+    if (samples.length < 2) return DEFAULT_AI_SPEED;
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+    const speed = (last.covered - first.covered) / Math.max(1, (last.at - first.at) / 1000);
+    return speed > 0.5 ? speed : DEFAULT_AI_SPEED;
+  })();
+
+  // Người xem đang ở đoạn AI chưa phân tích xong
+  const watchingUnanalyzed = liveRanges != null && !isAnalyzedAt(liveRanges, currentTime);
+
+  // Mức 2: báo vị trí xem để worker nhảy tới đó (giới hạn tần suất, bỏ qua dịch chuyển nhỏ)
+  useEffect(() => {
+    if (!id || !watchingUnanalyzed || analysisLive?.status !== 'PROCESSING') return;
+    const now = Date.now();
+    const last = focusSentRef.current;
+    if (last && Math.abs(last.seconds - currentTime) < FOCUS_RESEND_GAP_S) return;
+    if (last && now - last.at < FOCUS_MIN_INTERVAL_MS) return;
+    focusSentRef.current = { seconds: currentTime, at: now };
+    apiClient.post(`/matches/${id}/analysis/focus`, { seconds: Math.floor(currentTime) }).catch(() => {
+      // Chỉ là gợi ý ưu tiên; lỗi thì AI vẫn chạy theo thứ tự bình thường
+    });
+  }, [id, watchingUnanalyzed, currentTime, analysisLive?.status]);
+
+  const lastAnalyzedBefore = liveRanges
+    ? liveRanges.filter(([start]) => start <= currentTime).map(([, end]) => end).filter(end => end < currentTime).sort((a, b) => b - a)[0]
+    : undefined;
+  const focusEtaSeconds = Math.round(
+    Math.min(180, Math.max(10, FOCUS_VIDEO_SECONDS_TO_FIRST_RALLY / aiSpeed + 3))
+  );
+
+  // Streaming: khi AI còn đang chạy, tải lại events/rallies định kỳ; marker mới hiện dần.
+  useEffect(() => {
+    if (!id || !isAnalysisLive) return;
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const statusRes = await apiClient.get(`/matches/${id}/analysis/status`);
+        if (cancelled) return;
+        const done = statusRes.data?.status === 'COMPLETED';
+        const [eventsRes, ralliesRes] = await Promise.all([
+          apiClient.get(`/matches/${id}/analysis/events`),
+          apiClient.get(`/matches/${id}/analysis/rallies`).catch(() => ({ data: [] as RallyData[] })),
+        ]);
+        if (cancelled) return;
+        const nextEvents: AiEventData[] = eventsRes.data;
+        setEvents(nextEvents);
+        // Kết quả tạm được ghi lại mỗi lần (id đổi); giữ cú đang chọn theo thời điểm đánh
+        setSelectedEvent(prev => {
+          if (!prev) return nextEvents[0] ?? null;
+          return nextEvents.find(e => e.timeSeconds === prev.timeSeconds) ?? prev;
+        });
+        setRallies(ralliesRes.data);
+        setSelectedRally(prev => {
+          if (!prev) return ralliesRes.data[0] ?? null;
+          return ralliesRes.data.find((r: RallyData) => r.rallyNumber === prev.rallyNumber) ?? prev;
+        });
+        if (done) {
+          try {
+            const statsRes = await apiClient.get(`/matches/${id}/analysis/statistics`);
+            if (!cancelled) setStatistics(statsRes.data);
+          } catch {
+            // Thống kê có thể chưa sẵn sàng
+          }
+          showOsd('AI đã phân tích xong toàn trận');
+        }
+        setAnalysisLive(statusRes.data);
+      } catch {
+        // Lỗi mạng tạm thời: thử lại ở lượt sau
+      }
+    };
+
+    const timer = setInterval(refresh, LIVE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [id, isAnalysisLive]);
 
   // Khởi tạo YouTube IFrame Player
   useEffect(() => {
@@ -928,6 +1075,32 @@ export const MatchReplayPage: React.FC = () => {
               </div>
             )}
 
+            {/* Mức 1: đang xem đoạn AI chưa phân tích, nói rõ AI đang làm gì và khi nào có */}
+            {watchingUnanalyzed && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 w-[min(92%,30rem)]" role="status" aria-live="polite">
+                <div className="rounded-2xl border border-cyan-400/40 bg-slate-950/85 backdrop-blur-md px-4 py-2.5 text-[12px] text-cyan-50 shadow-2xl flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75 animate-ping" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
+                  </span>
+                  <span className="flex-1 min-w-[12rem]">
+                    {analysisLive?.status === 'QUEUED'
+                      ? 'AI đang chờ GPU worker, cú đánh sẽ hiện dần khi bắt đầu phân tích.'
+                      : `AI đang ưu tiên phân tích đoạn bạn đang xem, cú đánh sẽ hiện sau khoảng ${focusEtaSeconds} giây.`}
+                  </span>
+                  {lastAnalyzedBefore !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => handleSeekToTime(Math.max(0, lastAnalyzedBefore - 5), 'Về đoạn đã phân tích')}
+                      className="rounded-full bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/40 px-3 py-1 font-semibold text-cyan-100 transition-colors"
+                    >
+                      Về đoạn đã phân tích
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* OSD (On-Screen Display) Center Toast Feedback for Shortcuts */}
             {osdMessage && (
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-40">
@@ -1146,6 +1319,27 @@ export const MatchReplayPage: React.FC = () => {
 
           {/* 2. Interactive AI Timeline Bar Component */}
           <div className="rounded-3xl bg-[#0b1220]/80 border border-white/10 p-5 backdrop-blur-xl shadow-xl space-y-3">
+            {isAnalysisLive && (
+              <div
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-[11px] text-cyan-100"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75 animate-ping" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
+                </span>
+                <span className="font-bold uppercase tracking-wider">AI đang phân tích trực tiếp</span>
+                <span className="text-cyan-100/70">
+                  {analysisLive?.status === 'QUEUED'
+                    ? 'Đang chờ GPU worker…'
+                    : `Đã phân tích ${formatClock(coveredSeconds(liveRanges ?? []))} / ${formatClock(
+                        analysisLive?.videoDurationSeconds ?? duration
+                      )} • ${events.length} cú đánh • ${rallies.length} pha cầu`}
+                </span>
+                <span className="ml-auto text-cyan-100/50">Tua tới đâu, AI ưu tiên phân tích tới đó</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-xs font-semibold">
               <div className="flex items-center gap-2 text-white">
                 <Clock className="w-4 h-4 text-brand" />
@@ -1163,6 +1357,7 @@ export const MatchReplayPage: React.FC = () => {
               currentTimeSeconds={currentTime}
               currentEvent={selectedEvent}
               onSeekToEvent={handleSeekToEvent}
+              analyzedRanges={liveRanges}
             />
 
             {/* Stroke Legend Bar */}

@@ -7,6 +7,11 @@ interface TimelineMarkersProps {
   currentTimeSeconds: number;
   currentEvent: AiEventData | null;
   onSeekToEvent: (event: AiEventData) => void;
+  /**
+   * While the AI is still streaming results: the [start, end] seconds whose hits are final.
+   * Several ranges once the viewer made the AI jump ahead; null when the analysis is done.
+   */
+  analyzedRanges?: [number, number][] | null;
 }
 
 export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
@@ -15,8 +20,21 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
   currentTimeSeconds,
   currentEvent,
   onSeekToEvent,
+  analyzedRanges = null,
 }) => {
   if (!durationSeconds || durationSeconds <= 0) return null;
+
+  const pct = (seconds: number) => Math.max(0, Math.min(100, (seconds / durationSeconds) * 100));
+  // Not-yet-analysed gaps between the analysed ranges; each gap's left edge is a working AI frontier.
+  const pendingGaps: [number, number][] = [];
+  if (analyzedRanges) {
+    let cursor = 0;
+    for (const [start, end] of [...analyzedRanges].sort((x, y) => x[0] - y[0])) {
+      if (start > cursor + 0.5) pendingGaps.push([cursor, start]);
+      cursor = Math.max(cursor, end);
+    }
+    if (cursor < durationSeconds - 0.5) pendingGaps.push([cursor, durationSeconds]);
+  }
 
   const getMarkerColor = (stroke: string) => {
     switch (stroke.toUpperCase()) {
@@ -50,6 +68,30 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
         />
       </div>
 
+      {/* Not yet analysed: hatched gaps, a glowing AI frontier at the start of each */}
+      {pendingGaps.map(([start, end], index) => (
+        <React.Fragment key={`gap-${index}`}>
+          <div
+            className="absolute h-2 timeline-pending pointer-events-none"
+            style={{ left: `${pct(start)}%`, width: `${pct(end) - pct(start)}%` }}
+          />
+          {start > 0 && (
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-cyan-300 shadow-[0_0_10px_#67e8f9] frontier-glow z-10 pointer-events-none -translate-x-1/2"
+              style={{ left: `${pct(start)}%` }}
+            />
+          )}
+        </React.Fragment>
+      ))}
+      {pendingGaps.length > 0 && (
+        <div
+          className="absolute -top-4 text-[10px] font-semibold text-cyan-300 whitespace-nowrap pointer-events-none -translate-x-1/2"
+          style={{ left: `${Math.min(92, Math.max(8, pct(pendingGaps[0][0])))}%` }}
+        >
+          AI đang phân tích…
+        </div>
+      )}
+
       {/* Current Playhead indicator bar */}
       <div
         className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_#ffffff] z-20 pointer-events-none -translate-x-1/2"
@@ -59,17 +101,19 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
       {/* Stroke Event Markers Pin */}
       {events.map((event) => {
         const leftPercent = (event.timeSeconds / durationSeconds) * 100;
-        const isActive = currentEvent?.id === event.id;
+        const isActive = currentEvent?.timeSeconds === event.timeSeconds;
         const markerColor = getMarkerColor(event.stroke);
 
         return (
           <div
-            key={event.id}
+            // Keyed by time: provisional rows get new ids on every refresh, but a hit
+            // already on the timeline must not re-mount (and re-animate).
+            key={`hit-${event.timeSeconds}`}
             onClick={(e) => {
               e.stopPropagation();
               onSeekToEvent(event);
             }}
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 hover:z-30 transition-transform cursor-pointer group/pin"
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 hover:z-30 transition-transform cursor-pointer group/pin marker-arrive"
             style={{ left: `${leftPercent}%` }}
           >
             {/* Dot pin */}

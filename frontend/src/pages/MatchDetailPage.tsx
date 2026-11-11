@@ -852,6 +852,20 @@ export const MatchDetailPage: React.FC = () => {
               </div>
             )}
 
+            {/* Streaming: AI đang chạy nhưng Replay đã xem được, kết quả hiện dần theo từng pha cầu */}
+            {analysisStatus?.status === 'PROCESSING' && match.status !== 'ANALYZED' && match.status !== 'COMPLETED' && (
+              <div className="pt-2">
+                <Link
+                  to={`/matches/${id}/replay`}
+                  className="w-full h-12 rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 hover:opacity-95 text-white font-bold shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 text-sm group"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>Xem ngay — AI phân tích song song</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </div>
+            )}
+
             {/* CTA if ANALYZED / COMPLETED */}
             {(match.status === 'ANALYZED' || match.status === 'COMPLETED') && (
               <div className="pt-2 space-y-3">
