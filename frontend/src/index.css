@@ -121,3 +121,72 @@
     text-transform: uppercase;
   }
 }
+/* Court identity for the match pages (detail, replay): light ground, green-black ink,
+   Be Vietnam Pro (drawn for Vietnamese diacritics), scoreboard numerals in Barlow Condensed.
+   Applied to <body> by MainLayout on those routes only, so the other pages keep their theme. */
+body.theme-court {
+  background-color: #EEF1EE;
+  background-image: none;
+  color: #16201B;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+}
+body.theme-court h1,
+body.theme-court h2,
+body.theme-court h3,
+body.theme-court h4 {
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+body.theme-court ::-webkit-scrollbar-track { background: #E3E8E4; }
+body.theme-court ::-webkit-scrollbar-thumb { background: #B7C4BC; }
+body.theme-court ::-webkit-scrollbar-thumb:hover { background: #2E7D5B; }
+body.theme-court :focus-visible {
+  outline: 2px solid #2E7D5B;
+  outline-offset: 2px;
+}
+
+/* Streaming analysis: markers of newly analysed rallies fade in; the not-yet-analysed part
+   of the timeline is hatched and its edge (the AI frontier) glows. */
+@keyframes marker-arrive {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  70% { opacity: 1; transform: translate(-50%, -50%) scale(1.35); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.marker-arrive {
+  animation: marker-arrive 600ms ease-out both;
+}
+.timeline-pending {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.28) 0 5px,
+    transparent 5px 10px
+  );
+}
+@keyframes frontier-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.frontier-glow {
+  animation: frontier-glow 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marker-arrive, .frontier-glow { animation: none; }
+}
+
+/* Video seek bar: played part in court green, white thumb. */
+.video-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #5FB88A;
+}
+.video-seek::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #5FB88A;
+}

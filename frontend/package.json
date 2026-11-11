@@ -6,22 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report e2e-report"
   },
   "dependencies": {
     "axios": "^1.6.8",
-    "clsx": "^2.1.0",
     "lucide-react": "^0.363.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.3",
-    "tailwind-merge": "^2.2.2",
-    "video.js": "^8.10.0"
+    "react-router-dom": "^6.22.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
-    "@types/video.js": "^7.3.58",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
@@ -30,4 +29,3 @@
     "vite": "^5.1.6"
   }
 }
-

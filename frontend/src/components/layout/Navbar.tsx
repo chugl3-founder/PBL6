@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, LogOut, Video, Shield, User, PlusCircle, Globe } from 'lucide-react';
+import { Activity, LogOut, User, Plus, ChevronDown } from 'lucide-react';
 import apiClient from '../../api/client';
 
+/**
+ * A thin ink strip in the language of a broadcast scoreboard: links follow the logo,
+ * the current section carries a court-green line, account actions sit in one menu.
+ */
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -10,6 +14,25 @@ export const Navbar: React.FC = () => {
   const userJson = localStorage.getItem('user_info');
   const user = userJson ? JSON.parse(userJson) : null;
   const isAdmin = user?.role === 'ROLE_ADMIN';
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    const close = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !accountRef.current?.contains(event.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [accountOpen]);
+
+  useEffect(() => setAccountOpen(false), [location.pathname]);
 
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem('refresh_token');
@@ -27,139 +50,119 @@ export const Navbar: React.FC = () => {
     }
   };
 
+  const navLink = (active: boolean) =>
+    `relative flex items-center h-12 px-3 text-sm transition-colors ${
+      active
+        ? 'text-white font-medium after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:bg-pitch'
+        : 'text-white/65 hover:text-white'
+    }`;
+
+  const initial = user?.fullName ? user.fullName.charAt(0).toUpperCase() : null;
+
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#0b1322]/90 backdrop-blur-xl border-b border-white/10 shadow-lg transition-all">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand Logo - BadPro+ Style */}
-        <Link to="/" className="flex items-center space-x-2.5 group">
-          <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center text-white shadow-glow-blue">
-            <Activity className="h-5 w-5" />
-          </div>
-          <span className="font-heading font-extrabold text-lg tracking-tight text-white flex items-center">
-            Badminton<span className="text-brand">AI</span>
-            <span className="ml-1 text-[11px] font-bold text-brand-hover tracking-wider bg-brand/10 border border-brand/30 px-1.5 py-0.2 rounded-md">
-              PRO+
-            </span>
+    <header className="sticky top-0 z-50 w-full bg-ink font-vn print:hidden">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-12 flex items-center gap-6">
+        <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="BadmintonAI, trang chủ">
+          <span className="w-6 h-6 rounded bg-pitch flex items-center justify-center text-white">
+            <Activity className="h-4 w-4" />
           </span>
+          <span className="font-semibold text-[15px] text-white">BadmintonAI</span>
         </Link>
 
-        {/* Center Navigation Links */}
-        <nav className="hidden md:flex items-center space-x-1.5">
-          <Link
-            to="/"
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              location.pathname === '/'
-                ? 'text-white bg-white/10'
-                : 'text-white/70 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Trang chủ
-          </Link>
-
-          <a
-            href="#features"
-            className="px-4 py-2 rounded-full text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-          >
-            Tính năng
-          </a>
-
-          <Link
-            to="/public-matches"
-            className={`flex items-center space-x-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              location.pathname.startsWith('/public-matches')
-                ? 'text-white bg-white/10 border border-white/15'
-                : 'text-white/70 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Globe className="h-4 w-4 text-sky-400" />
-            <span>Thư viện công khai</span>
-          </Link>
-
+        <nav className="hidden md:flex items-center" aria-label="Điều hướng chính">
           {token && (
-            <>
-              <Link
-                to="/my-matches"
-                className={`flex items-center space-x-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  location.pathname === '/my-matches'
-                    ? 'text-white bg-white/10'
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Video className="h-4 w-4 text-brand" />
-                <span>Trận đấu của tôi</span>
-              </Link>
-              <Link
-                to="/matches/create"
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  location.pathname === '/matches/create'
-                    ? 'bg-brand text-white shadow-glow-blue'
-                    : 'bg-brand/10 border border-brand/30 text-brand hover:bg-brand hover:text-white'
-                }`}
-              >
-                <PlusCircle className="h-3.5 w-3.5" />
-                <span>Tạo trận mới</span>
-              </Link>
-            </>
-          )}
-
-          {isAdmin && (
             <Link
-              to="/admin"
-              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                location.pathname.startsWith('/admin')
-                  ? 'text-white bg-purple-600 shadow-lg'
-                  : 'text-purple-400 bg-purple-950/40 border border-purple-800/40 hover:bg-purple-900/30'
-              }`}
+              to="/my-matches"
+              className={navLink(location.pathname === '/my-matches' || /^\/matches\/\d+/.test(location.pathname))}
             >
-              <Shield className="h-3.5 w-3.5" />
-              <span>Quản trị hệ thống</span>
+              Trận của tôi
+            </Link>
+          )}
+          <Link to="/public-matches" className={navLink(location.pathname.startsWith('/public-matches'))}>
+            Thư viện
+          </Link>
+          <Link to="/players" className={navLink(location.pathname.startsWith('/players'))}>
+            Vận động viên
+          </Link>
+          {token && (
+            <Link to="/scouting" className={navLink(location.pathname.startsWith('/scouting'))}>
+              Trinh sát
+            </Link>
+          )}
+          {!token && (
+            <a href="/#features" className={navLink(false)}>
+              Tính năng
+            </a>
+          )}
+          {isAdmin && (
+            <Link to="/admin" className={navLink(location.pathname.startsWith('/admin'))}>
+              Quản trị
             </Link>
           )}
         </nav>
 
-        {/* Right CTA Actions */}
-        <div className="flex items-center space-x-3">
+        <div className="ml-auto flex items-center gap-2">
           {token ? (
-            <div className="flex items-center space-x-3">
+            <>
               <Link
-                to="/profile"
-                className="flex items-center space-x-2 text-sm bg-white/5 hover:bg-white/10 px-3.5 py-1.5 rounded-full border border-white/10 hover:border-brand/40 text-white/90 transition-colors"
-                title="Hồ sơ cá nhân"
+                to="/matches/create"
+                className="flex items-center gap-1.5 rounded bg-pitch hover:bg-pitch-deep px-3 h-8 text-sm font-medium text-white transition-colors"
               >
-                <div className="w-6 h-6 rounded-full overflow-hidden bg-brand/20 text-brand flex items-center justify-center font-bold text-xs shrink-0">
-                  {user?.avatarUrl ? (
-                    <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : user?.fullName ? (
-                    user.fullName.charAt(0).toUpperCase()
-                  ) : (
-                    <User className="h-3.5 w-3.5" />
-                  )}
-                </div>
-                <span className="font-medium text-xs hidden sm:inline">{user?.fullName || 'Vận động viên'}</span>
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Trận mới</span>
               </Link>
-              <button
-                onClick={handleLogout}
-                className="p-2 text-white/50 hover:text-red-400 hover:bg-white/5 rounded-full transition-colors"
-                title="Đăng xuất"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </div>
+              <div className="relative" ref={accountRef}>
+                <button
+                  type="button"
+                  onClick={() => setAccountOpen(open => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={accountOpen}
+                  className="flex items-center gap-2 rounded px-1.5 h-8 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <span className="w-6 h-6 rounded-full overflow-hidden bg-white/15 flex items-center justify-center text-xs font-semibold text-white shrink-0">
+                    {user?.avatarUrl ? (
+                      <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : initial ?? (
+                      <User className="h-3.5 w-3.5" />
+                    )}
+                  </span>
+                  <span className="hidden lg:inline max-w-[10rem] truncate">{user?.fullName || 'Tài khoản'}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {accountOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 mt-1.5 w-48 rounded-md bg-sheet border border-ink/10 shadow-lg py-1 text-sm text-ink"
+                  >
+                    <Link to="/profile" role="menuitem" className="flex items-center gap-2 px-3 py-2 hover:bg-ink/5">
+                      <User className="h-4 w-4 text-ink/60" />
+                      Hồ sơ cá nhân
+                    </Link>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-ink/5 text-loss"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Đăng xuất
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           ) : (
-            <div className="flex items-center space-x-2">
-              <Link
-                to="/login"
-                className="text-sm font-semibold text-white/75 hover:text-white px-3.5 py-1.5 transition-colors"
-              >
+            <>
+              <Link to="/login" className="text-sm text-white/75 hover:text-white px-3 h-8 flex items-center transition-colors">
                 Đăng nhập
               </Link>
               <Link
                 to="/register"
-                className="rounded-full bg-brand hover:bg-brand-hover px-4 py-2 text-sm font-semibold text-white shadow-glow-blue transition-all duration-200"
+                className="rounded bg-pitch hover:bg-pitch-deep px-3 h-8 flex items-center text-sm font-medium text-white transition-colors"
               >
-                Đăng ký ngay
+                Đăng ký
               </Link>
-            </div>
+            </>
           )}
         </div>
       </div>

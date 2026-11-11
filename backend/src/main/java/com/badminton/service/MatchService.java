@@ -220,6 +220,7 @@ public class MatchService {
     }
 
     @Transactional
+    @EvictsPublicReplay
     public MessageResponse softDeleteMatch(Long id, String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ApiException(
@@ -300,6 +301,17 @@ public class MatchService {
         return mapToMatchResponse(match);
     }
 
+    public void ensurePublished(Long id) {
+        if (!matchRepository.existsByIdAndStatusAndDeletedAtIsNull(id, "PUBLISHED")) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    ErrorType.VALIDATION,
+                    "ERR_MATCH_NOT_FOUND",
+                    "Không tìm thấy trận đấu công khai với ID: " + id
+            );
+        }
+    }
+
     public MatchResponse mapToMatchResponse(Match match) {
         String thumbnailUrl = null;
         String youtubeVideoId = null;
@@ -351,6 +363,7 @@ public class MatchService {
     }
 
     @Transactional
+    @EvictsPublicReplay
     public MatchResponse publishMatch(Long id) {
         Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new ApiException(
@@ -382,6 +395,7 @@ public class MatchService {
     }
 
     @Transactional
+    @EvictsPublicReplay
     public MatchResponse unpublishMatch(Long id) {
         Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new ApiException(
@@ -410,6 +424,7 @@ public class MatchService {
     }
 
     @Transactional
+    @EvictsPublicReplay
     public MessageResponse adminDeleteMatch(Long id) {
         Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new ApiException(

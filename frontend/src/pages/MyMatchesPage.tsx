@@ -1,22 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Plus, 
-  Video, 
-  Calendar, 
-  ArrowRight, 
-  UploadCloud, 
-  Sparkles, 
-  Activity, 
-  Layers,
-  ChevronRight,
-  Clock,
-  Trash2,
-  AlertTriangle,
-  X,
-  CheckCircle2,
-  ChevronLeft
-} from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import apiClient from '../api/client';
 
 interface MatchItem {
@@ -38,6 +22,33 @@ interface PaginationMeta {
   totalPages: number;
 }
 
+const FILTERS = [
+  { id: 'ALL', label: 'Tất cả' },
+  { id: 'ANALYZED', label: 'Đã phân tích' },
+  { id: 'ANALYZING', label: 'Đang phân tích' },
+  { id: 'READY', label: 'Chưa phân tích' },
+  { id: 'DRAFT', label: 'Chưa có video' },
+];
+
+/** What the match is waiting for, in the coach's words, and the one thing to do next. */
+const nextStep = (match: MatchItem) => {
+  switch (match.status) {
+    case 'DRAFT':
+      return { label: 'Chưa có video', tone: 'text-ink/50', action: 'Tải video lên', to: `/matches/${match.id}`, primary: false };
+    case 'READY':
+      return { label: 'Chưa phân tích', tone: 'text-ink/50', action: 'Phân tích', to: `/matches/${match.id}`, primary: false };
+    case 'ANALYZING':
+      return { label: 'AI đang phân tích', tone: 'text-pb', action: 'Xem ngay', to: `/matches/${match.id}/replay`, primary: true };
+    default:
+      return { label: 'Đã phân tích', tone: 'text-pitch', action: 'Xem lại trận', to: `/matches/${match.id}/replay`, primary: true };
+  }
+};
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN');
+};
+
 export const MyMatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<MatchItem[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
@@ -46,8 +57,6 @@ export const MyMatchesPage: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-  // Modal Xóa mềm
   const [matchToDelete, setMatchToDelete] = useState<MatchItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -55,7 +64,7 @@ export const MyMatchesPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const params: Record<string, string | number> = { page, size: 8 };
+      const params: Record<string, string | number> = { page, size: 10 };
       if (statusFilter && statusFilter !== 'ALL') {
         params.status = statusFilter;
       }
@@ -63,7 +72,7 @@ export const MyMatchesPage: React.FC = () => {
       setMatches(res.data.data || []);
       setPagination(res.data.pagination || null);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Không thể tải danh sách trận đấu.');
+      setError(err.response?.data?.message || 'Không tải được danh sách trận.');
     } finally {
       setLoading(false);
     }
@@ -87,342 +96,205 @@ export const MyMatchesPage: React.FC = () => {
       setIsDeleting(true);
       await apiClient.delete(`/matches/${matchToDelete.id}`);
       setMatches((prev) => prev.filter((m) => m.id !== matchToDelete.id));
-      setSuccessMsg(`Đã xóa mềm thành công trận đấu #${matchToDelete.id}`);
+      setSuccessMsg(`Đã xóa "${matchToDelete.title || `${matchToDelete.playerAName} gặp ${matchToDelete.playerBName}`}"`);
       setMatchToDelete(null);
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Không thể xóa trận đấu.');
+      setError(err.response?.data?.message || 'Không xóa được trận.');
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'DRAFT':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 border border-amber-500/30 text-amber-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            Bản nháp (Chưa có Video)
-          </span>
-        );
-      case 'READY':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand/15 border border-brand/30 text-sky-300 shadow-glow-blue/40">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand" />
-            Video sẵn sàng
-          </span>
-        );
-      case 'ANALYZING':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-300 animate-pulse">
-            <Sparkles className="w-3 h-3 text-purple-400" />
-            Đang phân tích AI
-          </span>
-        );
-      case 'ANALYZED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-glow-green/30">
-            <Activity className="w-3 h-3 text-emerald-400" />
-            Đã phân tích xong
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300">
-            {status}
-          </span>
-        );
-    }
-  };
+  useEffect(() => {
+    if (!matchToDelete) return;
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !isDeleting && setMatchToDelete(null);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [matchToDelete, isDeleting]);
 
   return (
-    <div className="space-y-8 pb-16 pt-2">
-      {/* 1. Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-card-bg via-[#162744] to-card-bg border border-white/10 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="space-y-2 z-10">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-sky-300">
-            <Layers className="h-3.5 w-3.5 text-brand" />
-            <span>Badminton Analytics Hub</span>
-          </div>
-          <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Trận đấu của tôi
-          </h1>
-          <p className="text-slate-300 text-sm max-w-xl">
-            Quản lý kho dữ liệu trận đấu, theo dõi tiến độ tải lên video MinIO, xóa mềm an toàn và mở báo cáo phân tích chi tiết.
-          </p>
+    <div className="max-w-5xl mx-auto space-y-6 pb-16 pt-4">
+      <header className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-ink">Trận của tôi</h1>
+          {pagination && pagination.totalElements > 0 && (
+            <p className="text-sm text-ink/55 mt-1">{pagination.totalElements} trận</p>
+          )}
         </div>
+      </header>
 
-        <div className="z-10 flex items-center gap-3">
-          <Link
-            to="/matches/create"
-            className="inline-flex items-center space-x-2 px-5 py-3 bg-brand hover:bg-brand-hover text-white font-semibold text-sm rounded-full shadow-glow-blue transition-all duration-200"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Tạo trận đấu mới</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Thông báo Thành công / Lỗi */}
       {successMsg && (
-        <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm animate-fade-in shadow-lg">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+        <div className="flex items-center gap-2 px-4 py-3 rounded-md bg-pitch-soft text-pitch-deep text-sm">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{successMsg}</span>
         </div>
       )}
-
       {error && (
-        <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm shadow-lg">
-          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+        <div className="flex items-center gap-2 px-4 py-3 rounded-md bg-loss/10 text-loss text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* 2. Filter Tabs */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-1.5 bg-card-bg/80 border border-white/10 p-1 rounded-2xl backdrop-blur-md overflow-x-auto scrollbar-none">
-          {[
-            { id: 'ALL', label: 'Tất cả' },
-            { id: 'DRAFT', label: 'Chờ Upload (DRAFT)' },
-            { id: 'READY', label: 'Sẵn sàng (READY)' },
-            { id: 'ANALYZING', label: 'Đang xử lý (ANALYZING)' },
-            { id: 'ANALYZED', label: 'Đã hoàn tất (ANALYZED)' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setSelectedStatus(tab.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
-                selectedStatus === tab.id
-                  ? 'bg-brand text-white shadow-glow-blue'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {pagination && pagination.totalElements > 0 && (
-          <span className="text-xs text-slate-400">
-            Tổng cộng: <strong className="text-white">{pagination.totalElements}</strong> trận đấu
-          </span>
-        )}
+      <div className="flex gap-1 border-b border-ink/10 overflow-x-auto" role="tablist" aria-label="Lọc theo trạng thái">
+        {FILTERS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={selectedStatus === tab.id}
+            onClick={() => setSelectedStatus(tab.id)}
+            className={`relative px-3 h-10 text-sm whitespace-nowrap transition-colors ${
+              selectedStatus === tab.id
+                ? 'text-ink font-medium after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:bg-pitch'
+                : 'text-ink/55 hover:text-ink'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* 3. Match List Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-lg bg-sheet border border-ink/10 divide-y divide-ink/10">
           {[1, 2, 3, 4].map((n) => (
-            <div key={n} className="h-48 rounded-2xl bg-card-bg/40 border border-white/5 animate-pulse" />
+            <div key={n} className="h-[76px] animate-pulse bg-ink/[0.02]" />
           ))}
         </div>
       ) : matches.length === 0 ? (
-        /* Empty State */
-        <div className="p-12 sm:p-16 rounded-3xl bg-card-bg/60 border border-white/10 text-center space-y-5 max-w-xl mx-auto shadow-xl">
-          <div className="w-16 h-16 rounded-3xl bg-brand/10 border border-brand/20 flex items-center justify-center mx-auto text-brand">
-            <Video className="w-8 h-8" />
+        <div className="rounded-lg bg-sheet border border-ink/10 px-6 py-14 text-center space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-ink">
+              {selectedStatus === 'ALL' ? 'Bạn chưa có trận nào' : 'Không có trận nào ở mục này'}
+            </h2>
+            {selectedStatus === 'ALL' && (
+              <p className="text-sm text-ink/60">Tải video một trận lên, AI sẽ chỉ ra những điểm bị mất và vì sao.</p>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <h3 className="font-heading text-lg font-bold text-white">Chưa có trận đấu nào</h3>
-            <p className="text-slate-400 text-xs sm:text-sm">
-              Bạn chưa tạo trận đấu nào {selectedStatus !== 'ALL' ? 'ở trạng thái này' : ''}. Hãy khởi tạo trận đấu để bắt đầu phân tích kỹ thuật!
-            </p>
-          </div>
-          <Link
-            to="/matches/create"
-            className="inline-flex items-center space-x-2 px-6 py-3 bg-brand hover:bg-brand-hover text-white font-semibold text-sm rounded-full shadow-glow-blue transition-all"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Khởi tạo trận đấu đầu tiên</span>
-          </Link>
+          {selectedStatus === 'ALL' && (
+            <Link
+              to="/matches/create"
+              className="inline-flex items-center gap-1.5 rounded-md bg-pitch hover:bg-pitch-deep px-4 h-10 text-sm font-semibold text-white transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Thêm trận đầu tiên
+            </Link>
+          )}
         </div>
       ) : (
-        /* Matches Bento Grid */
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {matches.map((match) => (
-            <div
-              key={match.id}
-              className="p-6 rounded-3xl bg-card-bg border border-white/10 hover:border-brand/40 hover:shadow-glow-blue/20 transition-all duration-300 space-y-5 relative group flex flex-col justify-between"
-            >
-              {/* Card Top: Match Title & Status */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-brand font-bold">#{match.id}</span>
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {match.matchDate}
+        <ul className="rounded-lg bg-sheet border border-ink/10 divide-y divide-ink/10">
+          {matches.map((match) => {
+            const step = nextStep(match);
+            const upper = match.upperPlayer === 'PLAYER_B' ? match.playerBName : match.playerAName;
+            const lower = match.upperPlayer === 'PLAYER_B' ? match.playerAName : match.playerBName;
+            const players = `${match.playerAName} gặp ${match.playerBName}`;
+            const title = match.title && match.title !== players ? match.title : null;
+            return (
+              <li key={match.id} className="group flex items-center gap-4 px-4 sm:px-5 py-4 hover:bg-ink/[0.02] transition-colors">
+                <Link to={step.to} className="flex-1 min-w-0 flex items-center gap-4">
+                  <span className="flex flex-col gap-1 shrink-0" aria-hidden>
+                    <span className="w-1 h-4 rounded-full bg-pa" />
+                    <span className="w-1 h-4 rounded-full bg-pb" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-ink truncate">
+                      {upper} <span className="font-normal text-ink/40">gặp</span> {lower}
                     </span>
-                  </div>
-                  <h3 className="font-heading text-lg font-bold text-white group-hover:text-sky-300 transition-colors">
-                    {match.title || `Trận đấu #${match.id}`}
-                  </h3>
-                </div>
-                {getStatusBadge(match.status)}
-              </div>
+                    <span className="block text-sm text-ink/55 truncate">
+                      {formatDate(match.matchDate)}
+                      {title && <> · {title}</>}
+                    </span>
+                  </span>
+                </Link>
 
-              {/* Court Matchup Preview */}
-              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-white/5 flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-xs">
-                    {match.upperPlayer === 'PLAYER_A' ? 'A' : 'B'}
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-slate-400">Sân trên (Top Court)</div>
-                    <div className="font-semibold text-white text-xs sm:text-sm">
-                      {match.upperPlayer === 'PLAYER_A' ? match.playerAName : match.playerBName}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="px-2.5 py-1 rounded-full bg-white/5 text-[11px] font-bold text-slate-400">
-                  VS
-                </div>
-
-                <div className="flex items-center gap-2.5 text-right">
-                  <div>
-                    <div className="text-[11px] text-slate-400">Sân dưới (Bottom Court)</div>
-                    <div className="font-semibold text-white text-xs sm:text-sm">
-                      {match.lowerPlayer === 'PLAYER_A' ? match.playerAName : match.playerBName}
-                    </div>
-                  </div>
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">
-                    {match.lowerPlayer === 'PLAYER_A' ? 'A' : 'B'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Card Bottom Actions */}
-              <div className="pt-3 border-t border-white/5 flex items-center justify-between gap-2">
-                <div className="text-xs text-slate-400 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Tạo lúc: {new Date(match.createdAt).toLocaleDateString('vi-VN')}</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Nút Xóa Mềm */}
-                  <button
-                    onClick={() => setMatchToDelete(match)}
-                    className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 transition-all"
-                    title="Xóa trận đấu (Soft Delete)"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-
-                  {/* Nút Chức năng theo trạng thái */}
-                  {match.status === 'DRAFT' && (
-                    <Link
-                      to={`/matches/${match.id}`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-brand hover:bg-brand-hover text-white shadow-glow-blue transition-all"
-                    >
-                      <UploadCloud className="w-3.5 h-3.5" />
-                      <span>Upload Video</span>
-                    </Link>
+                <span className={`hidden sm:inline text-sm whitespace-nowrap ${step.tone}`}>
+                  {match.status === 'ANALYZING' && (
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-pb mr-1.5 align-middle animate-pulse" />
                   )}
+                  {step.label}
+                </span>
 
-                  {match.status === 'READY' && (
-                    <Link
-                      to={`/matches/${match.id}`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all"
-                    >
-                      <Video className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Xem Video & Phân tích</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </Link>
-                  )}
+                <Link
+                  to={step.to}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 h-9 text-sm font-medium whitespace-nowrap transition-colors ${
+                    step.primary
+                      ? 'bg-pitch hover:bg-pitch-deep text-white'
+                      : 'border border-ink/15 text-ink hover:border-pitch/50'
+                  }`}
+                >
+                  {step.primary && <Play className="w-3.5 h-3.5" />}
+                  {step.action}
+                </Link>
 
-                  {match.status === 'ANALYZED' && (
-                    <Link
-                      to={`/public-matches/${match.id}/replay`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-glow-green transition-all"
-                    >
-                      <Activity className="w-3.5 h-3.5" />
-                      <span>Xem Replay</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+                <button
+                  type="button"
+                  onClick={() => setMatchToDelete(match)}
+                  className="p-2 rounded-md text-ink/30 hover:text-loss hover:bg-loss/10 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition"
+                  aria-label={`Xóa trận ${players}`}
+                  title="Xóa trận"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {/* 4. Pagination Controls */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-6">
+        <nav className="flex items-center justify-center gap-2" aria-label="Phân trang">
           <button
+            type="button"
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 0}
-            className="p-2 rounded-xl bg-card-bg border border-white/10 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-colors"
+            className="p-2 rounded-md border border-ink/15 text-ink disabled:opacity-30 disabled:cursor-not-allowed hover:border-pitch/50"
+            aria-label="Trang trước"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-xs text-slate-300 px-3 py-1.5 rounded-xl bg-card-bg border border-white/10">
-            Trang <strong className="text-white">{currentPage + 1}</strong> / {pagination.totalPages}
+          <span className="text-sm text-ink/60 px-2">
+            Trang {currentPage + 1} / {pagination.totalPages}
           </span>
           <button
+            type="button"
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage >= pagination.totalPages - 1}
-            className="p-2 rounded-xl bg-card-bg border border-white/10 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-colors"
+            className="p-2 rounded-md border border-ink/15 text-ink disabled:opacity-30 disabled:cursor-not-allowed hover:border-pitch/50"
+            aria-label="Trang sau"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
-        </div>
+        </nav>
       )}
 
-      {/* 5. Modal Xác Nhận Xóa Mềm (Soft Delete) */}
       {matchToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md rounded-3xl bg-[#0e1726] border border-white/15 p-6 sm:p-7 shadow-2xl space-y-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
-
-            <div className="flex items-start justify-between">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <button
-                onClick={() => setMatchToDelete(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="font-heading text-xl font-bold text-white">Xác nhận xóa trận đấu</h3>
-              <p className="text-slate-300 text-sm leading-relaxed">
-                Bạn có chắc chắn muốn xóa trận đấu{' '}
-                <strong className="text-white">
-                  "{matchToDelete.title || `Trận đấu #${matchToDelete.id}`}"
-                </strong>{' '}
-                không?
-              </p>
-              <p className="text-xs text-slate-400 bg-slate-900/60 p-3 rounded-xl border border-white/5">
-                💡 Trận đấu sẽ được đưa vào thùng rác và ẩn khỏi danh sách của bạn (xóa mềm). Toàn bộ video và dữ liệu liên quan vẫn được lưu trữ an toàn.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40"
+          onMouseDown={(event) => event.target === event.currentTarget && !isDeleting && setMatchToDelete(null)}
+        >
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-title" className="w-full max-w-sm rounded-lg bg-sheet p-6 shadow-xl space-y-4">
+            <h2 id="delete-title" className="text-lg font-semibold text-ink">Xóa trận này?</h2>
+            <p className="text-sm text-ink/70 leading-relaxed">
+              <strong className="text-ink">{matchToDelete.playerAName} gặp {matchToDelete.playerBName}</strong> sẽ không còn trong
+              danh sách của bạn.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setMatchToDelete(null)}
                 disabled={isDeleting}
-                className="px-5 py-2.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/5 border border-white/10 transition-colors"
+                className="px-4 h-9 rounded-md text-sm font-medium text-ink border border-ink/15 hover:border-ink/30"
               >
-                Hủy bỏ
+                Hủy
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
-                className="px-5 py-2.5 rounded-full text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/40 transition-all flex items-center gap-1.5"
+                className="px-4 h-9 rounded-md text-sm font-medium bg-loss hover:bg-loss/90 text-white disabled:opacity-60"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{isDeleting ? 'Đang xóa...' : 'Xác nhận xóa'}</span>
+                {isDeleting ? 'Đang xóa...' : 'Xóa trận'}
               </button>
             </div>
           </div>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hiệu năng Round 3</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#5b6475; --line:#e3e6eb; --pass:#137a3a; --pass-bg:#e5f5ea; --link:#1a5fd0; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:32px 16px; }
+  h1 { margin:0 0 4px; font-size:28px; }
+  p.sub { margin:0 0 24px; color:var(--muted); }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:24px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .kpi b { display:block; font-size:28px; }
+  .kpi span { color:var(--muted); font-size:14px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:#eef1f5; font-size:14px; color:var(--muted); }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .ok { display:inline-block; background:var(--pass-bg); color:var(--pass); font-weight:600; border-radius:999px; padding:2px 10px; font-size:14px; }
+  a { color:var(--link); }
+  .note { color:var(--muted); font-size:14px; }
+  .wrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kiểm thử hiệu năng - Round 3</h1>
+  <p class="sub">Ngày 05/11/2026. k6 v2.3.0 chạy trên máy chủ GitHub Actions (Ubuntu), gọi vào backend qua Cloudflare Tunnel, không phải localhost.</p>
+
+  <div class="kpis">
+    <div class="kpi"><b>10 / 10</b><span>test case Passed</span></div>
+    <div class="kpi"><b>0</b><span>request lỗi, 0 lượt bị ngắt</span></div>
+    <div class="kpi"><b>103.711</b><span>request đã gửi</span></div>
+    <div class="kpi"><b>50</b><span>người dùng đồng thời tối đa</span></div>
+  </div>
+
+  <div class="wrap">
+  <table>
+    <thead><tr><th>Test ID</th><th>Nội dung</th><th class="num">p95 (ms)</th><th class="num">Request</th><th>Kết quả</th><th>Bằng chứng</th></tr></thead>
+    <tbody>
+      <tr><td>PT-01</td><td>Replay - 10 người xem, 5 phút</td><td class="num">457</td><td class="num">3.788</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41976328330">GitHub run</a></td></tr>
+      <tr><td>PT-02</td><td>Replay - 30 người xem, 8 phút</td><td class="num">335</td><td class="num">15.364</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41977047671">GitHub run</a></td></tr>
+      <tr><td>PT-03</td><td>Replay - 50 người xem, 10 phút</td><td class="num">310</td><td class="num">30.412</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41978105129">GitHub run</a></td></tr>
+      <tr><td>PT-04</td><td>Replay - tăng đột biến 10 → 50 → 10 người</td><td class="num">370</td><td class="num">16.220</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41979434290">GitHub run</a></td></tr>
+      <tr><td>PT-05</td><td>Replay - 30 người xem liên tục 16 phút</td><td class="num">364</td><td class="num">35.576</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41980655531">GitHub run</a></td></tr>
+      <tr><td>PT-06</td><td>Gửi yêu cầu phân tích AI - 20 trận cùng lúc</td><td class="num">619</td><td class="num">20</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41974640452">GitHub run</a></td></tr>
+      <tr><td>PT-07</td><td>Gửi yêu cầu phân tích AI - 10 trận cùng lúc</td><td class="num">538</td><td class="num">10</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41974836323">GitHub run</a></td></tr>
+      <tr><td>PT-08</td><td>Gửi yêu cầu phân tích AI - 20 trận cùng lúc</td><td class="num">698</td><td class="num">20</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41974921773">GitHub run</a></td></tr>
+      <tr><td>PT-09</td><td>Hàng đợi AI: 20 job vào queue, worker xử lý tuần tự</td><td class="num">-</td><td class="num">-</td><td><span class="ok">Passed</span></td><td class="note">20/20 job QUEUED khớp DB, worker xử lý 11 job, 0 lỗi, tối đa 1 job PROCESSING</td></tr>
+      <tr><td>PT-10</td><td>Theo dõi trạng thái phân tích - 20 người hỏi liên tục</td><td class="num">677</td><td class="num">2.301</td><td><span class="ok">Passed</span></td><td><a href="https://github.com/dattt-cy/pbl6-perf/actions/runs/41975028787">GitHub run</a></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Mỗi link mở trang GitHub Actions của lượt chạy: có thời điểm chạy, log đầy đủ của k6 và file kết quả tải về được.</p>
+</main>
+</body>
+</html>

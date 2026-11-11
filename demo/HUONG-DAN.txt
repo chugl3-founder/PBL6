@@ -1,0 +1,27 @@
+BỘ DEMO KIỂM THỬ PBL6 - CÁCH DÙNG NGÀY BÁO CÁO
+
+Trước giờ báo cáo khoảng 10 phút
+  1. Cắm sạc laptop, có mạng Internet.
+  2. Mở File Explorer -> E:\HK1-2026\PBL6\demo -> bấm đúp DEMO.bat
+  3. Chọn 0, đợi đến dòng "HỆ THỐNG SẴN SÀNG" (1-2 phút).
+     Sẽ có 3 cửa sổ đen: Backend, Frontend, AI Worker. Không tắt chúng.
+
+Khi trình chiếu (gợi ý thứ tự, tổng khoảng 5 phút)
+  1  Unit đủ 8 case, ~30 giây (UT-05/06 cho AI quét 1 phút video trận đấu).
+     Thầy muốn quét cả video 10 phút như trong báo cáo thì chọn 2 (~2 phút).
+  3  Web trên trình duyệt thật WT-01..WT-10, ~1,5 phút.
+     WT-05 gửi video 8 giây cho AI phân tích thật, chờ khoảng 35-40 giây.
+  6  Hiệu năng: 20 người xem cùng lúc trong 30 giây, đi qua Internet (Cloudflare Tunnel),
+     có biểu đồ realtime. Xong sẽ tự mở báo cáo HTML.
+  5  Báo cáo Web đầy đủ 11/11 (có ảnh chụp từng bước).
+  7  Kết quả hiệu năng Round 3: 10/10 Passed, mỗi dòng có link GitHub Actions.
+  4  Playwright UI nếu thầy muốn tự chọn case để chạy.
+
+Nếu mất mạng
+  Mục 6 tự chuyển sang chạy localhost và ghi rõ trên màn hình.
+  Mục 5 và 7 là file có sẵn, mở được không cần mạng (link GitHub ở mục 7 thì cần mạng).
+
+Ghi chú
+  - WT-06..WT-10 dùng trận demo đã phân tích sẵn (trận 245, clip 28 giây, 3 pha cầu, 2 cú smash).
+    Không xóa trận này và tài khoản e2e_1794060448341@badminton.vn.
+  - WT-11 chạy khoảng 1,2 phút nên không có trong mục 3; kết quả có trong mục 5.

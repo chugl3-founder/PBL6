@@ -87,6 +87,19 @@ public class AnalysisController {
     }
 
     /**
+     * Streaming: người xem tua tới đoạn AI chưa phân tích, GPU worker sẽ ưu tiên quét đoạn đó trước.
+     */
+    @PostMapping("/focus")
+    public ResponseEntity<AnalysisStatusResponse> focusAnalysis(
+            @PathVariable Long id,
+            @jakarta.validation.Valid @RequestBody com.badminton.dto.analysis.AnalysisFocusRequest request,
+            @AuthenticationPrincipal String email
+    ) {
+        AnalysisStatusResponse response = analysisService.focusAnalysis(id, request.getSeconds(), email);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
+
+    /**
      * VS-13: Hủy phiên phân tích AI đang chạy (QUEUED hoặc PROCESSING)
      */
     @PostMapping("/cancel")

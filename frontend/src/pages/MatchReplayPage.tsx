@@ -1,13 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { 
   Play, Pause, ArrowLeft, Clock, 
-  Sparkles, AlertCircle, AlertTriangle,
+  AlertCircle, AlertTriangle,
   Layers, Volume2, Volume1, VolumeX,
-  Zap, Target, ChevronRight,
+  Target, ChevronRight,
   RotateCcw, RotateCw, SkipBack, SkipForward,
   Gauge, Maximize, Eye, Keyboard, X, Trophy, BarChart3,
-  LogIn, UserPlus
+  LogIn, UserPlus, MapPin
 } from 'lucide-react';
 import apiClient from '../api/client';
 import { Court2DViewer, AiEventData } from '../components/court/Court2DViewer';
@@ -15,6 +15,14 @@ import { TimelineMarkers } from '../components/replay/TimelineMarkers';
 import { StrokeDetailCard } from '../components/replay/StrokeDetailCard';
 import { RalliesExplorer, RallyData } from '../components/replay/RalliesExplorer';
 import { StatisticsDashboard, MatchStatisticsData } from '../components/replay/StatisticsDashboard';
+import { TacticsBreakdown } from '../components/replay/TacticsBreakdown';
+import { PointLossInsights, PlaylistClip } from '../components/replay/PointLossInsights';
+import { ScoreFlow } from '../components/replay/ScoreFlow';
+import { CourtHeatmap } from '../components/court/CourtHeatmap';
+import { MatchHighlights } from '../components/replay/MatchHighlights';
+import { strokeLabel, LOW_CONFIDENCE } from '../utils/strokeLabels';
+import { normalizeStrokeSide, strokeSideLabel } from '../utils/strokeSide';
+import { playerPath } from '../api/players';
 
 interface MatchData {
   id: number;
@@ -39,6 +47,38 @@ interface VideoData {
   durationSeconds?: number;
 }
 
+interface AnalysisLiveStatus {
+  status: string;
+  progressPercent?: number;
+  analyzedUntilSeconds?: number | null;
+  videoDurationSeconds?: number | null;
+  analyzedRanges?: [number, number][] | null;
+}
+
+const LIVE_STATUSES = ['QUEUED', 'PROCESSING'];
+const LIVE_POLL_MS = 3000;
+
+// Mức 2: tua vào đoạn chưa phân tích thì báo backend để GPU worker quét đoạn đó trước.
+const FOCUS_RESEND_GAP_S = 15;
+const FOCUS_MIN_INTERVAL_MS = 3000;
+// Worker bắt đầu quét trước điểm tua ~10 s và cần thêm ~25 s video để chốt pha cầu đầu tiên.
+const FOCUS_VIDEO_SECONDS_TO_FIRST_RALLY = 35;
+const DEFAULT_AI_SPEED = 3; // giây video phân tích được mỗi giây (đo thực tế ~3.3x)
+
+const coveredSeconds = (ranges: [number, number][]) =>
+  ranges.reduce((total, [start, end]) => total + Math.max(0, end - start), 0);
+
+const isAnalyzedAt = (ranges: [number, number][], seconds: number) =>
+  ranges.some(([start, end]) => seconds >= start && seconds <= end);
+
+const formatClock = (seconds: number) => {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+};
+
 export const MatchReplayPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
@@ -50,9 +90,24 @@ export const MatchReplayPage: React.FC = () => {
   const [rallies, setRallies] = useState<RallyData[]>([]);
   const [selectedRally, setSelectedRally] = useState<RallyData | null>(null);
   const [statistics, setStatistics] = useState<MatchStatisticsData | null>(null);
-  const [activeTab, setActiveTab] = useState<'STROKES' | 'RALLIES' | 'STATISTICS'>('STROKES');
+  const [activeTab, setActiveTab] = useState<'STROKES' | 'RALLIES' | 'POINTS' | 'TACTICS' | 'COURT'>('RALLIES');
+  const [analysisTab, setAnalysisTab] = useState<'FLOW' | 'HEATMAP' | 'STATS'>('FLOW');
+  // Chi tiết kỹ thuật (sân 2D, ô 3×3, thống kê) thu gọn mặc định: HLV xem câu trả lời trước
+  // Danh sách phát: xem liền các pha cầu của một nhóm "Vì sao mất điểm"
+  const [playlist, setPlaylist] = useState<{ title: string; clips: PlaylistClip[]; index: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Phân tích dạng streaming: GPU worker ghi kết quả tạm theo từng rally trong lúc chạy
+  const [analysisLive, setAnalysisLive] = useState<AnalysisLiveStatus | null>(null);
+  const isAnalysisLive = !isPublic && LIVE_STATUSES.includes(analysisLive?.status ?? '');
+  // Các đoạn đã có kết quả cuối; sau khi tua, AI có thể đã làm nhiều đoạn rời nhau
+  const liveRanges: [number, number][] | null = isAnalysisLive
+    ? (analysisLive?.analyzedRanges ??
+        (analysisLive?.analyzedUntilSeconds != null ? [[0, analysisLive.analyzedUntilSeconds]] : []))
+    : null;
+  // Tốc độ AI đo từ các lần cập nhật trạng thái, để ước lượng thời gian chờ
+  const aiSpeedSamplesRef = useRef<{ at: number; covered: number }[]>([]);
+  const focusSentRef = useRef<{ seconds: number; at: number } | null>(null);
 
   // Video playback state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -74,6 +129,8 @@ export const MatchReplayPage: React.FC = () => {
   // Tự động cuộn danh sách cú đánh bên phải theo cú đánh đang phát
   const strokesContainerRef = useRef<HTMLDivElement>(null);
   const [autoScrollStrokes, setAutoScrollStrokes] = useState<boolean>(true);
+
+  // Tab chuyển đổi bên dưới video: Sân 2D vs Chi tiết cú đánh
 
   const isYouTube = video?.videoSourceType === 'YOUTUBE' || Boolean(video?.youtubeVideoId);
 
@@ -135,13 +192,29 @@ export const MatchReplayPage: React.FC = () => {
           setDuration(Number(videoRes.data.durationSeconds));
         }
 
+        // 2b. Trạng thái phân tích: khi AI còn đang chạy, Replay vẫn mở được và kết quả hiện dần
+        let streaming = false;
+        if (!isPublic) {
+          try {
+            const statusRes = await apiClient.get(`/matches/${id}/analysis/status`);
+            setAnalysisLive(statusRes.data);
+            streaming = LIVE_STATUSES.includes(statusRes.data?.status);
+          } catch {
+            setAnalysisLive(null);
+          }
+        }
+
         // 3. Lấy danh sách AI events phục vụ timeline & 2D radar
         const eventsEndpoint = isPublic ? `/public-matches/${id}/events` : `/matches/${id}/analysis/events`;
-        const eventsRes = await apiClient.get(eventsEndpoint);
-        setEvents(eventsRes.data);
-
-        if (eventsRes.data.length > 0) {
-          setSelectedEvent(eventsRes.data[0]);
+        try {
+          const eventsRes = await apiClient.get(eventsEndpoint);
+          setEvents(eventsRes.data);
+          if (eventsRes.data.length > 0) {
+            setSelectedEvent(eventsRes.data[0]);
+          }
+        } catch (eErr) {
+          // Đang phân tích nhưng chưa có rally nào: vẫn cho xem video
+          if (!streaming) throw eErr;
         }
 
         // 4. Lấy danh sách Rallies (VS-11)
@@ -176,6 +249,124 @@ export const MatchReplayPage: React.FC = () => {
       fetchData();
     }
   }, [id, isPublic]);
+
+  useEffect(() => {
+    if (!liveRanges) return;
+    const samples = aiSpeedSamplesRef.current;
+    samples.push({ at: Date.now(), covered: coveredSeconds(liveRanges) });
+    while (samples.length > 2 && samples[samples.length - 1].at - samples[0].at > 60000) samples.shift();
+  }, [analysisLive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const aiSpeed = (() => {
+    const samples = aiSpeedSamplesRef.current;
+    if (samples.length < 2) return DEFAULT_AI_SPEED;
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+    const speed = (last.covered - first.covered) / Math.max(1, (last.at - first.at) / 1000);
+    return speed > 0.5 ? speed : DEFAULT_AI_SPEED;
+  })();
+
+  // Người xem đang ở đoạn AI chưa phân tích xong
+  const watchingUnanalyzed = liveRanges != null && !isAnalyzedAt(liveRanges, currentTime);
+
+  // Mức 2: báo vị trí xem để worker nhảy tới đó (giới hạn tần suất, bỏ qua dịch chuyển nhỏ)
+  useEffect(() => {
+    if (!id || !watchingUnanalyzed || analysisLive?.status !== 'PROCESSING') return;
+    const now = Date.now();
+    const last = focusSentRef.current;
+    if (last && Math.abs(last.seconds - currentTime) < FOCUS_RESEND_GAP_S) return;
+    if (last && now - last.at < FOCUS_MIN_INTERVAL_MS) return;
+    focusSentRef.current = { seconds: currentTime, at: now };
+    apiClient.post(`/matches/${id}/analysis/focus`, { seconds: Math.floor(currentTime) }).catch(() => {
+      // Chỉ là gợi ý ưu tiên; lỗi thì AI vẫn chạy theo thứ tự bình thường
+    });
+  }, [id, watchingUnanalyzed, currentTime, analysisLive?.status]);
+
+  const lastAnalyzedBefore = liveRanges
+    ? liveRanges.filter(([start]) => start <= currentTime).map(([, end]) => end).filter(end => end < currentTime).sort((a, b) => b - a)[0]
+    : undefined;
+  const focusEtaSeconds = Math.round(
+    Math.min(180, Math.max(10, FOCUS_VIDEO_SECONDS_TO_FIRST_RALLY / aiSpeed + 3))
+  );
+
+  // Danh sách phát: mỗi pha bắt đầu sớm hơn 1.5 s và kết thúc sau cú cuối 1.5 s, rồi tự sang pha kế
+  const PLAYLIST_LEAD_S = 1.5;
+  const PLAYLIST_TAIL_S = 1.5;
+  const playClip = (clips: PlaylistClip[], index: number, title: string) => {
+    setPlaylist({ title, clips, index });
+    handleSeekToTime(Math.max(0, clips[index].start - PLAYLIST_LEAD_S), `${title} • ${index + 1}/${clips.length}`);
+  };
+  const handlePlayPlaylist = (title: string, clips: PlaylistClip[]) => {
+    if (clips.length > 0) playClip(clips, 0, title);
+  };
+  const stopPlaylist = () => setPlaylist(null);
+
+  useEffect(() => {
+    if (!playlist) return;
+    const clip = playlist.clips[playlist.index];
+    // Người dùng tự tua ra xa đoạn đang phát: thoát danh sách phát
+    if (currentTime < clip.start - 10 || currentTime > clip.end + 10) {
+      setPlaylist(null);
+      return;
+    }
+    if (currentTime > clip.end + PLAYLIST_TAIL_S) {
+      if (playlist.index + 1 < playlist.clips.length) {
+        playClip(playlist.clips, playlist.index + 1, playlist.title);
+      } else {
+        setPlaylist(null);
+        showOsd('Đã xem hết danh sách');
+      }
+    }
+  }, [currentTime]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Streaming: khi AI còn đang chạy, tải lại events/rallies định kỳ; marker mới hiện dần.
+  useEffect(() => {
+    if (!id || !isAnalysisLive) return;
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const statusRes = await apiClient.get(`/matches/${id}/analysis/status`);
+        if (cancelled) return;
+        const done = statusRes.data?.status === 'COMPLETED';
+        const [eventsRes, ralliesRes] = await Promise.all([
+          apiClient.get(`/matches/${id}/analysis/events`),
+          apiClient.get(`/matches/${id}/analysis/rallies`).catch(() => ({ data: [] as RallyData[] })),
+        ]);
+        if (cancelled) return;
+        const nextEvents: AiEventData[] = eventsRes.data;
+        setEvents(nextEvents);
+        // Kết quả tạm được ghi lại mỗi lần (id đổi); giữ cú đang chọn theo thời điểm đánh
+        setSelectedEvent(prev => {
+          if (!prev) return nextEvents[0] ?? null;
+          return nextEvents.find(e => e.timeSeconds === prev.timeSeconds) ?? prev;
+        });
+        setRallies(ralliesRes.data);
+        setSelectedRally(prev => {
+          if (!prev) return ralliesRes.data[0] ?? null;
+          return ralliesRes.data.find((r: RallyData) => r.rallyNumber === prev.rallyNumber) ?? prev;
+        });
+        if (done) {
+          try {
+            const statsRes = await apiClient.get(`/matches/${id}/analysis/statistics`);
+            if (!cancelled) setStatistics(statsRes.data);
+          } catch {
+            // Thống kê có thể chưa sẵn sàng
+          }
+          showOsd('AI đã phân tích xong toàn trận');
+        }
+        setAnalysisLive(statusRes.data);
+      } catch {
+        // Lỗi mạng tạm thời: thử lại ở lượt sau
+      }
+    };
+
+    const timer = setInterval(refresh, LIVE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [id, isAnalysisLive]);
 
   // Khởi tạo YouTube IFrame Player
   useEffect(() => {
@@ -297,6 +488,25 @@ export const MatchReplayPage: React.FC = () => {
   }, [isPlaying, isYouTube, isPublic, events, selectedEvent]);
 
   // Đồng bộ Video TimeUpdate với Timeline & 2D Court (cho Video MP4 MinIO)
+  // Đồng bộ cú đánh được chọn theo mốc thời gian video
+  const syncEventWithTime = (timeSec: number) => {
+    if (!events.length) return;
+    // 1. Tìm cú đánh trong bán kính +/- 1.2s
+    let candidate = events.find((e) => Math.abs(e.timeSeconds - timeSec) <= 1.2);
+    // 2. Nếu ở khoảng giữa 2 cú đánh, chọn cú đánh vừa diễn ra trước mốc thời gian này
+    if (!candidate) {
+      const pastEvents = events.filter((e) => e.timeSeconds <= timeSec);
+      if (pastEvents.length > 0) {
+        candidate = pastEvents[pastEvents.length - 1];
+      } else {
+        candidate = events[0];
+      }
+    }
+    if (candidate && (!selectedEvent || selectedEvent.id !== candidate.id)) {
+      setSelectedEvent(candidate);
+    }
+  };
+
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
     const curr = videoRef.current.currentTime;
@@ -311,12 +521,7 @@ export const MatchReplayPage: React.FC = () => {
     }
 
     setCurrentTime(curr);
-
-    // Tìm event gần nhất với curr (trong khoảng +/- 0.8 giây)
-    const active = events.find((e) => Math.abs(e.timeSeconds - curr) <= 0.8);
-    if (active && (!selectedEvent || selectedEvent.id !== active.id)) {
-      setSelectedEvent(active);
-    }
+    syncEventWithTime(curr);
   };
 
   const handleLoadedMetadata = () => {
@@ -341,13 +546,14 @@ export const MatchReplayPage: React.FC = () => {
         // Tính toán để căn cú đánh vào chính giữa khung cuộn
         const targetScrollTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (elRect.height / 2);
 
+        // Khi video đang phát (isPlaying): dùng 'auto' (tức thì) để bám sát 100% thời gian thực, không bị trễ/lag do animation
         container.scrollTo({
           top: Math.max(0, targetScrollTop),
-          behavior: 'smooth'
+          behavior: isPlaying ? 'auto' : 'smooth'
         });
       }
     }
-  }, [selectedEvent?.id, activeTab, autoScrollStrokes]);
+  }, [selectedEvent?.id, activeTab, autoScrollStrokes, isPlaying]);
 
   const togglePlay = () => {
     if (isYouTube && ytPlayerRef.current) {
@@ -453,6 +659,7 @@ export const MatchReplayPage: React.FC = () => {
       const newTime = Math.max(0, Math.min(duration, curr + seconds));
       ytPlayerRef.current.seekTo(newTime, true);
       setCurrentTime(newTime);
+      syncEventWithTime(newTime);
       showOsd(seconds > 0 ? `Tua tới +${seconds}s` : `Tua lùi ${seconds}s`);
       return;
     }
@@ -461,6 +668,7 @@ export const MatchReplayPage: React.FC = () => {
     const newTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
     videoRef.current.currentTime = newTime;
     setCurrentTime(newTime);
+    syncEventWithTime(newTime);
     showOsd(seconds > 0 ? `Tua tới +${seconds}s` : `Tua lùi ${seconds}s`);
   };
 
@@ -541,6 +749,65 @@ export const MatchReplayPage: React.FC = () => {
     }
   };
 
+  // Tua tới một thời điểm bất kỳ (ví dụ đoạn chiến thuật từ dashboard) và phát
+  const handleSeekToTime = (seconds: number, label: string) => {
+    playerContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (isYouTube && ytPlayerRef.current) {
+      ytPlayerRef.current.seekTo(seconds, true);
+      setCurrentTime(seconds);
+      syncEventWithTime(seconds);
+      if (!isPlaying) {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      showOsd(label);
+      return;
+    }
+
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = seconds;
+    setCurrentTime(seconds);
+    syncEventWithTime(seconds);
+    if (!isPlaying) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+    showOsd(label);
+  };
+
+  // Deep link "?t=<seconds>" (e.g. a clip cited in a scouting report): seek once the player is ready.
+  const deepLinkSeconds = useMemo(() => {
+    const t = Number(new URLSearchParams(location.search).get('t'));
+    return Number.isFinite(t) && t > 0 ? t : null;
+  }, [location.search]);
+  const deepLinkDone = useRef<number | null>(null);
+  useEffect(() => {
+    if (deepLinkSeconds == null || deepLinkDone.current === deepLinkSeconds) return;
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      try {
+        if (isYouTube && ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+          ytPlayerRef.current.seekTo(deepLinkSeconds, true);
+        } else if (!isYouTube && videoRef.current && videoRef.current.readyState >= 1) {
+          videoRef.current.currentTime = deepLinkSeconds;
+        } else {
+          if (tries > 60) window.clearInterval(timer);
+          return;
+        }
+      } catch {
+        return;
+      }
+      deepLinkDone.current = deepLinkSeconds;
+      setCurrentTime(deepLinkSeconds);
+      syncEventWithTime(deepLinkSeconds);
+      showOsd('Đoạn được dẫn tới');
+      playerContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.clearInterval(timer);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [deepLinkSeconds, isYouTube, video]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Phát lại chậm 0.5x cho cú đánh được chọn
   const handlePlaySlow = (timeSeconds: number) => {
     const startSec = Math.max(0, timeSeconds - 0.3);
@@ -575,8 +842,7 @@ export const MatchReplayPage: React.FC = () => {
       ytPlayerRef.current.seekTo(rally.startTime, true);
       setCurrentTime(rally.startTime);
       setSelectedRally(rally);
-      const firstEvt = events.find((e) => Math.abs(e.timeSeconds - rally.startTime) <= 0.8);
-      if (firstEvt) setSelectedEvent(firstEvt);
+      syncEventWithTime(rally.startTime);
       if (!isPlaying) {
         ytPlayerRef.current.playVideo();
         setIsPlaying(true);
@@ -589,12 +855,7 @@ export const MatchReplayPage: React.FC = () => {
     videoRef.current.currentTime = rally.startTime;
     setCurrentTime(rally.startTime);
     setSelectedRally(rally);
-
-    // Đồng bộ cú đánh đầu tiên của rally này
-    const firstEvt = events.find((e) => Math.abs(e.timeSeconds - rally.startTime) <= 0.8);
-    if (firstEvt) {
-      setSelectedEvent(firstEvt);
-    }
+    syncEventWithTime(rally.startTime);
 
     if (!isPlaying) {
       videoRef.current.play();
@@ -609,9 +870,11 @@ export const MatchReplayPage: React.FC = () => {
     if (isYouTube && ytPlayerRef.current) {
       ytPlayerRef.current.seekTo(val, true);
       setCurrentTime(val);
+      syncEventWithTime(val);
     } else if (videoRef.current) {
       videoRef.current.currentTime = val;
       setCurrentTime(val);
+      syncEventWithTime(val);
     }
   };
 
@@ -711,24 +974,30 @@ export const MatchReplayPage: React.FC = () => {
     switch (stroke.toUpperCase()) {
       case 'SMASH':
       case 'NET_ATTACK':
-        return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+        return 'bg-rose-500/20 text-rose-700 border-rose-500/40';
       case 'DROP':
       case 'NET_SHOT':
-        return 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+        return 'bg-sky-500/20 text-sky-700 border-sky-500/40';
       case 'CLEAR':
       case 'LIFT':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+        return 'bg-amber-500/20 text-amber-700 border-amber-500/40';
       case 'DRIVE':
       case 'PUSH':
-        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+        return 'bg-emerald-500/20 text-emerald-700 border-emerald-500/40';
       case 'SERVE':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+        return 'bg-purple-500/20 text-purple-700 border-purple-500/40';
       default:
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
+        return 'bg-blue-500/20 text-blue-700 border-blue-500/40';
     }
   };
 
   // Lọc các cú đánh
+  // Each player keeps the colour of their side of the court everywhere on the page.
+  const playerAColor = match?.upperPlayer === 'PLAYER_B' ? 'text-pb' : 'text-pa';
+  const playerBColor = match?.upperPlayer === 'PLAYER_B' ? 'text-pa' : 'text-pb';
+  const upperName = match ? (match.upperPlayer === 'PLAYER_A' ? match.playerAName : match.playerBName) : '';
+  const lowerName = match ? (match.upperPlayer === 'PLAYER_A' ? match.playerBName : match.playerAName) : '';
+
   const filteredEvents = filterStroke === 'ALL'
     ? events
     : events.filter(e => e.stroke.toUpperCase() === filterStroke);
@@ -736,7 +1005,7 @@ export const MatchReplayPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-140px)] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-2 border-pitch border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -744,14 +1013,14 @@ export const MatchReplayPage: React.FC = () => {
   if (error || !match) {
     return (
       <div className="min-h-[calc(100vh-140px)] flex flex-col items-center justify-center px-4 text-center">
-        <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4">
+        <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-700 mb-4">
           <AlertCircle className="w-6 h-6" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Chưa sẵn sàng xem lại</h2>
-        <p className="text-white/60 text-sm max-w-md mb-6">{error || 'Trận đấu chưa có dữ liệu Replay.'}</p>
+        <h2 className="text-xl font-bold text-ink mb-2">Chưa sẵn sàng xem lại</h2>
+        <p className="text-ink/60 text-sm max-w-md mb-6">{error || 'Trận đấu chưa có dữ liệu Replay.'}</p>
         <Link
           to={`/matches/${id}`}
-          className="px-6 py-2.5 rounded-full bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors"
+          className="px-6 py-2.5 rounded-full bg-pitch hover:bg-pitch-deep text-white text-sm font-semibold transition-colors"
         >
           Quay lại chi tiết trận đấu
         </Link>
@@ -759,49 +1028,99 @@ export const MatchReplayPage: React.FC = () => {
     );
   }
 
+  // Rally scores are (upper, lower) after each rally; show them in Player A / B order.
+  const toPlayerOrder = (upper: number, lower: number) =>
+    match.upperPlayer === 'PLAYER_A' ? { playerA: upper, playerB: lower } : { playerA: lower, playerB: upper };
+  const scoredRallies = rallies.filter((r) => r.scoreText);
+  const firstRally = scoredRallies[0];
+  const lastRally = scoredRallies[scoredRallies.length - 1];
+  // Follow the video: the score after the latest finished rally, or the score
+  // before the first rally (its point taken back) while that rally is still ahead.
+  // endTime is the last hit; broadcast scoreboards update about 3-6 s later.
+  const SCORE_UPDATE_DELAY_SECONDS = 3;
+  const finishedRally = [...scoredRallies]
+    .reverse()
+    .find((r) => r.endTime + SCORE_UPDATE_DELAY_SECONDS <= currentTime);
+  const liveScore = finishedRally
+    ? toPlayerOrder(finishedRally.scoreUpper, finishedRally.scoreLower)
+    : firstRally
+    ? toPlayerOrder(
+        Math.max(0, firstRally.scoreUpper - (firstRally.isComplete && firstRally.winnerSide === 'UPPER' ? 1 : 0)),
+        Math.max(0, firstRally.scoreLower - (firstRally.isComplete && firstRally.winnerSide === 'LOWER' ? 1 : 0))
+      )
+    : null;
+  const finalScore = lastRally ? toPlayerOrder(lastRally.scoreUpper, lastRally.scoreLower) : null;
+  const scoreFromScoreboard = rallies.some((r) => r.winReason?.toLowerCase().startsWith('ocr_confirmed'));
+
   return (
     <div className="min-h-[calc(100vh-140px)] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
-        <div className="space-y-1">
-          <Link
-            to={isPublic ? "/public-matches" : `/matches/${id}`}
-            className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors mb-2"
+      {/* Tiêu đề kiểu bảng điểm truyền hình: mỗi người một hàng, tỉ số gắn liền tên */}
+      <header className="space-y-3">
+        <Link
+          to={isPublic ? "/public-matches" : `/matches/${id}`}
+          className="inline-flex items-center gap-1.5 text-sm text-ink/60 hover:text-ink transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>{isPublic ? 'Thư viện công khai' : 'Thông tin trận đấu'}</span>
+        </Link>
+        <h1 className="sr-only">{match.playerAName} gặp {match.playerBName}</h1>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div
+            className="inline-block min-w-[13rem] rounded-md bg-ink text-white overflow-hidden"
+            role="group"
+            aria-label="Bảng điểm"
+            title={scoreFromScoreboard
+              ? 'Tỉ số đọc từ bảng điểm của video, cập nhật theo thời điểm đang xem'
+              : 'Không đọc được bảng điểm: AI tự đếm số pha thắng từ 0-0 ở đầu video'}
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>{isPublic ? 'Quay lại Thư viện công khai' : 'Quay lại Quản lý trận đấu'}</span>
-          </Link>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              <span className="text-blue-400">{match.playerAName}</span>
-              <span className="text-white/40 font-normal">VS</span>
-              <span className="text-amber-400">{match.playerBName}</span>
-            </h1>
-            <span className="px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1">
-              <Sparkles className="w-3 h-3" />
-              <span>{isYouTube ? 'BWF TOURNAMENT REPLAY' : 'COACHAI+ 2.0 REPLAY'}</span>
-            </span>
+            {[
+              { name: match.playerAName, score: liveScore?.playerA, bar: playerAColor.replace('text-', 'bg-') },
+              { name: match.playerBName, score: liveScore?.playerB, bar: playerBColor.replace('text-', 'bg-') },
+            ].map((row, index, rows) => {
+              const other = rows[1 - index].score;
+              const leading = row.score != null && other != null && row.score > other;
+              return (
+                <div key={row.name} className="flex items-center h-8 border-b border-white/10 last:border-b-0">
+                  <span className={`w-1 self-stretch ${row.bar}`} />
+                  <Link
+                    to={playerPath(row.name)}
+                    title={`Hồ sơ ${row.name}`}
+                    className={`flex-1 min-w-0 truncate pl-2.5 pr-4 text-sm hover:underline underline-offset-2 ${leading ? 'font-semibold text-white' : 'font-medium text-white/70 hover:text-white'}`}
+                  >
+                    {row.name}
+                  </Link>
+                  {row.score != null && (
+                    <span className="w-8 self-stretch flex items-center justify-center bg-white/10 font-score text-lg font-semibold tabular-nums">
+                      {row.score}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
+          {liveScore && finalScore && (
+            <p className="text-xs text-ink/55 leading-relaxed">
+              {scoreFromScoreboard ? 'Tỉ số ở thời điểm đang xem' : 'Điểm ước tính ở thời điểm đang xem'}
+              <br />
+              Cuối video {finalScore.playerA}–{finalScore.playerB}, {scoreFromScoreboard ? 'đọc từ bảng điểm' : 'AI ước tính'}
+            </p>
+          )}
         </div>
+      </header>
 
-        {/* Quick filter by stroke */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-white/50 text-[11px] mr-1">Lọc cú đánh:</span>
-          {['ALL', 'SMASH', 'DROP', 'CLEAR', 'NET_SHOT', 'SERVE'].map((stroke) => (
-            <button
-              key={stroke}
-              onClick={() => setFilterStroke(stroke)}
-              className={`px-3 py-1 rounded-full font-semibold transition-all ${
-                filterStroke === stroke
-                  ? 'bg-brand text-white shadow-glow-blue'
-                  : 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10'
-              }`}
-            >
-              {stroke}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Tầng 1: câu trả lời trước — các nhận định chính, bấm là xem đúng các pha chứng minh */}
+      {match && (
+        <MatchHighlights
+          rallies={rallies}
+          events={events}
+          playerAName={match.playerAName}
+          playerBName={match.playerBName}
+          upperPlayer={match.upperPlayer}
+          isAnalysisLive={isAnalysisLive}
+          onPlayPlaylist={handlePlayPlaylist}
+          onOpenPointLoss={() => setActiveTab('POINTS')}
+        />
+      )}
 
       {/* Main Workspace Layout (8 cols Cột Trái : 4 cols Cột Phải Danh Sách Cú Đánh Dọc) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -840,6 +1159,60 @@ export const MatchReplayPage: React.FC = () => {
               </div>
             )}
 
+            {/* Danh sách phát "Vì sao mất điểm" */}
+            {playlist && (
+              <div className="absolute bottom-20 left-3 z-30 max-w-[min(92%,26rem)]">
+                <div className="rounded-2xl border border-rose-400/40 bg-slate-950/85 backdrop-blur-md px-3 py-2 text-[11px] text-white shadow-2xl flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-rose-200">
+                    {playlist.index + 1}/{playlist.clips.length}
+                  </span>
+                  <span className="truncate flex-1 min-w-0">{playlist.title}</span>
+                  {playlist.index + 1 < playlist.clips.length && (
+                    <button
+                      type="button"
+                      onClick={() => playClip(playlist.clips, playlist.index + 1, playlist.title)}
+                      className="rounded-full bg-white/10 hover:bg-white/20 px-2.5 py-0.5 font-semibold"
+                    >
+                      Pha kế
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={stopPlaylist}
+                    className="rounded-full bg-white/10 hover:bg-white/20 px-2.5 py-0.5 font-semibold"
+                  >
+                    Dừng
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Mức 1: đang xem đoạn AI chưa phân tích, nói rõ AI đang làm gì và khi nào có */}
+            {watchingUnanalyzed && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 w-[min(92%,30rem)]" role="status" aria-live="polite">
+                <div className="rounded-2xl border border-cyan-400/40 bg-slate-950/85 backdrop-blur-md px-4 py-2.5 text-[12px] text-cyan-50 shadow-2xl flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75 animate-ping" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
+                  </span>
+                  <span className="flex-1 min-w-[12rem]">
+                    {analysisLive?.status === 'QUEUED'
+                      ? 'AI đang chờ GPU worker, cú đánh sẽ hiện dần khi bắt đầu phân tích.'
+                      : `AI đang ưu tiên phân tích đoạn bạn đang xem, cú đánh sẽ hiện sau khoảng ${focusEtaSeconds} giây.`}
+                  </span>
+                  {lastAnalyzedBefore !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => handleSeekToTime(Math.max(0, lastAnalyzedBefore - 5), 'Về đoạn đã phân tích')}
+                      className="rounded-full bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/40 px-3 py-1 font-semibold text-cyan-100 transition-colors"
+                    >
+                      Về đoạn đã phân tích
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* OSD (On-Screen Display) Center Toast Feedback for Shortcuts */}
             {osdMessage && (
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-40">
@@ -855,20 +1228,21 @@ export const MatchReplayPage: React.FC = () => {
                 onClick={togglePlay}
                 className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-black/20 group-hover:bg-black/30 transition-colors"
               >
-                <div className="w-16 h-16 rounded-full bg-brand/90 hover:bg-brand text-white flex items-center justify-center shadow-glow-blue transition-transform transform group-hover:scale-110">
+                <div className="w-16 h-16 rounded-full bg-pitch/90 hover:bg-pitch text-white flex items-center justify-center transition-transform transform group-hover:scale-110">
                   <Play className="w-8 h-8 ml-1" />
                 </div>
               </div>
             )}
 
-            {/* Top Indicator Overlay (Tên cú đánh đang diễn ra) */}
+            {/* Top Indicator Overlay (Tên cú đánh đang diễn ra - Căn giữa thể thao cân đối) */}
             {selectedEvent && (
-              <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 text-xs shadow-lg transition-opacity duration-300">
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 bg-black/75 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs shadow-2xl transition-all duration-300 pointer-events-none">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-                <span className="font-extrabold text-white uppercase tracking-wider">{selectedEvent.stroke}</span>
-                <span className="text-white/40 text-[11px]">#{selectedEvent.eventOrder}</span>
-                <span className="text-white/30">•</span>
-                <span className="text-emerald-300 font-mono text-[11px]">{(selectedEvent.confidence * 100).toFixed(0)}% AI</span>
+                <span className="font-extrabold text-white tracking-wide">{strokeLabel(selectedEvent.stroke)}</span>
+                <span className="text-white/50 text-[11px] font-mono">#{selectedEvent.eventOrder}</span>
+                {selectedEvent.confidence < LOW_CONFIDENCE && (
+                  <span className="text-amber-300 text-[11px] font-semibold">• cần xem lại</span>
+                )}
               </div>
             )}
 
@@ -890,7 +1264,11 @@ export const MatchReplayPage: React.FC = () => {
                   step="0.05"
                   value={currentTime}
                   onChange={handleSliderChange}
-                  className="w-full h-1.5 bg-white/20 hover:bg-white/30 rounded-full appearance-none cursor-pointer accent-brand transition-all"
+                  aria-label="Tua video"
+                  className="video-seek w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, #5FB88A ${(currentTime / (duration || 100)) * 100}%, rgba(255,255,255,0.25) ${(currentTime / (duration || 100)) * 100}%)`,
+                  }}
                 />
               </div>
 
@@ -925,7 +1303,7 @@ export const MatchReplayPage: React.FC = () => {
                     type="button"
                     onClick={togglePlay}
                     title={isPlaying ? "Tạm dừng (Space / K)" : "Phát (Space / K)"}
-                    className="w-9 h-9 rounded-full bg-brand hover:bg-brand-hover text-white flex items-center justify-center shadow-glow-blue transition-transform hover:scale-105"
+                    className="w-9 h-9 rounded-full bg-pitch hover:bg-pitch-deep text-white flex items-center justify-center transition-transform hover:scale-105"
                   >
                     {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
                   </button>
@@ -976,7 +1354,7 @@ export const MatchReplayPage: React.FC = () => {
                         step="0.05"
                         value={isMuted ? 0 : volume}
                         onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                        className="w-16 h-1 bg-white/30 accent-brand rounded-full appearance-none cursor-pointer"
+                        className="w-16 h-1 bg-white/30 accent-[#5FB88A] rounded-full appearance-none cursor-pointer"
                         title={`Âm lượng: ${Math.round((isMuted ? 0 : volume) * 100)}% (↑ / ↓)`}
                       />
                       <span className="text-[10px] font-mono text-white/70 select-none">
@@ -1003,7 +1381,7 @@ export const MatchReplayPage: React.FC = () => {
                       title="Tốc độ phát (< hoặc >)"
                       className="px-2 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono text-xs flex items-center gap-1.5 transition-colors border border-white/10"
                     >
-                      <Gauge className="w-3.5 h-3.5 text-brand" />
+                      <Gauge className="w-3.5 h-3.5 text-pitch" />
                       <span>{playbackRate}x</span>
                     </button>
 
@@ -1017,7 +1395,7 @@ export const MatchReplayPage: React.FC = () => {
                             onClick={() => handleChangeSpeed(rate)}
                             className={`px-2 py-1 rounded-lg text-xs font-mono text-left transition-colors flex items-center justify-between ${
                               playbackRate === rate
-                                ? 'bg-brand text-white font-bold'
+                                ? 'bg-pitch text-white font-bold'
                                 : 'text-white/70 hover:bg-white/10 hover:text-white'
                             }`}
                           >
@@ -1056,131 +1434,149 @@ export const MatchReplayPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 2. Interactive AI Timeline Bar Component */}
-          <div className="rounded-3xl bg-[#0b1220]/80 border border-white/10 p-5 backdrop-blur-xl shadow-xl space-y-3">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <div className="flex items-center gap-2 text-white">
-                <Clock className="w-4 h-4 text-brand" />
-                <span>AI TIMELINE CÚ ĐÁNH ({filteredEvents.length} SỰ KIỆN)</span>
+          {/* 2. Diễn biến trận: mỗi pha cầu tô theo người thắng điểm, chấm trắng là cú đánh */}
+          <section className="rounded-xl bg-sheet border border-ink/10 p-5 space-y-3" aria-labelledby="match-flow-title">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 id="match-flow-title" className="text-base font-semibold text-ink">Diễn biến trận</h2>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink/70">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm bg-pa" />
+                  {upperName} thắng điểm
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm bg-pb" />
+                  {lowerName} thắng điểm
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink/60" />
+                  cú đánh
+                </span>
               </div>
-              <span className="text-white/40 text-[11px]">
-                Nhấp vào điểm ghim tròn để nhảy video đến đúng cú đánh
-              </span>
             </div>
 
-            {/* Markers Bar */}
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Lọc cú đánh">
+              <span className="text-xs text-ink/60 mr-1">Chỉ hiện cú</span>
+              {['ALL', 'SMASH', 'DROP', 'CLEAR', 'NET_SHOT', 'SERVE'].map((stroke) => (
+                <button
+                  key={stroke}
+                  type="button"
+                  onClick={() => setFilterStroke(stroke)}
+                  aria-pressed={filterStroke === stroke}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                    filterStroke === stroke
+                      ? 'bg-pitch text-white'
+                      : 'text-ink/70 border border-ink/15 hover:border-pitch/50 hover:text-ink'
+                  }`}
+                >
+                  {stroke === 'ALL' ? 'Tất cả' : strokeLabel(stroke)}
+                </button>
+              ))}
+            </div>
+
             <TimelineMarkers
               events={filteredEvents}
               durationSeconds={duration || 60}
               currentTimeSeconds={currentTime}
               currentEvent={selectedEvent}
               onSeekToEvent={handleSeekToEvent}
+              rallies={rallies}
+              upperName={upperName}
+              lowerName={lowerName}
+              onSelectRally={handlePlayRally}
+              analyzedRanges={liveRanges}
             />
 
-            {/* Stroke Legend Bar */}
-            <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-white/10 text-[11px] text-white/60">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                <span>Smash / Vồ lưới</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
-                <span>Drop / Bỏ nhỏ</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                <span>Clear / Phông sâu</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                <span>Drive / Tạt cầu</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-400" />
-                <span>Serve / Giao cầu</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. THẺ CHI TIẾT CÚ ĐÁNH & CẢNH BÁO ĐỘ TIN CẬY THẤP (VS-10) */}
-          <StrokeDetailCard
-            event={selectedEvent}
-            playerAName={match.playerAName}
-            playerBName={match.playerBName}
-            upperPlayer={match.upperPlayer}
-            onSeek={(t) => {
-              if (videoRef.current) {
-                videoRef.current.currentTime = t;
-                setCurrentTime(t);
-                if (!isPlaying) {
-                  videoRef.current.play();
-                  setIsPlaying(true);
-                }
-              }
-            }}
-            onPlaySlow={handlePlaySlow}
-          />
-
-          {/* 4. SÂN 2D NẰM NGANG (HORIZONTAL 2D RADAR COURT) */}
-          <div>
-            <Court2DViewer
-              currentEvent={selectedEvent}
-              playerAName={match.playerAName}
-              playerBName={match.playerBName}
-              upperPlayer={match.upperPlayer}
-            />
-          </div>
+            {isAnalysisLive && (
+              <p className="text-xs text-ink/70 flex flex-wrap items-center gap-x-2" role="status" aria-live="polite">
+                <span className="w-2 h-2 rounded-full bg-pitch frontier-glow" />
+                {analysisLive?.status === 'QUEUED'
+                  ? 'AI đang chờ máy phân tích.'
+                  : `AI đã phân tích ${formatClock(coveredSeconds(liveRanges ?? []))} trên ${formatClock(
+                      analysisLive?.videoDurationSeconds ?? duration
+                    )}. Tua tới đoạn nào, AI phân tích đoạn đó trước.`}
+              </p>
+            )}
+          </section>
 
         </div>
 
         {/* CỘT PHẢI (4 cols): DANH SÁCH CÚ ĐÁNH DỌC (VERTICAL STROKES LIST) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="rounded-3xl bg-[#0b1220]/80 border border-white/10 p-5 backdrop-blur-xl shadow-2xl flex flex-col h-[980px]">
+          <div className="rounded-xl bg-sheet border border-ink/10 p-5 flex flex-col h-[700px]">
             {/* Header Tabs chuyển đổi giữa Cú đánh, Pha cầu & Thống kê (VS-11, VS-12) */}
-            <div className="flex items-center gap-1.5 p-1 bg-white/5 rounded-2xl border border-white/10 mb-3">
-              <button
-                type="button"
-                onClick={() => setActiveTab('STROKES')}
-                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  activeTab === 'STROKES'
-                    ? 'bg-brand text-white shadow-glow-blue'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span className="truncate">Cú đánh ({filteredEvents.length})</span>
-              </button>
+            <div className="grid grid-cols-5 gap-1 p-1 bg-ink/[0.04] rounded-lg border border-ink/10 mb-3 text-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab('RALLIES')}
-                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
                   activeTab === 'RALLIES'
-                    ? 'bg-brand text-white shadow-glow-blue'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                    ? 'bg-pitch text-white '
+                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
+                title={`Pha cầu (${rallies.length})`}
               >
-                <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                <span className="truncate">Pha cầu ({rallies.length})</span>
+                <Trophy className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                <span className="truncate max-w-full">Pha cầu</span>
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('STATISTICS')}
-                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  activeTab === 'STATISTICS'
-                    ? 'bg-brand text-white shadow-glow-blue'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                onClick={() => setActiveTab('POINTS')}
+                className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
+                  activeTab === 'POINTS'
+                    ? 'bg-pitch text-white '
+                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
+                title="Vì sao mất điểm"
               >
-                <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="truncate">Thống kê</span>
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-700 shrink-0" />
+                <span className="truncate max-w-full">Mất điểm</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('STROKES')}
+                className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
+                  activeTab === 'STROKES'
+                    ? 'bg-pitch text-white '
+                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                }`}
+                title={`Cú đánh (${filteredEvents.length})`}
+              >
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate max-w-full">Cú đánh</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('TACTICS')}
+                className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
+                  activeTab === 'TACTICS'
+                    ? 'bg-pitch text-white '
+                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                }`}
+                title="Chiến thuật"
+              >
+                <Target className="w-3.5 h-3.5 text-rose-700 shrink-0" />
+                <span className="truncate max-w-full">Lối chơi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('COURT')}
+                className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
+                  activeTab === 'COURT'
+                    ? 'bg-pitch text-white '
+                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                }`}
+                title="Cú đang phát trên sơ đồ sân"
+              >
+                <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span className="truncate max-w-full">Sân</span>
               </button>
             </div>
 
             {activeTab === 'STROKES' && (
               <>
                 {/* Thanh tiện ích Tự động cuộn theo video */}
-                <div className="flex items-center justify-between pb-2 px-1 text-xs text-white/60">
-                  <span className="text-[11px] text-white/50">
+                <div className="flex items-center justify-between pb-2 px-1 text-xs text-ink/60">
+                  <span className="text-[11px] text-ink/55">
                     {filteredEvents.length} cú đánh đã nhận diện
                   </span>
                   <button
@@ -1192,12 +1588,12 @@ export const MatchReplayPage: React.FC = () => {
                     }}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all ${
                       autoScrollStrokes
-                        ? 'bg-brand/20 text-brand border border-brand/40 shadow-glow-blue'
-                        : 'bg-white/5 text-white/40 hover:text-white/70 border border-white/10'
+                        ? 'bg-pitch-soft text-pitch-deep border border-pitch/30'
+                        : 'bg-ink/[0.04] text-ink/50 hover:text-ink/70 border border-ink/10'
                     }`}
                     title={autoScrollStrokes ? 'Đang tự động cuộn danh sách theo cú đánh đang phát' : 'Nhấp để bật tự động cuộn'}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${autoScrollStrokes ? 'bg-brand animate-ping' : 'bg-white/30'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${autoScrollStrokes ? 'bg-pitch animate-ping' : 'bg-ink/15'}`} />
                     <span>{autoScrollStrokes ? 'Tự cuộn: BẬT' : 'Tự cuộn: TẮT'}</span>
                   </button>
                 </div>
@@ -1209,7 +1605,7 @@ export const MatchReplayPage: React.FC = () => {
                 >
                   {filteredEvents.map((evt) => {
                     const isActive = selectedEvent?.id === evt.id;
-                    const isLowConf = evt.confidence < 0.60;
+                    const isLowConf = evt.confidence < LOW_CONFIDENCE;
                     const badgeClass = getStrokeBadgeClass(evt.stroke);
 
                     return (
@@ -1217,27 +1613,27 @@ export const MatchReplayPage: React.FC = () => {
                         key={evt.id}
                         id={`stroke-item-${evt.id}`}
                         onClick={() => handleSeekToEvent(evt)}
-                        className={`p-3 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center justify-between ${
+                        className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer flex items-center justify-between ${
                           isActive
-                            ? 'bg-brand/25 border-brand shadow-glow-blue ring-2 ring-brand/50 scale-[1.01]'
+                            ? 'bg-pitch/25 border-pitch ring-2 ring-pitch/30 scale-[1.01]'
                             : isLowConf
                             ? 'bg-amber-500/5 border-amber-500/25 hover:bg-amber-500/10'
-                            : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                            : 'bg-ink/[0.04] border-ink/10 hover:bg-ink/[0.06] hover:border-ink/15'
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           {/* Số thứ tự & Indicator phát */}
                           <div
-                            className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono text-xs font-bold shrink-0 transition-transform ${
+                            className={`w-7 h-7 rounded-xl flex items-center justify-center tabular-nums text-xs font-bold shrink-0 transition-transform ${
                               isActive 
-                                ? 'bg-brand text-white shadow-glow-blue scale-105' 
+                                ? 'bg-pitch text-white scale-105' 
                                 : isLowConf
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                : 'bg-white/10 text-white/60'
+                                ? 'bg-amber-500/20 text-amber-700 border border-amber-500/30'
+                                : 'bg-ink/[0.06] text-ink/60'
                             }`}
                           >
                             {isActive ? (
-                              <Play className="w-3.5 h-3.5 fill-current animate-pulse text-white" />
+                              <Play className="w-3.5 h-3.5 fill-current text-ink" />
                             ) : (
                               `#${evt.eventOrder}`
                             )}
@@ -1245,43 +1641,43 @@ export const MatchReplayPage: React.FC = () => {
 
                           {/* Thông tin cú đánh */}
                           <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
-                                {evt.stroke}
+                                {strokeLabel(evt.stroke)}
                               </span>
-                              <span className="text-[11px] text-white/50">{evt.strokeSide}</span>
+                              {strokeSideLabel(evt.strokeSide) && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded tabular-nums font-medium border ${
+                                  normalizeStrokeSide(evt.strokeSide) === 'FOREHAND'
+                                    ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                                    : 'bg-purple-500/10 text-purple-700 border-purple-500/20'
+                                }`}>
+                                  {strokeSideLabel(evt.strokeSide)}
+                                </span>
+                              )}
                             </div>
-                            <div className="text-[11px] text-white/70 flex items-center gap-1.5">
-                              <span className={`w-1.5 h-1.5 rounded-full ${evt.playerSide === 'UPPER' ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                              <span className="font-semibold">{evt.playerSide === 'UPPER' ? match.playerAName : match.playerBName}</span>
-                              <span className="text-white/30">•</span>
-                              <span className="font-mono text-white/50">{evt.timeSeconds.toFixed(1)}s</span>
+                            <div className="text-[11px] text-ink/70 flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${evt.playerSide === 'UPPER' ? 'bg-pa' : 'bg-amber-400'}`} />
+                              <span className="font-semibold">
+                                {(evt.playerSide === 'UPPER') === (match.upperPlayer === 'PLAYER_A') ? match.playerAName : match.playerBName}
+                              </span>
+                              <span className="text-ink/40">•</span>
+                              <span className="tabular-nums text-ink/55">{evt.timeSeconds.toFixed(1)}s</span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Vận tốc & Tương tác */}
+                        {/* Chỉ báo khi AI không chắc chắn; không hiện phần trăm hay vận tốc pixel */}
                         <div className="text-right flex items-center gap-2">
-                          <div className="hidden sm:block">
-                            <div className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end">
-                              <Zap className="w-3 h-3 text-amber-400" />
-                              <span>{evt.averageShuttleSpeedImagePerSecond ? `${evt.averageShuttleSpeedImagePerSecond.toFixed(0)}` : 'N/A'}</span>
-                            </div>
-                            {isLowConf ? (
-                              <div 
-                                title="Độ tin cậy AI thấp (< 60%)" 
-                                className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5 justify-end bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/40"
-                              >
-                                <AlertTriangle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
-                                <span>{(evt.confidence * 100).toFixed(0)}%</span>
-                              </div>
-                            ) : (
-                              <div className="text-[10px] text-emerald-400 font-mono">
-                                {(evt.confidence * 100).toFixed(0)}%
-                              </div>
-                            )}
-                          </div>
-                          <ChevronRight className={`w-4 h-4 transition-transform ${isActive ? 'text-brand translate-x-0.5' : 'text-white/30'}`} />
+                          {isLowConf && (
+                            <span
+                              title="AI không chắc chắn về cú này"
+                              className="text-[10px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30"
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
+                              cần xem lại
+                            </span>
+                          )}
+                          <ChevronRight className={`w-4 h-4 transition-transform ${isActive ? 'text-pitch translate-x-0.5' : 'text-ink/40'}`} />
                         </div>
                       </div>
                     );
@@ -1300,154 +1696,246 @@ export const MatchReplayPage: React.FC = () => {
                 playerBName={match.playerBName}
                 upperPlayer={match.upperPlayer}
                 onPlayRally={handlePlayRally}
+                tacticRallies={statistics?.structuredTactics?.rallies}
+                onPlayPlaylist={handlePlayPlaylist}
               />
             )}
 
-            {activeTab === 'STATISTICS' && (
-              /* VS-12: Statistics Dashboard */
+            {activeTab === 'POINTS' && (
+              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+                <PointLossInsights
+                  rallies={rallies}
+                  events={events}
+                  playerAName={match.playerAName}
+                  playerBName={match.playerBName}
+                  upperPlayer={match.upperPlayer}
+                  onPlayPlaylist={handlePlayPlaylist}
+                />
+              </div>
+            )}
+
+            {activeTab === 'TACTICS' && (
+              /* Chiến thuật cạnh video: bấm là tua, không phải cuộn trang */
               <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
                 {statistics ? (
-                  <StatisticsDashboard 
-                    stats={statistics} 
+                  <TacticsBreakdown
+                    tactics={statistics.structuredTactics}
                     playerAName={match.playerAName}
                     playerBName={match.playerBName}
+                    upperPlayer={match.upperPlayer}
                     compact={true}
+                    onSeekTime={handleSeekToTime}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-64 text-center text-white/50 space-y-3">
-                    <BarChart3 className="w-10 h-10 text-white/20 animate-pulse" />
+                  <div className="flex flex-col items-center justify-center h-64 text-center text-ink/55 space-y-3">
+                    <BarChart3 className="w-10 h-10 text-ink/30" />
                     <p className="text-xs">Đang tải dữ liệu thống kê chuyên sâu...</p>
                   </div>
                 )}
               </div>
             )}
 
+            {activeTab === 'COURT' && (
+              /* Cú đang phát: ai đứng đâu, cầu rơi vào ô nào */
+              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-3">
+                <Court2DViewer
+                  currentEvent={selectedEvent}
+                  playerAName={match.playerAName}
+                  playerBName={match.playerBName}
+                  upperPlayer={match.upperPlayer}
+                  compact
+                />
+                <StrokeDetailCard
+                  event={selectedEvent}
+                  playerAName={match.playerAName}
+                  playerBName={match.playerBName}
+                  upperPlayer={match.upperPlayer}
+                  onSeek={(t) => {
+                    if (videoRef.current) {
+                      videoRef.current.currentTime = t;
+                      setCurrentTime(t);
+                      syncEventWithTime(t);
+                      if (!isPlaying) {
+                        videoRef.current.play();
+                        setIsPlaying(true);
+                      }
+                    }
+                  }}
+                  onPlaySlow={handlePlaySlow}
+                />
+              </div>
+            )}
+
             {/* Footer tóm tắt */}
-            <div className="border-t border-white/10 pt-3 mt-3 flex items-center justify-between text-[11px] text-white/50">
+            <div className="border-t border-ink/10 pt-3 mt-3 flex items-center justify-between text-[11px] text-ink/55">
               <span className="flex items-center gap-1">
-                <Eye className="w-3.5 h-3.5 text-brand" />
+                <Eye className="w-3.5 h-3.5 text-pitch" />
                 <span>
                   {activeTab === 'STROKES'
                     ? 'Nhấp chọn để tua trực tiếp cú đánh'
                     : activeTab === 'RALLIES'
                     ? 'Nhấp chọn để phát trọn vẹn pha cầu'
-                    : 'Số liệu tổng hợp & phân tích CoachAI+ 2.0'}
+                    : activeTab === 'COURT'
+                    ? 'Sơ đồ đi theo cú đang phát trên video'
+                    : 'Nhấp ▶ để xem lại đoạn chiến thuật'}
                 </span>
               </span>
-              <Target className="w-3.5 h-3.5 text-emerald-400" />
+              <Target className="w-3.5 h-3.5 text-emerald-700" />
             </div>
           </div>
         </div>
 
       </div>
 
-      {/* KHU VỰC PHÂN TÍCH & THỐNG KÊ CHUYÊN SÂU TOÀN MÀN HÌNH (FULL-WIDTH ANALYTICS DASHBOARD) */}
-      {statistics && (
-        <section className="rounded-3xl bg-[#0b1220]/85 border border-white/10 p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
-            <div>
-              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2.5">
-                <BarChart3 className="w-5 h-5 text-cyan-400" />
-                <span>Báo Cáo Thống Kê & Biểu Đồ Phân Tích Chuyên Sâu Trận Đấu</span>
-              </h2>
-              <p className="text-xs text-white/50 mt-0.5">
-                Tổng hợp biểu đồ tròn, biểu đồ cột tần suất, biểu đồ radar 5 trục chiến thuật và bảng định lượng cú đánh giữa {match.playerAName} và {match.playerBName}
-              </p>
-            </div>
-            <span className="px-3 py-1 rounded-full bg-brand/15 border border-brand/30 text-sky-300 text-xs font-bold self-start sm:self-auto">
-              CoachAI+ 2.0 Analytics
-            </span>
+      {/* PHÂN TÍCH CẢ TRẬN: một khối, ba tab; bấm "Xem" ở đâu cũng tua video phía trên */}
+      <section className="rounded-xl bg-sheet border border-ink/10 p-4 sm:p-6 space-y-5" aria-labelledby="match-analysis-title">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-ink/10 pb-4">
+          <div>
+            <h2 id="match-analysis-title" className="text-lg font-semibold text-ink">Phân tích cả trận</h2>
+            <p className="text-xs text-ink/55 mt-0.5">
+              {match.playerAName} và {match.playerBName}: tỉ số, vị trí trên sân và số liệu cú đánh
+            </p>
           </div>
+          <div className="grid grid-cols-3 gap-1 p-1 bg-ink/[0.04] rounded-lg border border-ink/10 text-xs sm:w-[420px]" role="tablist">
+            {([
+              ['FLOW', 'Tỉ số'],
+              ['HEATMAP', 'Bản đồ nhiệt'],
+              ['STATS', 'Thống kê'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={analysisTab === key}
+                onClick={() => setAnalysisTab(key)}
+                className={`py-2 px-2 rounded-md font-semibold truncate transition-colors ${
+                  analysisTab === key ? 'bg-pitch text-white' : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          <StatisticsDashboard
-            stats={statistics}
-            playerAName={match.playerAName}
-            playerBName={match.playerBName}
-            compact={false}
-          />
-        </section>
-      )}
+        <div className={analysisTab === 'HEATMAP' ? 'max-w-4xl' : ''}>
+          {analysisTab === 'FLOW' && (
+            <ScoreFlow
+              rallies={rallies}
+              playerAName={match.playerAName}
+              playerBName={match.playerBName}
+              upperPlayer={match.upperPlayer}
+              currentTimeSeconds={currentTime}
+              onPlayRally={handlePlayRally}
+              onPlayPlaylist={handlePlayPlaylist}
+            />
+          )}
+          {analysisTab === 'HEATMAP' && (
+            <CourtHeatmap
+              events={events}
+              playerAName={match.playerAName}
+              playerBName={match.playerBName}
+              upperPlayer={match.upperPlayer}
+              onPlayPlaylist={handlePlayPlaylist}
+            />
+          )}
+          {analysisTab === 'STATS' && (
+            statistics ? (
+              <StatisticsDashboard
+                stats={statistics}
+                playerAName={match.playerAName}
+                playerBName={match.playerBName}
+                upperPlayer={match.upperPlayer}
+                compact={false}
+                onSeekTime={handleSeekToTime}
+              />
+            ) : (
+              <p className="text-xs text-ink/55 py-8 text-center">Số liệu sẽ có khi AI phân tích xong.</p>
+            )
+          )}
+        </div>
+      </section>
 
       {/* MODAL HƯỚNG DẪN PHÍM TẮT ĐIỀU KHIỂN (KEYBOARD SHORTCUTS GUIDE) */}
       {showShortcutsModal && (
         <div 
           onClick={() => setShowShortcutsModal(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/[0.04] animate-fade-in"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-[#0f172a] border border-white/20 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4"
+            className="bg-sheet border border-ink/15 rounded-xl p-6 max-w-lg w-full space-y-4"
           >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2.5 text-white">
-                <div className="w-9 h-9 rounded-xl bg-brand/20 border border-brand/40 flex items-center justify-center text-brand">
+            <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+              <div className="flex items-center gap-2.5 text-ink">
+                <div className="w-9 h-9 rounded-xl bg-pitch/20 border border-pitch/40 flex items-center justify-center text-pitch">
                   <Keyboard className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold">Phím Tắt Điều Khiển Video</h3>
-                  <p className="text-[11px] text-white/50">Thao tác nhanh trên bàn phím khi xem trận đấu</p>
+                  <p className="text-[11px] text-ink/55">Thao tác nhanh trên bàn phím khi xem trận đấu</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowShortcutsModal(false)}
-                className="p-1.5 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                className="p-1.5 rounded-full hover:bg-ink/[0.06] text-ink/60 hover:text-ink transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 text-xs">
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Phát / Tạm dừng</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">Space / K</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Phát / Tạm dừng</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">Space / K</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Tua lùi 5s</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">← / J</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Tua lùi 5s</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">← / J</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Tua tới 5s</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">→ / L</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Tua tới 5s</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">→ / L</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Tăng âm lượng</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">↑</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Tăng âm lượng</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">↑</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Giảm âm lượng</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">↓</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Giảm âm lượng</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">↓</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Tắt / Bật tiếng</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">M</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Tắt / Bật tiếng</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">M</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Cú đánh trước đó</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">[</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Cú đánh trước đó</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">[</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Cú đánh kế tiếp</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">]</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Cú đánh kế tiếp</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">]</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Toàn màn hình</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">F</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Toàn màn hình</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">F</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <span className="text-white/70">Đổi tốc độ phát</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">&lt; / &gt;</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between">
+                <span className="text-ink/70">Đổi tốc độ phát</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">&lt; / &gt;</kbd>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between col-span-2">
-                <span className="text-white/70">Mở bảng hướng dẫn này</span>
-                <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-brand font-bold">?</kbd>
+              <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 flex items-center justify-between col-span-2">
+                <span className="text-ink/70">Mở bảng hướng dẫn này</span>
+                <kbd className="px-2 py-0.5 rounded bg-ink/[0.06] border border-ink/15 tabular-nums text-[11px] text-pitch font-bold">?</kbd>
               </div>
             </div>
 
-            <div className="border-t border-white/10 pt-3 flex items-center justify-between text-[11px] text-white/50">
-              <span>Bấm phím <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-white">Esc</kbd> để đóng</span>
+            <div className="border-t border-ink/10 pt-3 flex items-center justify-between text-[11px] text-ink/55">
+              <span>Bấm phím <kbd className="px-1.5 py-0.5 rounded bg-ink/[0.06] tabular-nums text-ink">Esc</kbd> để đóng</span>
               <button
                 onClick={() => setShowShortcutsModal(false)}
-                className="px-4 py-1.5 rounded-xl bg-brand hover:bg-brand-hover text-white text-xs font-semibold transition-colors"
+                className="px-4 py-1.5 rounded-xl bg-pitch hover:bg-pitch-deep text-white text-xs font-semibold transition-colors"
               >
                 Đã hiểu
               </button>
@@ -1458,15 +1946,15 @@ export const MatchReplayPage: React.FC = () => {
 
       {/* Guest 5-Minute Preview Limit Modal */}
       {showGuestLimitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-gradient-to-b from-[#14233c] to-[#0d1627] border border-white/20 rounded-3xl p-6 sm:p-7 shadow-2xl text-white space-y-6 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 mx-auto flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/[0.04] p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md from-[#14233c] to-[#0d1627] border border-ink/15 rounded-xl p-6 sm:p-7 text-ink space-y-6 text-center">
+            <div className="w-16 h-16 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-700 mx-auto flex items-center justify-center">
               <Clock className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="font-heading text-xl font-bold text-white">Hết Thời Lượng Xem Thử</h3>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              <h3 className="font-heading text-xl font-bold text-ink">Hết Thời Lượng Xem Thử</h3>
+              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
                 Khách vãng lai được xem trước tối đa <strong>5 phút (300 giây)</strong> trận đấu công khai. Vui lòng đăng nhập hoặc đăng ký tài khoản để tiếp tục xem toàn bộ video và trải nghiệm telemetry phân tích không giới hạn.
               </p>
             </div>
@@ -1474,14 +1962,14 @@ export const MatchReplayPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
               <Link
                 to="/login"
-                className="w-full py-3 rounded-full bg-brand hover:bg-brand-hover text-white text-xs font-bold transition-all shadow-glow-blue flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-full bg-pitch hover:bg-pitch-deep text-white text-xs font-bold transition-all flex items-center justify-center gap-2"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Đăng nhập ngay</span>
               </Link>
               <Link
                 to="/register"
-                className="w-full py-3 rounded-full bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-colors border border-white/15 flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-full bg-ink/[0.06] hover:bg-ink/[0.08] text-ink text-xs font-semibold transition-colors border border-ink/15 flex items-center justify-center gap-2"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>Tạo tài khoản</span>
@@ -1490,7 +1978,7 @@ export const MatchReplayPage: React.FC = () => {
 
             <button
               onClick={() => setShowGuestLimitModal(false)}
-              className="text-xs text-white/40 hover:text-white transition-colors"
+              className="text-xs text-ink/50 hover:text-ink transition-colors"
             >
               Đóng thông báo
             </button>

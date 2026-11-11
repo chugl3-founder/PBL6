@@ -1,0 +1,6 @@
+tools/
+output/
+__pycache__/
+# Clips not used by the menu; demo_28s.mp4 is the source of replay match 245.
+videos/demo_55s.mp4
+videos/sample_2min.mp4

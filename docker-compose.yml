@@ -107,7 +107,7 @@ services:
   # 6. Skeleton AI Worker (Python Consumer)
   ai-worker:
     build:
-      context: ./ai-worker
+      context: ./backend/integrations/ai-worker
       dockerfile: Dockerfile
     container_name: badminton_ai_worker
     restart: unless-stopped
@@ -121,6 +121,7 @@ services:
     environment:
       AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       RABBITMQ_QUEUE: badminton.ai.queue
+      AI_CLASSIFIER_ROOT: /opt/AI_Classifier
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${POSTGRES_DB:-badminton_db}
@@ -131,6 +132,8 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       S3_BUCKET: ${S3_BUCKET_VIDEOS:-badminton-videos}
       S3_REGION: ap-southeast-1
+    volumes:
+      - ./AI_Classifier:/opt/AI_Classifier:ro
 
 volumes:
   postgres_data:

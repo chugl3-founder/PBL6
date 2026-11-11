@@ -9,6 +9,7 @@ import com.badminton.entity.Match;
 import com.badminton.entity.User;
 import com.badminton.entity.Video;
 import com.badminton.repository.AiAnalysisRepository;
+import com.badminton.repository.AnalysisQueueRepository;
 import com.badminton.repository.MatchRepository;
 import com.badminton.repository.UserRepository;
 import com.badminton.repository.VideoRepository;
@@ -35,53 +36,21 @@ public class AnalysisService {
     private final com.badminton.repository.MatchStatisticRepository matchStatisticRepository;
     private final MockAiEngineService mockAiEngineService;
     private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+    private final AnalysisQueueRepository analysisQueueRepository;
 
-    @Transactional
     public AnalysisDispatchResponse dispatchAnalysis(Long matchId, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
-
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        if (!match.getOwner().getId().equals(user.getId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
-        }
-
-        Video video = videoRepository.findByMatchId(matchId)
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_FOUND", "Trận đấu chưa có video được tải lên"));
-
-        if (!"READY".equalsIgnoreCase(video.getStatus()) && !"UPLOADED".equalsIgnoreCase(video.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_READY", "Video chưa sẵn sàng để phân tích");
-        }
-
-        // Đánh dấu toàn bộ các bản ghi phân tích cũ của trận đấu thành isCurrent = false
-        aiAnalysisRepository.demoteAllCurrentByMatchId(matchId);
-
-        // Tạo bản ghi AI Analysis mới với trạng thái QUEUED
-        AiAnalysis analysis = AiAnalysis.builder()
-                .match(match)
-                .video(video)
-                .status("QUEUED")
-                .modelName("CoachAI+")
-                .modelVersion("2.0_pbl6_coachai")
-                .isCurrent(true)
-                .build();
-
-        AiAnalysis savedAnalysis = aiAnalysisRepository.saveAndFlush(analysis);
-
-        // Cập nhật trạng thái trận đấu sang ANALYZING
-        match.setStatus("ANALYZING");
-        matchRepository.saveAndFlush(match);
+        // Commit before publishing: the broker call holds no database connection and the worker always finds the row.
+        AnalysisQueueRepository.QueuedAnalysis queued = analysisQueueRepository.createQueuedAnalysis(matchId, userEmail)
+                .orElseThrow(() -> transactionTemplate.execute(status -> dispatchRejection(matchId, userEmail)));
 
         // Gửi Analysis Job lên CloudAMQP cho external AI Worker (GPU)
         boolean sentToRabbit = false;
         try {
             java.util.Map<String, Object> job = new java.util.HashMap<>();
-            job.put("analysisId", savedAnalysis.getId());
+            job.put("analysisId", queued.analysisId());
             job.put("matchId", matchId);
-            job.put("videoStoragePath", video.getStoragePath());
+            job.put("videoStoragePath", queued.videoStoragePath());
 
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             String payload = mapper.writeValueAsString(job);
@@ -93,16 +62,35 @@ public class AnalysisService {
         }
 
         if (!sentToRabbit) {
-            mockAiEngineService.runMockAnalysis(savedAnalysis.getId());
+            mockAiEngineService.runMockAnalysis(queued.analysisId());
         }
 
         return AnalysisDispatchResponse.builder()
-                .analysisId(savedAnalysis.getId())
+                .analysisId(queued.analysisId())
                 .matchId(matchId)
                 .status("QUEUED")
                 .message("Yêu cầu phân tích đã được tiếp nhận và đưa vào hàng đợi xử lý.")
                 .queuedAt(OffsetDateTime.now())
                 .build();
+    }
+
+    /** Explains why createQueuedAnalysis created nothing. Only rejected requests pay for these extra queries. */
+    private ApiException dispatchRejection(Long matchId, String userEmail) {
+        Optional<User> user = userRepository.findByEmail(userEmail);
+        if (user.isEmpty()) {
+            return new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại");
+        }
+        Optional<Match> match = matchRepository.findById(matchId).filter(m -> m.getDeletedAt() == null);
+        if (match.isEmpty()) {
+            return new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu");
+        }
+        if (!match.get().getOwner().getId().equals(user.get().getId())) {
+            return new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
+        }
+        if (!videoRepository.existsByMatchId(matchId)) {
+            return new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_FOUND", "Trận đấu chưa có video được tải lên");
+        }
+        return new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_READY", "Video chưa sẵn sàng để phân tích");
     }
 
     @Transactional(readOnly = true)
@@ -127,6 +115,7 @@ public class AnalysisService {
         }
 
         AiAnalysis analysis = analysisOpt.get();
+        java.util.List<java.util.List<Double>> analyzedRanges = parseAnalyzedRanges(analysis.getAnalyzedRanges());
         int progress = mockAiEngineService.getProgress(analysis.getId());
         String currentStage = mockAiEngineService.getCurrentStage(analysis.getId());
 
@@ -136,8 +125,22 @@ public class AnalysisService {
         } else if ("FAILED".equalsIgnoreCase(analysis.getStatus())) {
             currentStage = "failed";
         } else if ("PROCESSING".equalsIgnoreCase(analysis.getStatus()) && progress == 0) {
-            progress = 50;
-            currentStage = "Đang xử lý phân tích AI qua GPU Worker";
+            if (analysis.getAnalyzedUntilSeconds() != null && analysis.getVideoDurationSeconds() != null
+                    && analysis.getVideoDurationSeconds().signum() > 0) {
+                // The GPU worker streams results; progress is the share of the video they cover
+                // (several ranges once the viewer has made the worker jump ahead).
+                double duration = analysis.getVideoDurationSeconds().doubleValue();
+                double covered = analyzedRanges != null
+                        ? analyzedRanges.stream().mapToDouble(r -> Math.max(0, r.get(1) - r.get(0))).sum()
+                        : analysis.getAnalyzedUntilSeconds().doubleValue();
+                progress = (int) Math.min(99, Math.floor(covered * 100 / duration));
+                currentStage = "streaming: Đang phân tích, kết quả hiện dần trên Replay";
+            } else {
+                // No streamed progress yet (video download, model warm-up): start from 0 so the
+                // bar never jumps back once the first real progress arrives.
+                progress = 0;
+                currentStage = "Đang khởi động GPU Worker (tải video, nạp model)";
+            }
         }
 
         return AnalysisStatusResponse.builder()
@@ -151,7 +154,50 @@ public class AnalysisService {
                 .startedAt(analysis.getStartedAt())
                 .completedAt(analysis.getCompletedAt())
                 .errorMessage(analysis.getErrorMessage())
+                .analyzedUntilSeconds(analysis.getAnalyzedUntilSeconds() != null ? analysis.getAnalyzedUntilSeconds().doubleValue() : null)
+                .videoDurationSeconds(analysis.getVideoDurationSeconds() != null ? analysis.getVideoDurationSeconds().doubleValue() : null)
+                .analyzedRanges(analyzedRanges)
                 .build();
+    }
+
+    private java.util.List<java.util.List<Double>> parseAnalyzedRanges(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                    json, new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.List<Double>>>() {});
+        } catch (Exception e) {
+            log.warn("Không đọc được analyzed_ranges: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Ghi lại vị trí người xem tua tới khi phân tích đang chạy; GPU worker đọc giá trị này và quét đoạn đó trước.
+     * Phiên đã kết thúc thì bỏ qua (không lỗi), vì người xem có thể tua ngay lúc phân tích vừa xong.
+     */
+    @Transactional
+    public AnalysisStatusResponse focusAnalysis(Long matchId, Double seconds, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
+
+        Match match = matchRepository.findById(matchId)
+                .filter(m -> m.getDeletedAt() == null)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
+
+        if (!match.getOwner().getId().equals(user.getId()) && !"ROLE_ADMIN".equals(user.getRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
+        }
+
+        aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
+                .or(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId))
+                .ifPresent(a -> aiAnalysisRepository.updateFocusIfRunning(
+                        a.getId(),
+                        java.math.BigDecimal.valueOf(seconds).setScale(2, java.math.RoundingMode.HALF_UP),
+                        OffsetDateTime.now()));
+
+        return getAnalysisStatus(matchId, userEmail);
     }
 
     @Transactional(readOnly = true)
@@ -306,7 +352,8 @@ public class AnalysisService {
             int playerBStrokes = totalStrokes - playerAStrokes;
             int forehands = (int) events.stream().filter(e -> "FOREHAND".equalsIgnoreCase(e.getStrokeSide())).count();
             int backhands = (int) events.stream().filter(e -> "BACKHAND".equalsIgnoreCase(e.getStrokeSide())).count();
-            int aroundheads = totalStrokes - forehands - backhands;
+            int aroundheads = (int) events.stream().filter(e -> "AROUNDHEAD".equalsIgnoreCase(e.getStrokeSide()) || "AROUND_HEAD".equalsIgnoreCase(e.getStrokeSide())).count();
+            int unknownSides = totalStrokes - forehands - backhands - aroundheads;
             double avgConf = events.stream()
                     .filter(e -> e.getConfidence() != null)
                     .mapToDouble(e -> e.getConfidence().doubleValue())
@@ -324,10 +371,9 @@ public class AnalysisService {
                     .forehandCount(forehands)
                     .backhandCount(backhands)
                     .aroundheadCount(aroundheads)
-                    .unknownSideCount(0)
+                    .unknownSideCount(unknownSides)
                     .avgConfidence(java.math.BigDecimal.valueOf(avgConf).setScale(3, java.math.RoundingMode.HALF_UP))
                     .build();
-            stats = matchStatisticRepository.save(stats);
         }
 
         // 2. Tính phân bố chi tiết cú đánh (strokeDistribution)
@@ -344,6 +390,7 @@ public class AnalysisService {
         Object radarChart = parseJsonObject(mapper, analysis.getRadarChart());
         Object coachInsights = parseJsonObject(mapper, analysis.getCoachInsights());
         Object tacticalPatterns = parseJsonObject(mapper, analysis.getTacticalPatterns());
+        Object structuredTactics = parseJsonObject(mapper, analysis.getStructuredTactics());
 
         return com.badminton.dto.analysis.MatchStatisticsResponse.builder()
                 .id(stats.getId())
@@ -365,6 +412,7 @@ public class AnalysisService {
                 .radarChart(radarChart)
                 .coachInsights(coachInsights)
                 .tacticalPatterns(tacticalPatterns)
+                .structuredTactics(structuredTactics)
                 .build();
     }
 

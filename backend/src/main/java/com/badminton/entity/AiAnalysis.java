@@ -133,6 +133,25 @@ public class AiAnalysis {
     @Column(name = "ingested_at")
     private OffsetDateTime ingestedAt;
 
+    /** Streaming analysis: provisional results are complete up to this second of the video. */
+    @Column(name = "analyzed_until_seconds", precision = 10, scale = 2)
+    private java.math.BigDecimal analyzedUntilSeconds;
+
+    @Column(name = "video_duration_seconds", precision = 10, scale = 2)
+    private java.math.BigDecimal videoDurationSeconds;
+
+    /** [[start, end], ...] seconds whose provisional hits are final (written by the worker). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "analyzed_ranges", columnDefinition = "jsonb")
+    private String analyzedRanges;
+
+    /** Latest seek of the viewer into unanalysed video; the worker scans there first. */
+    @Column(name = "focus_seconds", precision = 10, scale = 2)
+    private java.math.BigDecimal focusSeconds;
+
+    @Column(name = "focus_requested_at")
+    private OffsetDateTime focusRequestedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

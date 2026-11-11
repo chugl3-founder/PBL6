@@ -27,6 +27,8 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
 
     Optional<Match> findByIdAndStatusAndDeletedAtIsNull(Long id, String status);
 
+    boolean existsByIdAndStatusAndDeletedAtIsNull(Long id, String status);
+
     @org.springframework.data.jpa.repository.Query("SELECT m FROM Match m WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' " +
             "AND (LOWER(m.title) LIKE LOWER(CONCAT('%', :search, '%')) " +
             "OR LOWER(m.playerAName) LIKE LOWER(CONCAT('%', :search, '%')) " +
