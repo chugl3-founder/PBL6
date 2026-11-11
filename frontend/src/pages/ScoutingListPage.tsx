@@ -47,11 +47,14 @@ export const ScoutingListPage: React.FC = () => {
         </p>
       </header>
 
-      <form onSubmit={submit} className="relative overflow-hidden rounded-2xl bg-ink text-white p-6 sm:p-8">
-        <div className="absolute -right-16 -bottom-20 w-72 h-72 rounded-full bg-pitch/25 blur-3xl pointer-events-none" aria-hidden />
-        <div className="relative grid lg:grid-cols-[1fr_auto_1fr] gap-4 lg:gap-6 items-end">
+      <form onSubmit={submit} className="relative rounded-2xl bg-ink text-white p-6 sm:p-8">
+        {/* The glow is clipped in its own layer so the player dropdowns can spill past the card. */}
+        <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none" aria-hidden>
+          <div className="absolute -right-16 -bottom-20 w-72 h-72 rounded-full bg-pitch/25 blur-3xl" />
+        </div>
+        <div className="relative z-10 grid lg:grid-cols-[1fr_auto_1fr] gap-4 lg:gap-6 items-end">
           <div className="space-y-2">
-            <label htmlFor="scout-opponent" className="text-[11px] uppercase tracking-[0.14em] font-semibold text-white/60">
+            <label htmlFor="scout-opponent" className="text-sm font-semibold text-white/75">
               Đối thủ <span className="text-rose-300">*</span>
             </label>
             <div className="text-ink">
@@ -60,8 +63,8 @@ export const ScoutingListPage: React.FC = () => {
           </div>
           <span className="hidden lg:flex h-12 items-center font-score text-2xl font-bold text-white/40">VS</span>
           <div className="space-y-2">
-            <label htmlFor="scout-own" className="text-[11px] uppercase tracking-[0.14em] font-semibold text-white/60">
-              Vận động viên của bạn <span className="normal-case tracking-normal font-normal text-white/40">(không bắt buộc, để so sánh)</span>
+            <label htmlFor="scout-own" className="text-sm font-semibold text-white/75">
+              Vận động viên của bạn <span className="font-normal text-white/45">(không bắt buộc, để so sánh)</span>
             </label>
             <div className="text-ink">
               <PlayerPicker id="scout-own" value={ownPlayer} onChange={setOwnPlayer} exclude={opponent} placeholder="Tìm vận động viên của bạn…" />
