@@ -135,6 +135,34 @@ services:
     volumes:
       - ./AI_Classifier:/opt/AI_Classifier:ro
 
+  # 7. Media Worker: renders highlight reels with ffmpeg (CPU only)
+  media-worker:
+    build:
+      context: ./backend/integrations/media-worker
+      dockerfile: Dockerfile
+    container_name: badminton_media_worker
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      MEDIA_QUEUE: badminton.media.queue
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-badminton_db}
+      DB_USER: ${POSTGRES_USER:-badminton_user}
+      DB_PASS: ${POSTGRES_PASSWORD:-badminton_password}
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET_VIDEOS:-badminton-videos}
+      S3_REGION: ap-southeast-1
+
 volumes:
   postgres_data:
   minio_data:

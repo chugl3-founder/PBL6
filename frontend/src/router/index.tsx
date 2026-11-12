@@ -21,6 +21,7 @@ import { PlayersPage } from '../pages/PlayersPage';
 import { PlayerProfilePage } from '../pages/PlayerProfilePage';
 import { ScoutingListPage } from '../pages/ScoutingListPage';
 import { ScoutingReportPage } from '../pages/ScoutingReportPage';
+import { HighlightsPage } from '../pages/HighlightsPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -62,6 +63,14 @@ export const AppRouter: React.FC = () => {
           element={
             <AuthGuard>
               <ScoutingReportPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="highlights"
+          element={
+            <AuthGuard>
+              <HighlightsPage />
             </AuthGuard>
           }
         />

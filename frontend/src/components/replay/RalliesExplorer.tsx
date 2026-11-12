@@ -20,9 +20,29 @@ export interface RallyData {
   scoreUpper: number;
   scoreLower: number;
   scoreText: string;
+  /** Per player within the game, split by the backend (players change ends between games). */
+  gameNumber?: number;
+  scoreA?: number;
+  scoreB?: number;
+  winnerPlayer?: 'PLAYER_A' | 'PLAYER_B' | null;
   strokeSequence: string[];
   isComplete: boolean;
 }
+
+/**
+ * The rally winner as the side the player started the match on (game 1), so UPPER/LOWER keep naming the same
+ * player in every game. The AI's winnerSide is the court half, and players change ends between games.
+ */
+export const winnerByStartingSide = (rally: RallyData, upperPlayer: string): string => {
+  if (!rally.winnerPlayer) return rally.winnerSide;
+  return (rally.winnerPlayer === 'PLAYER_A') === (upperPlayer === 'PLAYER_A') ? 'UPPER' : 'LOWER';
+};
+
+/** "21-15" in player A-B order when the backend split the games, else the stored per-side text. */
+export const rallyScoreText = (rally: RallyData) =>
+  rally.scoreA != null && rally.scoreB != null
+    ? `${rally.scoreA}-${rally.scoreB}`
+    : rally.scoreText || `${rally.scoreUpper}-${rally.scoreLower}`;
 
 interface RalliesExplorerProps {
   rallies: RallyData[];
@@ -106,12 +126,12 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
     () =>
       rallies.filter(
         r =>
-          (winner === 'ALL' || r.winnerSide === winner) &&
+          (winner === 'ALL' || winnerByStartingSide(r, upperPlayer) === winner) &&
           LENGTHS[length].test(r.totalStrokes) &&
           (lastStroke === 'ALL' || lastStrokeOf(r) === lastStroke) &&
           (tactic === 'ALL' || tacticsByRally.get(r.id)?.has(tactic))
       ),
-    [rallies, winner, length, lastStroke, tactic, tacticsByRally]
+    [rallies, winner, length, lastStroke, tactic, tacticsByRally, upperPlayer]
   );
   const resetFilters = () => {
     setWinner('ALL');
@@ -151,6 +171,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
   // Scores read from the broadcast scoreboard (OCR) are the real match score;
   // otherwise they are counted from 0-0 at the start of the uploaded video.
   const ocrAnchored = rallies.some((r) => r.winReason?.toLowerCase().startsWith('ocr_confirmed'));
+  const multiGame = rallies.some((r) => (r.gameNumber ?? 1) > 1);
   const scoreTooltip = ocrAnchored
     ? 'Tỉ số đọc từ bảng điểm của video (OCR)'
     : 'Không đọc được bảng điểm: AI tự đếm số pha thắng, tính từ 0-0 ở đầu video, không phải tỉ số thật của trận';
@@ -228,7 +249,8 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
         {shown.map((rally) => {
           const isCurrentTimeInRally = activeRally?.id === rally.id;
           const isActive = isCurrentTimeInRally || selectedRallyId === rally.id;
-          const winnerName = getPlayerNameBySide(rally.winnerSide);
+          const winnerSide = winnerByStartingSide(rally, upperPlayer);
+          const winnerName = getPlayerNameBySide(winnerSide);
           const lastStroke = rally.strokeSequence?.[rally.strokeSequence.length - 1];
 
           return (
@@ -243,7 +265,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                 }`}
               >
                 <span
-                  className={`w-1 self-stretch rounded-full ${rally.winnerSide === 'UPPER' ? 'bg-pa' : 'bg-pb'}`}
+                  className={`w-1 self-stretch rounded-full ${winnerSide === 'UPPER' ? 'bg-pa' : 'bg-pb'}`}
                   aria-hidden
                 />
                 <span className="flex-1 min-w-0">
@@ -260,7 +282,10 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                   </span>
                 </span>
                 <span className="font-score text-lg font-semibold tabular-nums text-ink shrink-0" title={scoreTooltip}>
-                  {rally.scoreText || `${rally.scoreUpper}-${rally.scoreLower}`}
+                  {multiGame && rally.gameNumber != null && (
+                    <span className="mr-1 text-xs font-medium text-ink/50">V{rally.gameNumber}</span>
+                  )}
+                  {rallyScoreText(rally)}
                 </span>
                 <Play
                   className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-pitch fill-pitch' : 'text-ink/25 group-hover:text-pitch'}`}

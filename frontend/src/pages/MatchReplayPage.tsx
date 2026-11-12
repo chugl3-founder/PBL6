@@ -20,6 +20,8 @@ import { PointLossInsights, PlaylistClip } from '../components/replay/PointLossI
 import { ScoreFlow } from '../components/replay/ScoreFlow';
 import { CourtHeatmap } from '../components/court/CourtHeatmap';
 import { MatchHighlights } from '../components/replay/MatchHighlights';
+import { HighlightReelDialog } from '../components/replay/HighlightReelDialog';
+import { Film } from 'lucide-react';
 import { strokeLabel, LOW_CONFIDENCE } from '../utils/strokeLabels';
 import { normalizeStrokeSide, strokeSideLabel } from '../utils/strokeSide';
 import { playerPath } from '../api/players';
@@ -95,6 +97,9 @@ export const MatchReplayPage: React.FC = () => {
   // Chi tiết kỹ thuật (sân 2D, ô 3×3, thống kê) thu gọn mặc định: HLV xem câu trả lời trước
   // Danh sách phát: xem liền các pha cầu của một nhóm "Vì sao mất điểm"
   const [playlist, setPlaylist] = useState<{ title: string; clips: PlaylistClip[]; index: number } | null>(null);
+  const [highlightOpen, setHighlightOpen] = useState(false);
+  const highlightOpenRef = useRef(false);
+  highlightOpenRef.current = highlightOpen;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Phân tích dạng streaming: GPU worker ghi kết quả tạm theo từng rally trong lúc chạy
@@ -881,10 +886,11 @@ export const MatchReplayPage: React.FC = () => {
   // BỘ LẮNG NGHE PHÍM TẮT ĐIỀU KHIỂN (KEYBOARD SHORTCUTS)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Bỏ qua nếu người dùng đang nhập trong input, textarea
+      // Bỏ qua nếu người dùng đang nhập trong input, textarea, hoặc đang ở hộp thoại highlight (có phím riêng)
       const target = e.target as HTMLElement;
       if (
-        target.tagName === 'INPUT' || 
+        highlightOpenRef.current ||
+        target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' || 
         target.isContentEditable
       ) {
@@ -1028,9 +1034,21 @@ export const MatchReplayPage: React.FC = () => {
     );
   }
 
-  // Rally scores are (upper, lower) after each rally; show them in Player A / B order.
+  // Rally scores after each rally, in Player A / B order. The backend splits games and follows the players
+  // across ends (scoreA/scoreB); older responses only have the AI's per-side count (upper, lower).
   const toPlayerOrder = (upper: number, lower: number) =>
     match.upperPlayer === 'PLAYER_A' ? { playerA: upper, playerB: lower } : { playerA: lower, playerB: upper };
+  const scoreAfter = (r: RallyData) =>
+    r.scoreA != null && r.scoreB != null ? { playerA: r.scoreA, playerB: r.scoreB } : toPlayerOrder(r.scoreUpper, r.scoreLower);
+  const scoreBefore = (r: RallyData) => {
+    const after = scoreAfter(r);
+    if (!r.isComplete) return after;
+    const aWon = r.winnerPlayer ? r.winnerPlayer === 'PLAYER_A' : (r.winnerSide === 'UPPER') === (match.upperPlayer === 'PLAYER_A');
+    const decided = r.winnerPlayer !== null && (r.winnerSide === 'UPPER' || r.winnerSide === 'LOWER');
+    return decided
+      ? { playerA: Math.max(0, after.playerA - (aWon ? 1 : 0)), playerB: Math.max(0, after.playerB - (aWon ? 0 : 1)) }
+      : after;
+  };
   const scoredRallies = rallies.filter((r) => r.scoreText);
   const firstRally = scoredRallies[0];
   const lastRally = scoredRallies[scoredRallies.length - 1];
@@ -1041,15 +1059,14 @@ export const MatchReplayPage: React.FC = () => {
   const finishedRally = [...scoredRallies]
     .reverse()
     .find((r) => r.endTime + SCORE_UPDATE_DELAY_SECONDS <= currentTime);
-  const liveScore = finishedRally
-    ? toPlayerOrder(finishedRally.scoreUpper, finishedRally.scoreLower)
-    : firstRally
-    ? toPlayerOrder(
-        Math.max(0, firstRally.scoreUpper - (firstRally.isComplete && firstRally.winnerSide === 'UPPER' ? 1 : 0)),
-        Math.max(0, firstRally.scoreLower - (firstRally.isComplete && firstRally.winnerSide === 'LOWER' ? 1 : 0))
-      )
-    : null;
-  const finalScore = lastRally ? toPlayerOrder(lastRally.scoreUpper, lastRally.scoreLower) : null;
+  const liveScore = finishedRally ? scoreAfter(finishedRally) : firstRally ? scoreBefore(firstRally) : null;
+  const liveGame = (finishedRally ?? firstRally)?.gameNumber;
+  const finalScore = lastRally ? scoreAfter(lastRally) : null;
+  // Result of each game seen in the video: the score after its last rally.
+  const gameResults = [...new Set(scoredRallies.map(r => r.gameNumber).filter((g): g is number => g != null))].map(game => {
+    const inGame = scoredRallies.filter(r => r.gameNumber === game);
+    return { game, ...scoreAfter(inGame[inGame.length - 1]) };
+  });
   const scoreFromScoreboard = rallies.some((r) => r.winReason?.toLowerCase().startsWith('ocr_confirmed'));
 
   return (
@@ -1101,12 +1118,41 @@ export const MatchReplayPage: React.FC = () => {
           {liveScore && finalScore && (
             <p className="text-xs text-ink/70 leading-relaxed">
               {scoreFromScoreboard ? 'Tỉ số ở thời điểm đang xem' : 'Điểm ước tính ở thời điểm đang xem'}
+              {gameResults.length > 1 && liveGame != null && `, ván ${liveGame}`}
               <br />
-              Cuối video {finalScore.playerA}–{finalScore.playerB}, {scoreFromScoreboard ? 'đọc từ bảng điểm' : 'AI ước tính'}
+              {gameResults.length > 1
+                ? <>Các ván: {gameResults.map(g => `${g.playerA}–${g.playerB}`).join(', ')}, {scoreFromScoreboard ? 'đọc từ bảng điểm' : 'AI ước tính'}</>
+                : <>Cuối video {finalScore.playerA}–{finalScore.playerB}, {scoreFromScoreboard ? 'đọc từ bảng điểm' : 'AI ước tính'}</>}
             </p>
+          )}
+          {!isPublic && !isAnalysisLive && rallies.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                // The dialog has its own player; stop this one so the two do not play over each other.
+                if (isPlaying) togglePlay();
+                setHighlightOpen(true);
+              }}
+              className="ml-auto inline-flex items-center gap-2 px-4 h-9 rounded-md text-sm font-medium bg-pitch hover:bg-pitch-deep text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pitch/50"
+            >
+              <Film className="w-4 h-4" />
+              Tạo video highlight
+            </button>
           )}
         </div>
       </header>
+
+      {!isPublic && id && match && (
+        <HighlightReelDialog
+          matchId={id}
+          open={highlightOpen}
+          onClose={() => setHighlightOpen(false)}
+          nameA={match.playerAName}
+          nameB={match.playerBName}
+          videoUrl={isYouTube ? undefined : video?.videoUrl}
+          youtubeVideoId={isYouTube ? video?.youtubeVideoId : undefined}
+        />
+      )}
 
       {/* Tầng 1: câu trả lời trước — các nhận định chính, bấm là xem đúng các pha chứng minh */}
       {match && (

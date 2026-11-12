@@ -281,9 +281,16 @@ public class AnalysisService {
         java.util.List<com.badminton.entity.Rally> rallies = rallyRepository.findByAnalysisIdOrderByRallyNumberAsc(analysis.getId());
 
         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        boolean upperIsPlayerA = !"PLAYER_B".equalsIgnoreCase(match.getUpperPlayer());
+        java.util.Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies.stream()
+                .map(r -> new HighlightSelector.RallyFacts(r.getId(), r.getRallyNumber(), 0, 0, 0, r.getWinnerSide(),
+                        r.getScoreUpper() != null ? r.getScoreUpper() : 0,
+                        r.getScoreLower() != null ? r.getScoreLower() : 0, null, null, true))
+                .toList(), upperIsPlayerA);
 
         return rallies.stream().map(r -> {
             java.util.List<String> strokeSeq = parseJsonList(mapper, r.getStrokeSequence(), String.class);
+            HighlightSelector.GameContext game = games.get(r.getId());
 
             return com.badminton.dto.analysis.RallyResponse.builder()
                     .id(r.getId())
@@ -301,6 +308,11 @@ public class AnalysisService {
                     .scoreUpper(r.getScoreUpper())
                     .scoreLower(r.getScoreLower())
                     .scoreText(r.getScoreText())
+                    .gameNumber(game.game())
+                    .scoreA(game.aAfter())
+                    .scoreB(game.bAfter())
+                    .winnerPlayer(game.aWon() ? "PLAYER_A" : game.bWon() ? "PLAYER_B" : null)
+                    .upperPlayer(game.aOnUpper() ? "PLAYER_A" : "PLAYER_B")
                     .strokeSequence(strokeSeq)
                     .isComplete(r.getIsComplete())
                     .partialStart(r.getPartialStart())

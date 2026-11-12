@@ -18,6 +18,8 @@ interface Point {
   lower: number;
   /** Score before this rally, in the same game. */
   before: { upper: number; lower: number };
+  /** Who won the point. UPPER/LOWER here name the player who started on that half, as the chart lines do. */
+  side: Side;
 }
 
 interface Streak {
@@ -71,27 +73,40 @@ export const ScoreFlow: React.FC<ScoreFlowProps> = ({
     const out: Point[] = [];
     let game = 1;
     let prevTotal = -1;
+    const firstIsA = upperPlayer === 'PLAYER_A';
     decided.forEach((rally, index) => {
-      const upper = rally.scoreUpper ?? 0;
-      const lower = rally.scoreLower ?? 0;
-      // The score drops when a new game starts.
-      if (index > 0 && upper + lower < prevTotal) game += 1;
-      prevTotal = upper + lower;
+      let upper: number;
+      let lower: number;
+      let side: Side;
+      if (rally.gameNumber != null && rally.scoreA != null && rally.scoreB != null) {
+        // Per player and per game from the backend: players change ends, so a court half is not a player.
+        upper = firstIsA ? rally.scoreA : rally.scoreB;
+        lower = firstIsA ? rally.scoreB : rally.scoreA;
+        game = rally.gameNumber;
+        side = (rally.winnerPlayer === 'PLAYER_A') === firstIsA ? 'UPPER' : 'LOWER';
+      } else {
+        upper = rally.scoreUpper ?? 0;
+        lower = rally.scoreLower ?? 0;
+        // The score drops when a new game starts.
+        if (index > 0 && upper + lower < prevTotal) game += 1;
+        prevTotal = upper + lower;
+        side = rally.winnerSide as Side;
+      }
       // The video may start mid-game (score read from the scoreboard): take the point back off.
       const before = {
-        upper: Math.max(0, upper - (rally.winnerSide === 'UPPER' ? 1 : 0)),
-        lower: Math.max(0, lower - (rally.winnerSide === 'LOWER' ? 1 : 0)),
+        upper: Math.max(0, upper - (side === 'UPPER' ? 1 : 0)),
+        lower: Math.max(0, lower - (side === 'LOWER' ? 1 : 0)),
       };
-      out.push({ rally, index, game, upper, lower, before });
+      out.push({ rally, index, game, upper, lower, before, side });
     });
     return out;
-  }, [rallies]);
+  }, [rallies, upperPlayer]);
 
   const streaks = useMemo<Streak[]>(() => {
     const runs: Streak[] = [];
     let run: Streak | null = null;
     for (const p of points) {
-      const side = p.rally.winnerSide as Side;
+      const side = p.side;
       if (run && run.side === side && run.points[run.points.length - 1].game === p.game) run.points.push(p);
       else {
         if (run && run.points.length >= MIN_STREAK) runs.push(run);
@@ -255,7 +270,7 @@ export const ScoreFlow: React.FC<ScoreFlowProps> = ({
               left: Math.min(Math.max(0, x(hoveredPoint.index) - 70), Math.max(0, width - 170)),
             }}
           >
-            <div className="font-semibold">Pha {hoveredPoint.rally.rallyNumber} · {nameOf(hoveredPoint.rally.winnerSide as Side)} ghi điểm</div>
+            <div className="font-semibold">Pha {hoveredPoint.rally.rallyNumber} · {nameOf(hoveredPoint.side)} ghi điểm</div>
             <div className="text-white/75 tabular-nums">
               {upperName} {hoveredPoint.upper}–{hoveredPoint.lower} {lowerName}
               {isInStreak(hoveredPoint.index) && ' · trong chuỗi điểm liên tiếp'}

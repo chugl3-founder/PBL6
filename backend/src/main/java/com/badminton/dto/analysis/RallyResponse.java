@@ -28,6 +28,13 @@ public class RallyResponse {
     private Integer scoreUpper;
     private Integer scoreLower;
     private String scoreText;
+    // Per player, within the game. The AI counts per court half and players change ends, so the backend
+    // splits the games by the scoring rules (see HighlightSelector.trackGames).
+    private Integer gameNumber;
+    private Integer scoreA;
+    private Integer scoreB;
+    private String winnerPlayer; // PLAYER_A, PLAYER_B, or null when nobody won the point
+    private String upperPlayer; // who was on the upper half during this rally
     private List<String> strokeSequence;
     private Boolean isComplete;
     private Boolean partialStart;
