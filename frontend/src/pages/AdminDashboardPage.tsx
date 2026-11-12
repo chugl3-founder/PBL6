@@ -23,6 +23,52 @@ import { Link, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 
 type AdminSection = 'OVERVIEW' | 'MATCHES' | 'USERS' | 'AI_MONITOR';
+type LoadKey = 'metrics' | 'matches' | 'users' | 'analyses';
+
+/** Rows fetched per request; "Tải thêm" asks for the next batch. */
+const PAGE_SIZE = 50;
+
+/** The server's message when there is one, otherwise what went wrong in plain words. */
+const loadErrorText = (err: any, what: string) =>
+  err?.response?.data?.message ||
+  (err?.code === 'ERR_NETWORK' || !err?.response
+    ? `Không kết nối được máy chủ nên chưa tải được ${what}.`
+    : `Không tải được ${what} (lỗi ${err.response.status}).`);
+
+/** Shown instead of an empty table when a list failed to load, so "no data" is never faked. */
+const LoadError: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
+  <div role="alert" className="my-6 mx-auto max-w-2xl rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 flex items-center justify-between gap-3">
+    <span className="flex items-center gap-2">
+      <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden />
+      {message}
+    </span>
+    <button
+      type="button"
+      onClick={onRetry}
+      className="shrink-0 rounded-lg border border-rose-400/40 px-3 py-1 font-semibold hover:bg-rose-500/20 flex items-center gap-1.5"
+    >
+      <RefreshCw className="w-3.5 h-3.5" aria-hidden />
+      Thử lại
+    </button>
+  </div>
+);
+
+const LoadMore: React.FC<{ shown: number; total: number; loading: boolean; onClick: () => void }> = ({ shown, total, loading, onClick }) => (
+  <div className="mt-4 flex items-center justify-center gap-3 text-xs text-slate-400">
+    <span>
+      Đang hiện {shown}/{total}
+    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="rounded-lg border border-white/15 px-3 py-1.5 font-semibold text-white/90 hover:bg-white/10 disabled:opacity-50 flex items-center gap-1.5"
+    >
+      {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />}
+      Tải thêm {Math.min(PAGE_SIZE, total - shown)}
+    </button>
+  </div>
+);
 
 export const AdminDashboardPage: React.FC = () => {
   const location = useLocation();
@@ -66,6 +112,18 @@ export const AdminDashboardPage: React.FC = () => {
 
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Load failures per list, and the totals needed to offer "Tải thêm"
+  const [loadErrors, setLoadErrors] = useState<Record<LoadKey, string | null>>({
+    metrics: null,
+    matches: null,
+    users: null,
+    analyses: null,
+  });
+  const setLoadError = (key: LoadKey, message: string | null) =>
+    setLoadErrors((prev) => (prev[key] === message ? prev : { ...prev, [key]: message }));
+  const [matchesTotal, setMatchesTotal] = useState<number>(0);
+  const [loadingMore, setLoadingMore] = useState<LoadKey | null>(null);
+
   const currentUserJson = localStorage.getItem('user_info');
   const currentUser = currentUserJson ? JSON.parse(currentUserJson) : null;
 
@@ -92,15 +150,16 @@ export const AdminDashboardPage: React.FC = () => {
     fetchAnalyses(aiStatusFilter, true);
   }, [aiStatusFilter]);
 
-  // Tự động làm mới danh sách phiên AI mỗi 2.5s khi đang ở phân hệ AI_MONITOR hoặc có phiên đang QUEUED/PROCESSING
+  // Tự động làm mới danh sách phiên AI mỗi 5s (bỏ qua khi tab bị ẩn) khi đang ở phân hệ AI_MONITOR hoặc có phiên đang QUEUED/PROCESSING
   useEffect(() => {
     const hasActiveJob = analyses.some((a) => a.status === 'QUEUED' || a.status === 'PROCESSING');
     if (activeSection !== 'AI_MONITOR' && !hasActiveJob) return;
 
     const pollInterval = setInterval(() => {
-      fetchAnalyses(aiStatusFilter, false);
+      if (document.hidden) return;
+      fetchAnalyses(aiStatusFilter, false, Math.max(PAGE_SIZE, analyses.length));
       fetchDashboardMetrics();
-    }, 2500);
+    }, 5000);
     return () => clearInterval(pollInterval);
   }, [activeSection, aiStatusFilter, analyses]);
 
@@ -109,35 +168,40 @@ export const AdminDashboardPage: React.FC = () => {
       setMetricsLoading(true);
       const res = await apiClient.get('/admin/dashboard');
       setDashboardMetrics(res.data);
+      setLoadError('metrics', null);
     } catch (err: any) {
       console.error('Lỗi khi tải chỉ số tổng quan Dashboard Admin:', err);
+      setLoadError('metrics', loadErrorText(err, 'số liệu tổng quan'));
     } finally {
       setMetricsLoading(false);
     }
   };
 
-  const fetchMatches = async (status: string) => {
+  const fetchMatches = async (status: string, size = PAGE_SIZE, showSpinner = true) => {
     try {
-      setMatchesLoading(true);
-      let url = `/admin/matches?page=0&size=50`;
+      if (showSpinner) setMatchesLoading(true);
+      let url = `/admin/matches?page=0&size=${size}`;
       if (status === 'DELETED') {
-        url = `/admin/matches?status=DELETED&includeDeleted=true&page=0&size=50`;
+        url = `/admin/matches?status=DELETED&includeDeleted=true&page=0&size=${size}`;
       } else if (status !== 'ALL') {
-        url = `/admin/matches?status=${status}&page=0&size=50`;
+        url = `/admin/matches?status=${status}&page=0&size=${size}`;
       }
       const res = await apiClient.get(url);
       setMatches(res.data.data || []);
+      setMatchesTotal(res.data.pagination?.totalElements ?? (res.data.data || []).length);
+      setLoadError('matches', null);
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách trận đấu cho Admin:', err);
+      setLoadError('matches', loadErrorText(err, 'danh sách trận đấu'));
     } finally {
-      setMatchesLoading(false);
+      if (showSpinner) setMatchesLoading(false);
     }
   };
 
-  const fetchUsers = async (search: string, status: string) => {
+  const fetchUsers = async (search: string, status: string, size = PAGE_SIZE, showSpinner = true) => {
     try {
-      setUsersLoading(true);
-      const params = new URLSearchParams({ page: '0', size: '50' });
+      if (showSpinner) setUsersLoading(true);
+      const params = new URLSearchParams({ page: '0', size: String(size) });
       if (search.trim()) params.append('search', search.trim());
       if (status !== 'ALL') params.append('status', status);
       const res = await apiClient.get(`/admin/users?${params.toString()}`);
@@ -145,27 +209,42 @@ export const AdminDashboardPage: React.FC = () => {
       if (res.data.pagination?.totalElements !== undefined) {
         setUsersTotal(res.data.pagination.totalElements);
       }
+      setLoadError('users', null);
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách người dùng cho Admin:', err);
+      setLoadError('users', loadErrorText(err, 'danh sách người dùng'));
     } finally {
-      setUsersLoading(false);
+      if (showSpinner) setUsersLoading(false);
     }
   };
 
-  const fetchAnalyses = async (status: string, showSpinner = true) => {
+  const fetchAnalyses = async (status: string, showSpinner = true, size = PAGE_SIZE) => {
     try {
       if (showSpinner) setAnalysesLoading(true);
-      const params = new URLSearchParams({ page: '0', size: '50' });
+      const params = new URLSearchParams({ page: '0', size: String(size) });
       if (status !== 'ALL') params.append('status', status);
       const res = await apiClient.get(`/admin/ai-analyses?${params.toString()}`);
       setAnalyses(res.data.data || []);
       if (res.data.pagination?.totalElements !== undefined) {
         setAnalysesTotal(res.data.pagination.totalElements);
       }
+      setLoadError('analyses', null);
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách phiên phân tích AI cho Admin:', err);
+      setLoadError('analyses', loadErrorText(err, 'danh sách phiên phân tích AI'));
     } finally {
       if (showSpinner) setAnalysesLoading(false);
+    }
+  };
+
+  const loadMore = async (key: 'matches' | 'users' | 'analyses') => {
+    setLoadingMore(key);
+    try {
+      if (key === 'matches') await fetchMatches(filterStatus, matches.length + PAGE_SIZE, false);
+      if (key === 'users') await fetchUsers(userSearch, userStatusFilter, users.length + PAGE_SIZE, false);
+      if (key === 'analyses') await fetchAnalyses(aiStatusFilter, false, analyses.length + PAGE_SIZE);
+    } finally {
+      setLoadingMore(null);
     }
   };
 
@@ -269,8 +348,8 @@ export const AdminDashboardPage: React.FC = () => {
         res.data?.message ||
           `Đã kích hoạt chạy lại phiên phân tích AI mới #${res.data?.analysisId} cho trận đấu #${analysisItem.matchId}!`
       );
-      await fetchAnalyses(aiStatusFilter, false);
-      await fetchMatches(filterStatus);
+      await fetchAnalyses(aiStatusFilter, false, Math.max(PAGE_SIZE, analyses.length));
+      await fetchMatches(filterStatus, Math.max(PAGE_SIZE, matches.length), false);
       await fetchDashboardMetrics();
     } catch (err: any) {
       showFeedback(
@@ -282,7 +361,6 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  const publishedCount = matches.filter((m) => m.status === 'PUBLISHED' && !m.deletedAt).length;
 
   const filterTabs = [
     { key: 'ALL', label: 'Tất cả hoạt động' },
@@ -396,14 +474,15 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  const totalUsersMetric = dashboardMetrics?.totalUsers ?? (usersTotal || users.length);
-  const totalMatchesMetric = dashboardMetrics?.totalMatches ?? matches.length;
-  const publishedMatchesMetric = dashboardMetrics?.publishedMatches ?? publishedCount;
+  const totalUsersMetric = dashboardMetrics?.totalUsers ?? '–';
+  const totalMatchesMetric = dashboardMetrics?.totalMatches ?? '–';
+  const publishedMatchesMetric = dashboardMetrics?.publishedMatches ?? '–';
   const aiSuccessRateMetric =
-    dashboardMetrics?.aiSuccessRate !== undefined ? `${dashboardMetrics.aiSuccessRate}%` : '100%';
+    dashboardMetrics?.aiSuccessRate !== undefined ? `${dashboardMetrics.aiSuccessRate}%` : '–';
 
   return (
     <div className="space-y-6 pb-12 min-w-0">
+      {loadErrors.metrics && <LoadError message={loadErrors.metrics} onRetry={fetchDashboardMetrics} />}
       {/* Thông báo phản hồi chung */}
       {feedbackMsg && (
         <div
@@ -463,7 +542,7 @@ export const AdminDashboardPage: React.FC = () => {
               {
                 label: 'Tổng số người dùng',
                 val: totalUsersMetric,
-                sub: `${dashboardMetrics?.activeUsers ?? totalUsersMetric} hoạt động • ${dashboardMetrics?.lockedUsers ?? 0} đã khóa`,
+                sub: `${dashboardMetrics?.activeUsers ?? '–'} hoạt động • ${dashboardMetrics?.lockedUsers ?? '–'} đã khóa`,
                 icon: Users,
                 color: 'text-sky-400 bg-sky-500/10 border-sky-500/20',
                 to: '/admin/users',
@@ -471,7 +550,7 @@ export const AdminDashboardPage: React.FC = () => {
               {
                 label: 'Tổng số trận đấu',
                 val: totalMatchesMetric,
-                sub: `${dashboardMetrics?.analyzedMatches ?? 0} đã phân tích • ${dashboardMetrics?.deletedMatches ?? 0} thùng rác`,
+                sub: `${dashboardMetrics?.analyzedMatches ?? '–'} đã phân tích • ${dashboardMetrics?.deletedMatches ?? '–'} thùng rác`,
                 icon: Video,
                 color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
                 to: '/admin/matches',
@@ -487,7 +566,7 @@ export const AdminDashboardPage: React.FC = () => {
               {
                 label: 'Tỷ lệ AI Thành công',
                 val: aiSuccessRateMetric,
-                sub: `${dashboardMetrics?.completedAiAnalyses ?? 0} hoàn tất • ${dashboardMetrics?.failedAiAnalyses ?? 0} lỗi • ${dashboardMetrics?.processingAiAnalyses ?? 0} đang chạy`,
+                sub: `${dashboardMetrics?.completedAiAnalyses ?? '–'} hoàn tất • ${dashboardMetrics?.failedAiAnalyses ?? '–'} lỗi • ${dashboardMetrics?.processingAiAnalyses ?? '–'} đang chạy`,
                 icon: Cpu,
                 color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
                 to: '/admin/ai-monitor',
@@ -1054,25 +1133,25 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="bg-[#0f1d35]/85 border border-white/10 rounded-2xl p-4">
               <div className="text-[11px] text-slate-400">Tổng trận đang hoạt động</div>
               <div className="text-xl font-black text-white mt-0.5">
-                {dashboardMetrics?.totalMatches ?? matches.length}
+                {dashboardMetrics?.totalMatches ?? '–'}
               </div>
             </div>
             <div className="bg-[#0f1d35]/85 border border-emerald-500/25 rounded-2xl p-4">
               <div className="text-[11px] text-emerald-300">Đang công khai (PUBLISHED)</div>
               <div className="text-xl font-black text-emerald-400 mt-0.5">
-                {dashboardMetrics?.publishedMatches ?? publishedCount}
+                {dashboardMetrics?.publishedMatches ?? '–'}
               </div>
             </div>
             <div className="bg-[#0f1d35]/85 border border-sky-500/25 rounded-2xl p-4">
               <div className="text-[11px] text-sky-300">Đã phân tích chờ duyệt (ANALYZED)</div>
               <div className="text-xl font-black text-sky-400 mt-0.5">
-                {dashboardMetrics?.analyzedMatches ?? 0}
+                {dashboardMetrics?.analyzedMatches ?? '–'}
               </div>
             </div>
             <div className="bg-[#0f1d35]/85 border border-rose-500/25 rounded-2xl p-4">
               <div className="text-[11px] text-rose-300">Trong thùng rác (DELETED)</div>
               <div className="text-xl font-black text-rose-400 mt-0.5">
-                {dashboardMetrics?.deletedMatches ?? 0}
+                {dashboardMetrics?.deletedMatches ?? '–'}
               </div>
             </div>
           </div>
@@ -1116,7 +1195,11 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             )}
 
-            {!matchesLoading && matches.length === 0 && (
+            {!matchesLoading && loadErrors.matches && (
+              <LoadError message={loadErrors.matches} onRetry={() => fetchMatches(filterStatus)} />
+            )}
+
+            {!matchesLoading && !loadErrors.matches && matches.length === 0 && (
               <div className="py-12 text-center text-slate-400 text-sm">
                 {filterStatus === 'DELETED'
                   ? 'Thùng rác đang trống. Không có trận đấu nào bị xóa mềm.'
@@ -1179,7 +1262,9 @@ export const AdminDashboardPage: React.FC = () => {
                             <div>
                               {item.durationSeconds
                                 ? `${Math.floor(item.durationSeconds / 60)} phút`
-                                : 'Chưa có video'}
+                                : item.status === 'DRAFT'
+                                ? 'Chưa có video'
+                                : 'Chưa rõ thời lượng'}
                             </div>
                             <div className="text-[11px] text-slate-500">
                               {item.totalRallies || 0} pha cầu • {item.totalStrokes || 0} cú đánh
@@ -1275,6 +1360,10 @@ export const AdminDashboardPage: React.FC = () => {
                 </table>
               </div>
             )}
+
+            {!matchesLoading && matchesTotal > matches.length && (
+              <LoadMore shown={matches.length} total={matchesTotal} loading={loadingMore === 'matches'} onClick={() => loadMore('matches')} />
+            )}
           </section>
         </div>
       )}
@@ -1289,19 +1378,19 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="bg-[#0f1d35]/85 border border-white/10 rounded-2xl p-4">
               <div className="text-[11px] text-slate-400">Tổng số tài khoản hệ thống</div>
               <div className="text-xl font-black text-white mt-0.5">
-                {dashboardMetrics?.totalUsers ?? (usersTotal || users.length)}
+                {dashboardMetrics?.totalUsers ?? '–'}
               </div>
             </div>
             <div className="bg-[#0f1d35]/85 border border-emerald-500/25 rounded-2xl p-4">
               <div className="text-[11px] text-emerald-300">Đang hoạt động (ACTIVE)</div>
               <div className="text-xl font-black text-emerald-400 mt-0.5">
-                {dashboardMetrics?.activeUsers ?? users.filter((u) => u.status === 'ACTIVE').length}
+                {dashboardMetrics?.activeUsers ?? '–'}
               </div>
             </div>
             <div className="bg-[#0f1d35]/85 border border-rose-500/25 rounded-2xl p-4">
               <div className="text-[11px] text-rose-300">Đã bị khóa (LOCKED)</div>
               <div className="text-xl font-black text-rose-400 mt-0.5">
-                {dashboardMetrics?.lockedUsers ?? users.filter((u) => u.status === 'LOCKED').length}
+                {dashboardMetrics?.lockedUsers ?? '–'}
               </div>
             </div>
           </div>
@@ -1372,7 +1461,11 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             )}
 
-            {!usersLoading && users.length === 0 && (
+            {!usersLoading && loadErrors.users && (
+              <LoadError message={loadErrors.users} onRetry={() => fetchUsers(userSearch, userStatusFilter)} />
+            )}
+
+            {!usersLoading && !loadErrors.users && users.length === 0 && (
               <div className="py-12 text-center text-slate-400 text-sm">
                 Không tìm thấy người dùng nào phù hợp với điều kiện lọc.
               </div>
@@ -1506,6 +1599,10 @@ export const AdminDashboardPage: React.FC = () => {
                 </table>
               </div>
             )}
+
+            {!usersLoading && usersTotal > users.length && (
+              <LoadMore shown={users.length} total={usersTotal} loading={loadingMore === 'users'} onClick={() => loadMore('users')} />
+            )}
           </section>
         </div>
       )}
@@ -1520,25 +1617,25 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="bg-[#0f1d35]/85 border border-white/10 rounded-2xl p-4">
               <div className="text-[11px] text-slate-400">Tổng số phiên AI</div>
               <div className="text-xl font-black text-white mt-0.5">
-                {dashboardMetrics?.totalAiAnalyses ?? (analysesTotal || analyses.length)}
+                {dashboardMetrics?.totalAiAnalyses ?? '–'}
               </div>
             </div>
             <div className="bg-[#0f1d35]/85 border border-emerald-500/25 rounded-2xl p-4">
               <div className="text-[11px] text-emerald-300">Hoàn tất (COMPLETED)</div>
               <div className="text-xl font-black text-emerald-400 mt-0.5">
-                {dashboardMetrics?.completedAiAnalyses ?? 0}
+                {dashboardMetrics?.completedAiAnalyses ?? '–'}
               </div>
             </div>
             <div className="bg-[#0f1d35]/85 border border-sky-500/25 rounded-2xl p-4">
               <div className="text-[11px] text-sky-300">Đang xử lý / Hàng đợi</div>
               <div className="text-xl font-black text-sky-400 mt-0.5">
-                {dashboardMetrics?.processingAiAnalyses ?? 0}
+                {dashboardMetrics?.processingAiAnalyses ?? '–'}
               </div>
             </div>
             <div className="bg-[#0f1d35]/85 border border-rose-500/25 rounded-2xl p-4">
               <div className="text-[11px] text-rose-300">Gặp lỗi cần Retry (FAILED)</div>
               <div className="text-xl font-black text-rose-400 mt-0.5">
-                {dashboardMetrics?.failedAiAnalyses ?? 0}
+                {dashboardMetrics?.failedAiAnalyses ?? '–'}
               </div>
             </div>
           </div>
@@ -1591,7 +1688,11 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             )}
 
-            {!analysesLoading && analyses.length === 0 && (
+            {!analysesLoading && loadErrors.analyses && (
+              <LoadError message={loadErrors.analyses} onRetry={() => fetchAnalyses(aiStatusFilter, true)} />
+            )}
+
+            {!analysesLoading && !loadErrors.analyses && analyses.length === 0 && (
               <div className="py-12 text-center text-slate-400 text-sm">
                 Không có phiên phân tích AI nào phù hợp với bộ lọc hiện tại.
               </div>
@@ -1740,6 +1841,10 @@ export const AdminDashboardPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {!analysesLoading && analysesTotal > analyses.length && (
+              <LoadMore shown={analyses.length} total={analysesTotal} loading={loadingMore === 'analyses'} onClick={() => loadMore('analyses')} />
             )}
           </section>
         </div>
