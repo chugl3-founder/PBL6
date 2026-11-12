@@ -1017,7 +1017,7 @@ export const MatchReplayPage: React.FC = () => {
           <AlertCircle className="w-6 h-6" />
         </div>
         <h2 className="text-xl font-bold text-ink mb-2">Chưa sẵn sàng xem lại</h2>
-        <p className="text-ink/60 text-sm max-w-md mb-6">{error || 'Trận đấu chưa có dữ liệu Replay.'}</p>
+        <p className="text-ink/70 text-sm max-w-md mb-6">{error || 'Trận đấu chưa có dữ liệu Replay.'}</p>
         <Link
           to={`/matches/${id}`}
           className="px-6 py-2.5 rounded-full bg-pitch hover:bg-pitch-deep text-white text-sm font-semibold transition-colors"
@@ -1058,7 +1058,7 @@ export const MatchReplayPage: React.FC = () => {
       <header className="space-y-3">
         <Link
           to={isPublic ? "/public-matches" : `/matches/${id}`}
-          className="inline-flex items-center gap-1.5 text-sm text-ink/60 hover:text-ink transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-ink/70 hover:text-ink transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{isPublic ? 'Thư viện công khai' : 'Thông tin trận đấu'}</span>
@@ -1099,7 +1099,7 @@ export const MatchReplayPage: React.FC = () => {
             })}
           </div>
           {liveScore && finalScore && (
-            <p className="text-xs text-ink/55 leading-relaxed">
+            <p className="text-xs text-ink/70 leading-relaxed">
               {scoreFromScoreboard ? 'Tỉ số ở thời điểm đang xem' : 'Điểm ước tính ở thời điểm đang xem'}
               <br />
               Cuối video {finalScore.playerA}–{finalScore.playerB}, {scoreFromScoreboard ? 'đọc từ bảng điểm' : 'AI ước tính'}
@@ -1155,7 +1155,7 @@ export const MatchReplayPage: React.FC = () => {
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-white/40 space-y-2">
                 <Play className="w-12 h-12" />
-                <span className="text-xs">Đang tải video stream...</span>
+                <span className="text-xs">Đang tải video…</span>
               </div>
             )}
 
@@ -1234,8 +1234,9 @@ export const MatchReplayPage: React.FC = () => {
               </div>
             )}
 
-            {/* Top Indicator Overlay (Tên cú đánh đang diễn ra - Căn giữa thể thao cân đối) */}
-            {selectedEvent && (
+            {/* Top Indicator Overlay (Tên cú đánh đang diễn ra - Căn giữa thể thao cân đối).
+                A paused YouTube embed draws its own title across the top, so the chip waits for playback. */}
+            {selectedEvent && (isPlaying || !isYouTube) && (
               <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 bg-black/75 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs shadow-2xl transition-all duration-300 pointer-events-none">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
                 <span className="font-extrabold text-white tracking-wide">{strokeLabel(selectedEvent.stroke)}</span>
@@ -1295,7 +1296,7 @@ export const MatchReplayPage: React.FC = () => {
                     className="p-1.5 rounded-full hover:bg-white/15 text-white/80 hover:text-white transition-colors flex items-center gap-0.5"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    <span className="text-[10px] font-mono hidden sm:inline">5s</span>
+                    <span className="text-[11px] font-mono hidden sm:inline">5s</span>
                   </button>
 
                   {/* Nút Play / Pause chính */}
@@ -1316,7 +1317,7 @@ export const MatchReplayPage: React.FC = () => {
                     className="p-1.5 rounded-full hover:bg-white/15 text-white/80 hover:text-white transition-colors flex items-center gap-0.5"
                   >
                     <RotateCw className="w-4 h-4" />
-                    <span className="text-[10px] font-mono hidden sm:inline">5s</span>
+                    <span className="text-[11px] font-mono hidden sm:inline">5s</span>
                   </button>
 
                   {/* Cú đánh tiếp theo */}
@@ -1357,7 +1358,7 @@ export const MatchReplayPage: React.FC = () => {
                         className="w-16 h-1 bg-white/30 accent-[#5FB88A] rounded-full appearance-none cursor-pointer"
                         title={`Âm lượng: ${Math.round((isMuted ? 0 : volume) * 100)}% (↑ / ↓)`}
                       />
-                      <span className="text-[10px] font-mono text-white/70 select-none">
+                      <span className="text-[11px] font-mono text-white/70 select-none">
                         {Math.round((isMuted ? 0 : volume) * 100)}%
                       </span>
                     </div>
@@ -1387,7 +1388,7 @@ export const MatchReplayPage: React.FC = () => {
 
                     {showSpeedMenu && (
                       <div className="absolute bottom-9 right-0 bg-[#0f172a] border border-white/20 rounded-2xl p-1.5 shadow-2xl backdrop-blur-xl z-50 flex flex-col gap-1 w-24">
-                        <div className="text-[10px] text-white/40 font-bold px-2 py-0.5 uppercase">Tốc độ</div>
+                        <div className="text-[11px] text-white/40 font-bold px-2 py-0.5 uppercase">Tốc độ</div>
                         {[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((rate) => (
                           <button
                             key={rate}
@@ -1455,7 +1456,7 @@ export const MatchReplayPage: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Lọc cú đánh">
-              <span className="text-xs text-ink/60 mr-1">Chỉ hiện cú</span>
+              <span className="text-xs text-ink/70 mr-1">Chỉ hiện cú</span>
               {['ALL', 'SMASH', 'DROP', 'CLEAR', 'NET_SHOT', 'SERVE'].map((stroke) => (
                 <button
                   key={stroke}
@@ -1511,7 +1512,7 @@ export const MatchReplayPage: React.FC = () => {
                 className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
                   activeTab === 'RALLIES'
                     ? 'bg-pitch text-white '
-                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                    : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
                 title={`Pha cầu (${rallies.length})`}
               >
@@ -1524,7 +1525,7 @@ export const MatchReplayPage: React.FC = () => {
                 className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
                   activeTab === 'POINTS'
                     ? 'bg-pitch text-white '
-                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                    : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
                 title="Vì sao mất điểm"
               >
@@ -1537,7 +1538,7 @@ export const MatchReplayPage: React.FC = () => {
                 className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
                   activeTab === 'STROKES'
                     ? 'bg-pitch text-white '
-                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                    : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
                 title={`Cú đánh (${filteredEvents.length})`}
               >
@@ -1550,7 +1551,7 @@ export const MatchReplayPage: React.FC = () => {
                 className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
                   activeTab === 'TACTICS'
                     ? 'bg-pitch text-white '
-                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                    : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
                 title="Chiến thuật"
               >
@@ -1563,7 +1564,7 @@ export const MatchReplayPage: React.FC = () => {
                 className={`py-1.5 px-0.5 rounded-md font-semibold transition-all flex flex-col items-center justify-center gap-0.5 min-w-0 text-[11px] leading-tight whitespace-nowrap ${
                   activeTab === 'COURT'
                     ? 'bg-pitch text-white '
-                    : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                    : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
                 title="Cú đang phát trên sơ đồ sân"
               >
@@ -1575,8 +1576,8 @@ export const MatchReplayPage: React.FC = () => {
             {activeTab === 'STROKES' && (
               <>
                 {/* Thanh tiện ích Tự động cuộn theo video */}
-                <div className="flex items-center justify-between pb-2 px-1 text-xs text-ink/60">
-                  <span className="text-[11px] text-ink/55">
+                <div className="flex items-center justify-between pb-2 px-1 text-xs text-ink/70">
+                  <span className="text-[11px] text-ink/70">
                     {filteredEvents.length} cú đánh đã nhận diện
                   </span>
                   <button
@@ -1589,7 +1590,7 @@ export const MatchReplayPage: React.FC = () => {
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all ${
                       autoScrollStrokes
                         ? 'bg-pitch-soft text-pitch-deep border border-pitch/30'
-                        : 'bg-ink/[0.04] text-ink/50 hover:text-ink/70 border border-ink/10'
+                        : 'bg-ink/[0.04] text-ink/65 hover:text-ink/70 border border-ink/10'
                     }`}
                     title={autoScrollStrokes ? 'Đang tự động cuộn danh sách theo cú đánh đang phát' : 'Nhấp để bật tự động cuộn'}
                   >
@@ -1629,7 +1630,7 @@ export const MatchReplayPage: React.FC = () => {
                                 ? 'bg-pitch text-white scale-105' 
                                 : isLowConf
                                 ? 'bg-amber-500/20 text-amber-700 border border-amber-500/30'
-                                : 'bg-ink/[0.06] text-ink/60'
+                                : 'bg-ink/[0.06] text-ink/70'
                             }`}
                           >
                             {isActive ? (
@@ -1646,7 +1647,7 @@ export const MatchReplayPage: React.FC = () => {
                                 {strokeLabel(evt.stroke)}
                               </span>
                               {strokeSideLabel(evt.strokeSide) && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded tabular-nums font-medium border ${
+                                <span className={`text-[11px] px-1.5 py-0.5 rounded tabular-nums font-medium border ${
                                   normalizeStrokeSide(evt.strokeSide) === 'FOREHAND'
                                     ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
                                     : 'bg-purple-500/10 text-purple-700 border-purple-500/20'
@@ -1661,7 +1662,7 @@ export const MatchReplayPage: React.FC = () => {
                                 {(evt.playerSide === 'UPPER') === (match.upperPlayer === 'PLAYER_A') ? match.playerAName : match.playerBName}
                               </span>
                               <span className="text-ink/40">•</span>
-                              <span className="tabular-nums text-ink/55">{evt.timeSeconds.toFixed(1)}s</span>
+                              <span className="tabular-nums text-ink/70">{evt.timeSeconds.toFixed(1)}s</span>
                             </div>
                           </div>
                         </div>
@@ -1671,7 +1672,7 @@ export const MatchReplayPage: React.FC = () => {
                           {isLowConf && (
                             <span
                               title="AI không chắc chắn về cú này"
-                              className="text-[10px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30"
+                              className="text-[11px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30"
                             >
                               <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
                               cần xem lại
@@ -1727,9 +1728,9 @@ export const MatchReplayPage: React.FC = () => {
                     onSeekTime={handleSeekToTime}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-64 text-center text-ink/55 space-y-3">
+                  <div className="flex flex-col items-center justify-center h-64 text-center text-ink/70 space-y-3">
                     <BarChart3 className="w-10 h-10 text-ink/30" />
-                    <p className="text-xs">Đang tải dữ liệu thống kê chuyên sâu...</p>
+                    <p className="text-xs">Đang tải dữ liệu thống kê chuyên sâu…</p>
                   </div>
                 )}
               </div>
@@ -1767,7 +1768,7 @@ export const MatchReplayPage: React.FC = () => {
             )}
 
             {/* Footer tóm tắt */}
-            <div className="border-t border-ink/10 pt-3 mt-3 flex items-center justify-between text-[11px] text-ink/55">
+            <div className="border-t border-ink/10 pt-3 mt-3 flex items-center justify-between text-[11px] text-ink/70">
               <span className="flex items-center gap-1">
                 <Eye className="w-3.5 h-3.5 text-pitch" />
                 <span>
@@ -1792,7 +1793,7 @@ export const MatchReplayPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-ink/10 pb-4">
           <div>
             <h2 id="match-analysis-title" className="text-lg font-semibold text-ink">Phân tích cả trận</h2>
-            <p className="text-xs text-ink/55 mt-0.5">
+            <p className="text-xs text-ink/70 mt-0.5">
               {match.playerAName} và {match.playerBName}: tỉ số, vị trí trên sân và số liệu cú đánh
             </p>
           </div>
@@ -1809,7 +1810,7 @@ export const MatchReplayPage: React.FC = () => {
                 aria-selected={analysisTab === key}
                 onClick={() => setAnalysisTab(key)}
                 className={`py-2 px-2 rounded-md font-semibold truncate transition-colors ${
-                  analysisTab === key ? 'bg-pitch text-white' : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                  analysisTab === key ? 'bg-pitch text-white' : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
               >
                 {label}
@@ -1850,7 +1851,7 @@ export const MatchReplayPage: React.FC = () => {
                 onSeekTime={handleSeekToTime}
               />
             ) : (
-              <p className="text-xs text-ink/55 py-8 text-center">Số liệu sẽ có khi AI phân tích xong.</p>
+              <p className="text-xs text-ink/70 py-8 text-center">Số liệu sẽ có khi AI phân tích xong.</p>
             )
           )}
         </div>
@@ -1873,12 +1874,12 @@ export const MatchReplayPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold">Phím Tắt Điều Khiển Video</h3>
-                  <p className="text-[11px] text-ink/55">Thao tác nhanh trên bàn phím khi xem trận đấu</p>
+                  <p className="text-[11px] text-ink/70">Thao tác nhanh trên bàn phím khi xem trận đấu</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowShortcutsModal(false)}
-                className="p-1.5 rounded-full hover:bg-ink/[0.06] text-ink/60 hover:text-ink transition-colors"
+                className="p-1.5 rounded-full hover:bg-ink/[0.06] text-ink/70 hover:text-ink transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1931,7 +1932,7 @@ export const MatchReplayPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="border-t border-ink/10 pt-3 flex items-center justify-between text-[11px] text-ink/55">
+            <div className="border-t border-ink/10 pt-3 flex items-center justify-between text-[11px] text-ink/70">
               <span>Bấm phím <kbd className="px-1.5 py-0.5 rounded bg-ink/[0.06] tabular-nums text-ink">Esc</kbd> để đóng</span>
               <button
                 onClick={() => setShowShortcutsModal(false)}
@@ -1978,7 +1979,7 @@ export const MatchReplayPage: React.FC = () => {
 
             <button
               onClick={() => setShowGuestLimitModal(false)}
-              className="text-xs text-ink/50 hover:text-ink transition-colors"
+              className="text-xs text-ink/65 hover:text-ink transition-colors"
             >
               Đóng thông báo
             </button>

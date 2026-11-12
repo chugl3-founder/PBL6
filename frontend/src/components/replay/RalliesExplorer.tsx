@@ -163,9 +163,9 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
 
   if (!rallies || rallies.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-ink/55 space-y-1">
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-ink/70 space-y-1">
         <p className="text-sm font-medium">Chưa có pha cầu nào</p>
-        <p className="text-xs text-ink/50">Các pha cầu sẽ hiện ở đây khi AI phân tích tới.</p>
+        <p className="text-xs text-ink/65">Các pha cầu sẽ hiện ở đây khi AI phân tích tới.</p>
       </div>
     );
   }
@@ -175,7 +175,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
       <div className="space-y-2 pb-3 mb-1 border-b border-ink/10">
         <div className="grid grid-cols-2 gap-1.5">
           <select value={winner} onChange={e => setWinner(e.target.value as typeof winner)} aria-label="Người ghi điểm" className={selectClass}>
-            <option value="ALL">Ai ghi điểm cũng được</option>
+            <option value="ALL">Người thắng: bất kỳ</option>
             <option value="UPPER">{getPlayerNameBySide('UPPER')} ghi điểm</option>
             <option value="LOWER">{getPlayerNameBySide('LOWER')} ghi điểm</option>
           </select>
@@ -198,11 +198,11 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-ink/60 tabular-nums flex-1">
+          <span className="text-xs text-ink/70 tabular-nums flex-1">
             {filtering ? `${shown.length}/${rallies.length} pha khớp` : `${rallies.length} pha cầu`}
           </span>
           {filtering && (
-            <button type="button" onClick={resetFilters} className="h-7 px-2 rounded-md text-xs text-ink/60 hover:text-ink hover:bg-ink/[0.04] flex items-center gap-1">
+            <button type="button" onClick={resetFilters} className="h-7 px-2 rounded-md text-xs text-ink/70 hover:text-ink hover:bg-ink/[0.04] flex items-center gap-1">
               <X className="w-3 h-3" /> Bỏ lọc
             </button>
           )}
@@ -220,7 +220,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
       </div>
       <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
       {!ocrAnchored && (
-        <p className="text-xs text-ink/55 px-1 pb-2" title={scoreTooltip}>
+        <p className="text-xs text-ink/70 px-1 pb-2" title={scoreTooltip}>
           Không đọc được bảng điểm: tỉ số do AI đếm từ 0–0 ở đầu video.
         </p>
       )}
@@ -248,10 +248,10 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                 />
                 <span className="flex-1 min-w-0">
                   <span className="flex items-baseline gap-2">
-                    <span className="text-xs text-ink/50 tabular-nums w-10 shrink-0">Pha {rally.rallyNumber}</span>
+                    <span className="text-xs text-ink/65 tabular-nums w-10 shrink-0">Pha {rally.rallyNumber}</span>
                     <span className="text-sm font-semibold text-ink truncate">{winnerName} ghi điểm</span>
                   </span>
-                  <span className="flex items-baseline gap-2 text-xs text-ink/55">
+                  <span className="flex items-baseline gap-2 text-xs text-ink/70">
                     <span className="w-10 shrink-0 tabular-nums">{formatTime(rally.startTime)}</span>
                     <span className="truncate">
                       {rally.totalStrokes} cú
@@ -272,7 +272,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
         })}
       </ul>
       {shown.length === 0 && (
-        <p className="text-xs text-ink/55 text-center py-8">Không có pha nào khớp bộ lọc.</p>
+        <p className="text-xs text-ink/70 text-center py-8">Không có pha nào khớp bộ lọc.</p>
       )}
       </div>
     </div>

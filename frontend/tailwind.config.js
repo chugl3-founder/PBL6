@@ -63,7 +63,17 @@ export default {
       boxShadow: {
         'glow-blue': '0 0 25px -4px rgba(0, 122, 255, 0.35)',
         'glow-subtle': '0 10px 30px -10px rgba(0, 122, 255, 0.2)',
-      }
+      },
+      // Used by alerts and tab panels; was referenced without being defined.
+      keyframes: {
+        'fade-in': {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 200ms ease-out both',
+      },
     },
   },
   plugins: [],

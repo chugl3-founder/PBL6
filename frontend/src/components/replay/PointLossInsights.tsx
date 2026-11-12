@@ -123,7 +123,7 @@ export const PointLossInsights: React.FC<PointLossInsightsProps> = ({
 
   if (decided.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-center text-ink/55 space-y-3 px-4">
+      <div className="flex flex-col items-center justify-center h-64 text-center text-ink/70 space-y-3 px-4">
         <Info className="w-10 h-10 text-ink/30" />
         <p className="text-xs">Chưa xác định được người thắng của các pha cầu. Kết quả sẽ có khi AI phân tích xong.</p>
       </div>
@@ -139,7 +139,7 @@ export const PointLossInsights: React.FC<PointLossInsightsProps> = ({
             type="button"
             onClick={() => setPlayer(side)}
             className={`py-1.5 px-2 rounded-lg font-bold truncate transition-colors ${
-              player === side ? 'bg-ink text-white' : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+              player === side ? 'bg-ink text-white' : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
             }`}
           >
             {nameOf(side)}
@@ -157,7 +157,7 @@ export const PointLossInsights: React.FC<PointLossInsightsProps> = ({
             {analysis.lost.length - analysis.ownShots} điểm do đối thủ ăn điểm.
           </p>
         )}
-        <p className="text-xs text-ink/55 flex items-center gap-1">
+        <p className="text-xs text-ink/70 flex items-center gap-1">
           <ShieldCheck className="w-3 h-3 text-emerald-700 shrink-0" />
           {analysis.confirmed}/{analysis.lost.length} điểm đã đối chiếu với bảng tỉ số trên video
         </p>
@@ -169,7 +169,7 @@ export const PointLossInsights: React.FC<PointLossInsightsProps> = ({
             <div className="font-score text-3xl font-semibold text-loss leading-none w-8 shrink-0 text-center tabular-nums">{group.rallies.length}</div>
             <div className="min-w-0 space-y-0.5">
               <p className="text-xs font-semibold text-ink">{group.title}</p>
-              <p className="text-xs text-ink/55">{group.hint}</p>
+              <p className="text-xs text-ink/70">{group.hint}</p>
             </div>
           </div>
           <button
@@ -183,7 +183,7 @@ export const PointLossInsights: React.FC<PointLossInsightsProps> = ({
         </div>
       ))}
 
-      <p className="text-xs text-ink/50 leading-relaxed px-1">
+      <p className="text-xs text-ink/65 leading-relaxed px-1">
         AI gom nhóm theo cú đánh cuối của mỗi pha cầu. Cú hỏng cuối pha (vào lưới) đôi khi không được nhận
         diện, nên hãy xem clip để tự xác nhận.
       </p>

@@ -37,7 +37,7 @@ export const PublicMatchesPage: React.FC = () => {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-ink">Thư viện trận đấu</h1>
-          <p className="text-sm text-ink/60 mt-1">
+          <p className="text-sm text-ink/70 mt-1">
             Trận giải quốc tế đã được AI phân tích. Bấm vào một trận để xem lại.
           </p>
         </div>
@@ -50,7 +50,7 @@ export const PublicMatchesPage: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm vận động viên, giải đấu"
             aria-label="Tìm trận đấu"
-            className="w-full h-10 pl-9 pr-9 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/40 focus:outline-none focus:border-pitch"
+            className="w-full h-10 pl-9 pr-9 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/55 focus:outline-none focus:border-pitch"
           />
           {search && (
             <button
@@ -98,7 +98,7 @@ export const PublicMatchesPage: React.FC = () => {
         </div>
       ) : (
         <>
-          <p className="text-sm text-ink/55">{matches.length} trận</p>
+          <p className="text-sm text-ink/70">{matches.length} trận</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {matches.map((item) => (
               <PublicMatchCard key={item.id} match={item} />

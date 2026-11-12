@@ -128,12 +128,12 @@ export const CourtHeatmap: React.FC<CourtHeatmapProps> = ({
   const segment = 'grid gap-1 p-1 rounded-lg bg-ink/[0.04] border border-ink/10 text-xs';
   const segBtn = (active: boolean) =>
     `py-1.5 px-2 rounded-md font-semibold truncate transition-colors ${
-      active ? 'bg-ink text-white' : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+      active ? 'bg-ink text-white' : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
     }`;
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-ink/55">{subject}</p>
+      <p className="text-xs text-ink/70">{subject}</p>
 
       {/* Filters in one row above the court */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -225,7 +225,7 @@ export const CourtHeatmap: React.FC<CourtHeatmapProps> = ({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink/60">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink/70">
         <div className="flex items-center gap-2">
           <span>Ít</span>
           <span
@@ -261,10 +261,10 @@ export const CourtHeatmap: React.FC<CourtHeatmapProps> = ({
           </button>
         </div>
       ) : (
-        <p className="text-xs text-ink/55">Chưa có cú nào có vị trí cho lựa chọn này.</p>
+        <p className="text-xs text-ink/70">Chưa có cú nào có vị trí cho lựa chọn này.</p>
       )}
 
-      <p className="text-[11px] text-ink/50 leading-relaxed">
+      <p className="text-[11px] text-ink/65 leading-relaxed">
         Bấm một ô để xem các cú ở đó. Trái/phải tính theo góc nhìn camera.
         {mode === 'LANDING' && ' Chỗ cầu rơi là ước lượng, lấy theo chỗ đối thủ đứng đỡ cầu, lệch khoảng 1–1,5 m.'}
       </p>

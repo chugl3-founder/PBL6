@@ -110,7 +110,7 @@ export const ScoreFlow: React.FC<ScoreFlowProps> = ({
   if (points.length < 2) {
     return (
       <div>
-        <p className="text-xs text-ink/55 py-8 text-center">Chưa đủ pha cầu có người thắng để vẽ diễn biến tỉ số.</p>
+        <p className="text-xs text-ink/70 py-8 text-center">Chưa đủ pha cầu có người thắng để vẽ diễn biến tỉ số.</p>
       </div>
     );
   }
@@ -168,7 +168,7 @@ export const ScoreFlow: React.FC<ScoreFlowProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-ink/55">Ai dẫn điểm sau mỗi pha cầu</span>
+        <span className="text-xs text-ink/70">Ai dẫn điểm sau mỗi pha cầu</span>
         <div className="flex items-center gap-3 text-xs text-ink/70">
           {(['UPPER', 'LOWER'] as Side[]).map(side => (
             <span key={side} className="flex items-center gap-1.5">
@@ -281,7 +281,7 @@ export const ScoreFlow: React.FC<ScoreFlowProps> = ({
                   <span className="w-1 self-stretch rounded-full" style={{ background: COLOR[s.side] }} aria-hidden />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-ink">{title}</p>
-                    <p className="text-xs text-ink/55 tabular-nums">
+                    <p className="text-xs text-ink/70 tabular-nums">
                       {points.some(p => p.game > 1) && `Ván ${first.game}: `}
                       từ {scorePair(s.side, first.before)} lên {scorePair(s.side, last)}
                     </p>
@@ -300,10 +300,10 @@ export const ScoreFlow: React.FC<ScoreFlowProps> = ({
           </ul>
         </div>
       ) : (
-        <p className="text-xs text-ink/55">Không có chuỗi từ {MIN_STREAK} điểm liền trở lên: hai bên bám điểm sát nhau.</p>
+        <p className="text-xs text-ink/70">Không có chuỗi từ {MIN_STREAK} điểm liền trở lên: hai bên bám điểm sát nhau.</p>
       )}
 
-      <p className="text-[11px] text-ink/50 leading-relaxed">
+      <p className="text-[11px] text-ink/65 leading-relaxed">
         Đường càng lên cao thì {upperName} dẫn càng nhiều, càng xuống thấp thì {lowerName} dẫn. Bấm vào biểu đồ để xem pha đó.
         {!ocrAnchored && ' Không đọc được bảng điểm, nên tỉ số do AI đếm từ 0–0 ở đầu video.'}
       </p>

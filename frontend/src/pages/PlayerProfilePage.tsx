@@ -37,7 +37,7 @@ const Section: React.FC<{
         </span>
         <div>
           <h2 className="text-base font-bold text-ink leading-tight">{title}</h2>
-          {subtitle && <p className="text-xs text-ink/55 mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-ink/70 mt-0.5">{subtitle}</p>}
         </div>
       </div>
       {action}
@@ -69,7 +69,7 @@ const WinGauge: React.FC<{ rate: number | null }> = ({ rate }) => {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-score text-4xl font-bold tabular-nums leading-none">{rate == null ? '–' : `${rate}%`}</span>
-        <span className="text-[10px] uppercase tracking-[0.14em] text-white/55 mt-1">thắng điểm</span>
+        <span className="text-[11px] uppercase tracking-[0.14em] text-white/55 mt-1">thắng điểm</span>
       </div>
     </div>
   );
@@ -163,7 +163,7 @@ export const PlayerProfilePage: React.FC = () => {
         <h1 className="text-xl font-bold text-ink">
           {error === 'NOT_FOUND' ? `Không tìm thấy “${name}”` : 'Không tải được hồ sơ'}
         </h1>
-        <p className="text-sm text-ink/60">
+        <p className="text-sm text-ink/70">
           {error === 'NOT_FOUND'
             ? 'Vận động viên này không có trong trận công khai nào hoặc trận của bạn.'
             : 'Đã có lỗi khi tải dữ liệu. Thử tải lại trang.'}
@@ -199,7 +199,7 @@ export const PlayerProfilePage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-5 pb-16 font-vn">
-      <Link to="/players" className="inline-flex items-center gap-1.5 text-sm text-ink/60 hover:text-ink">
+      <Link to="/players" className="inline-flex items-center gap-1.5 text-sm text-ink/70 hover:text-ink">
         <ArrowLeft className="w-4 h-4" /> Vận động viên
       </Link>
 
@@ -327,7 +327,7 @@ export const PlayerProfilePage: React.FC = () => {
                   <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-emerald-300' : 'text-ink/40'}`} />
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold leading-tight">{t.label}</span>
-                    <span className={`hidden md:block text-[11px] truncate ${active ? 'text-white/55' : 'text-ink/45'}`}>{t.hint}</span>
+                    <span className={`hidden md:block text-[11px] truncate ${active ? 'text-white/55' : 'text-ink/65'}`}>{t.hint}</span>
                   </span>
                 </button>
               );
@@ -337,7 +337,7 @@ export const PlayerProfilePage: React.FC = () => {
       )}
 
       {noAnalysis ? (
-        <div className="rounded-xl bg-sheet border border-ink/10 px-6 py-12 text-center text-sm text-ink/60">
+        <div className="rounded-xl bg-sheet border border-ink/10 px-6 py-12 text-center text-sm text-ink/70">
           Chưa có trận nào của {profile.name} được AI phân tích xong. Số liệu sẽ xuất hiện khi có ít nhất một trận hoàn tất.
         </div>
       ) : (
@@ -379,7 +379,7 @@ export const PlayerProfilePage: React.FC = () => {
                       ]}
                     />
                   </div>
-                  <div className="flex flex-wrap justify-center gap-4 text-xs text-ink/60 mt-1">
+                  <div className="flex flex-wrap justify-center gap-4 text-xs text-ink/70 mt-1">
                     <span className="flex items-center gap-1.5">
                       <span className="w-3 h-3 rounded-sm" style={{ background: PITCH }} /> Trung bình mọi trận
                     </span>
@@ -390,18 +390,18 @@ export const PlayerProfilePage: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-ink/45 text-center mt-3">
+                  <p className="text-[11px] text-ink/65 text-center mt-3">
                     Điểm mô tả cách chơi trong đoạn video được phân tích, không phải xếp hạng năng lực.
                   </p>
                 </>
               ) : (
-                <p className="text-sm text-ink/55 py-10 text-center">Các trận của VĐV này chưa có chỉ số lối chơi.</p>
+                <p className="text-sm text-ink/70 py-10 text-center">Các trận của VĐV này chưa có chỉ số lối chơi.</p>
               )}
             </Section>
 
             <Section icon={Lightbulb} title="Nhận định chính" subtitle="Những điều đáng chú ý nhất, rút ra tự động từ số liệu" className="lg:col-span-7">
               {insights.length === 0 ? (
-                <p className="text-sm text-ink/55 py-10 text-center">Chưa đủ dữ liệu để rút ra nhận định.</p>
+                <p className="text-sm text-ink/70 py-10 text-center">Chưa đủ dữ liệu để rút ra nhận định.</p>
               ) : (
                 <ul className="grid sm:grid-cols-2 gap-3">
                   {insights.map(insight => {
@@ -409,12 +409,12 @@ export const PlayerProfilePage: React.FC = () => {
                     const Icon = style.icon;
                     return (
                       <li key={insight.title} className="rounded-lg border border-ink/10 bg-ground/50 p-3.5 hover:border-ink/20 transition-colors">
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${style.chip}`}>
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${style.chip}`}>
                           <Icon className="w-3 h-3" />
                           {style.label}
                         </span>
                         <p className="text-sm font-semibold text-ink mt-2 leading-snug">{insight.title}</p>
-                        <p className="text-xs text-ink/60 mt-1 leading-relaxed">{insight.detail}</p>
+                        <p className="text-xs text-ink/70 mt-1 leading-relaxed">{insight.detail}</p>
                       </li>
                     );
                   })}
@@ -435,12 +435,12 @@ export const PlayerProfilePage: React.FC = () => {
               className="lg:col-span-8"
             >
               <div className="grid grid-cols-[minmax(84px,120px)_1fr_auto_auto] items-center gap-x-3 gap-y-2.5 text-sm">
-                <span className="text-[11px] uppercase tracking-wide text-ink/45">Loại cú</span>
-                <span className="text-[11px] uppercase tracking-wide text-ink/45">Tỉ lệ sử dụng</span>
-                <span className="text-[11px] uppercase tracking-wide text-ink/45 text-center w-14" title="Pha cầu kết thúc có lợi bằng cú này">
+                <span className="text-[11px] uppercase tracking-wide text-ink/65">Loại cú</span>
+                <span className="text-[11px] uppercase tracking-wide text-ink/65">Tỉ lệ sử dụng</span>
+                <span className="text-[11px] uppercase tracking-wide text-ink/65 text-center w-14" title="Pha cầu kết thúc có lợi bằng cú này">
                   Ghi điểm
                 </span>
-                <span className="text-[11px] uppercase tracking-wide text-ink/45 text-center w-14" title="Pha cầu kết thúc bất lợi ngay sau cú này">
+                <span className="text-[11px] uppercase tracking-wide text-ink/65 text-center w-14" title="Pha cầu kết thúc bất lợi ngay sau cú này">
                   Mất điểm
                 </span>
                 {profile.strokes.map(s => {
@@ -455,7 +455,7 @@ export const PlayerProfilePage: React.FC = () => {
                             style={{ width: `${(s.total / maxStroke) * 100}%` }}
                           />
                         </div>
-                        <span className="w-16 text-right text-xs tabular-nums text-ink/60">
+                        <span className="w-16 text-right text-xs tabular-nums text-ink/70">
                           <span className="font-semibold text-ink">{share}%</span> · {s.total}
                         </span>
                       </div>
@@ -476,7 +476,7 @@ export const PlayerProfilePage: React.FC = () => {
             <div className="lg:col-span-4 space-y-5">
               <Section icon={Crosshair} title="Thuận tay / trái tay">
                 {handTotal === 0 ? (
-                  <p className="text-sm text-ink/55">Chưa xác định được tay đánh.</p>
+                  <p className="text-sm text-ink/70">Chưa xác định được tay đánh.</p>
                 ) : (
                   <>
                     <div className="flex h-4 rounded-full overflow-hidden">
@@ -489,7 +489,7 @@ export const PlayerProfilePage: React.FC = () => {
                         <li key={p.key} className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-sm" style={{ background: p.color }} />
                           <span className="text-ink/75">{p.label}</span>
-                          <span className="ml-auto tabular-nums text-ink/50 text-xs">{p.value}</span>
+                          <span className="ml-auto tabular-nums text-ink/65 text-xs">{p.value}</span>
                           <span className="w-10 text-right font-semibold tabular-nums">{Math.round((p.value / handTotal) * 100)}%</span>
                         </li>
                       ))}
@@ -500,7 +500,7 @@ export const PlayerProfilePage: React.FC = () => {
 
               <Section icon={ShieldAlert} title="Bị ghi điểm bằng" subtitle="Cú kết thúc của đối thủ khi VĐV mất điểm">
                 {profile.concededBy.length === 0 ? (
-                  <p className="text-sm text-ink/55">Chưa có dữ liệu.</p>
+                  <p className="text-sm text-ink/70">Chưa có dữ liệu.</p>
                 ) : (
                   <ul className="space-y-2">
                     {profile.concededBy.slice(0, 5).map(c => (
@@ -545,9 +545,9 @@ export const PlayerProfilePage: React.FC = () => {
                       <div className="flex items-baseline justify-between mb-1.5">
                         <span className="text-sm font-semibold text-ink">
                           {RALLY_BUCKETS[bucket].label}
-                          <span className="font-normal text-ink/50 text-xs ml-1.5">{RALLY_BUCKETS[bucket].range}</span>
+                          <span className="font-normal text-ink/65 text-xs ml-1.5">{RALLY_BUCKETS[bucket].range}</span>
                         </span>
-                        <span className="text-xs tabular-nums text-ink/60">
+                        <span className="text-xs tabular-nums text-ink/70">
                           {row.won}–{row.lost}
                           <span className={`ml-2 font-score text-lg font-bold ${r == null ? 'text-ink/30' : r >= 50 ? 'text-pitch-deep' : 'text-loss'}`}>
                             {r == null ? '–' : `${r}%`}
@@ -558,7 +558,7 @@ export const PlayerProfilePage: React.FC = () => {
                     </div>
                   );
                 })}
-                <div className="flex gap-4 text-[11px] text-ink/55 pt-1">
+                <div className="flex gap-4 text-[11px] text-ink/70 pt-1">
                   <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-pitch" /> Thắng</span>
                   <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-loss/80" /> Thua</span>
                 </div>
@@ -585,12 +585,12 @@ export const PlayerProfilePage: React.FC = () => {
                     <PlayerMonogram name={o.name} size="sm" className="!bg-ink" />
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-ink truncate group-hover:text-pitch-deep">{o.name}</p>
-                      <p className="text-xs text-ink/55">{o.matches} trận</p>
+                      <p className="text-xs text-ink/70">{o.matches} trận</p>
                     </div>
                     <ArrowUpRight className="w-4 h-4 text-ink/30 group-hover:text-pitch" />
                   </div>
                   <div className="flex items-baseline justify-between mt-3 mb-1.5 text-xs">
-                    <span className="tabular-nums text-ink/60">
+                    <span className="tabular-nums text-ink/70">
                       Điểm <span className="font-semibold text-ink">{o.ralliesWon}–{o.ralliesLost}</span>
                     </span>
                     <span className={`font-score text-lg font-bold ${r == null ? 'text-ink/30' : r >= 50 ? 'text-pitch-deep' : 'text-loss'}`}>
@@ -611,7 +611,7 @@ export const PlayerProfilePage: React.FC = () => {
         <div className="overflow-x-auto -mx-5 sm:-mx-6">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-ink/45 border-b border-ink/10">
+              <tr className="text-left text-[11px] uppercase tracking-wide text-ink/65 border-b border-ink/10">
                 <th className="font-semibold py-2 pl-5 sm:pl-6">Ngày</th>
                 <th className="font-semibold py-2">Đối thủ</th>
                 <th className="font-semibold py-2">Lối chơi</th>
@@ -630,7 +630,7 @@ export const PlayerProfilePage: React.FC = () => {
                       <Link to={playerPath(m.opponent)} className="font-semibold text-ink hover:text-pitch-deep">
                         {m.opponent}
                       </Link>
-                      {m.title && <p className="text-xs text-ink/50 truncate max-w-[260px]">{m.title}</p>}
+                      {m.title && <p className="text-xs text-ink/65 truncate max-w-[260px]">{m.title}</p>}
                     </td>
                     <td className="py-3">
                       {m.playstyle ? (

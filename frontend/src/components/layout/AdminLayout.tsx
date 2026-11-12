@@ -93,7 +93,7 @@ export const AdminLayout: React.FC = () => {
                 <span>Badminton</span>
                 <span className="text-sky-400">Admin</span>
               </div>
-              <div className="text-[10px] text-purple-300 font-semibold uppercase tracking-wider">
+              <div className="text-[11px] text-purple-300 font-semibold uppercase tracking-wider">
                 Control Center
               </div>
             </div>
@@ -102,7 +102,7 @@ export const AdminLayout: React.FC = () => {
 
         {/* Danh mục điều hướng chính */}
         <div className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-          <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          <div className="px-3 pb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
             Phân Hệ Quản Trị
           </div>
           {navItems.map((item) => {
@@ -157,7 +157,7 @@ export const AdminLayout: React.FC = () => {
                 <div className="text-xs font-bold text-white truncate">
                   {user?.fullName || 'Quản trị viên'}
                 </div>
-                <div className="text-[10px] text-slate-400 truncate">
+                <div className="text-[11px] text-slate-400 truncate">
                   {user?.email || 'admin@badminton.vn'}
                 </div>
               </div>

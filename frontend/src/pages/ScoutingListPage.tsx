@@ -42,7 +42,7 @@ export const ScoutingListPage: React.FC = () => {
     <div className="max-w-6xl mx-auto space-y-8 pb-16 pt-2 font-vn">
       <header>
         <h1 className="text-2xl font-bold text-ink">Trinh sát đối thủ</h1>
-        <p className="text-sm text-ink/60 mt-1">
+        <p className="text-sm text-ink/70 mt-1">
           Chọn đối thủ sắp gặp: hệ thống đọc mọi trận của họ và lập kế hoạch thi đấu, kèm video minh chứng cho từng nhận định.
         </p>
       </header>
@@ -101,7 +101,7 @@ export const ScoutingListPage: React.FC = () => {
         ) : reports.length === 0 ? (
           <div className="rounded-xl bg-sheet border border-dashed border-ink/20 px-6 py-12 text-center">
             <ClipboardList className="w-8 h-8 mx-auto text-ink/20" />
-            <p className="mt-3 text-sm text-ink/60">Chưa có báo cáo nào. Chọn một đối thủ ở trên để bắt đầu.</p>
+            <p className="mt-3 text-sm text-ink/70">Chưa có báo cáo nào. Chọn một đối thủ ở trên để bắt đầu.</p>
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -122,10 +122,10 @@ export const ScoutingListPage: React.FC = () => {
                   )}
                 </div>
                 <h3 className="mt-3 font-semibold text-ink leading-snug group-hover:text-pitch-deep line-clamp-2">{r.title}</h3>
-                <p className="text-xs text-ink/55 mt-1">
+                <p className="text-xs text-ink/70 mt-1">
                   Đối thủ: <span className="font-medium text-ink/75">{r.opponentName}</span>
                 </p>
-                <div className="flex items-center justify-between mt-3 text-xs text-ink/45">
+                <div className="flex items-center justify-between mt-3 text-xs text-ink/65">
                   <span>Cập nhật {formatDateTime(r.updatedAt)}</span>
                   <ArrowRight className="w-4 h-4 text-ink/25 group-hover:text-pitch group-hover:translate-x-0.5 transition-all" />
                 </div>

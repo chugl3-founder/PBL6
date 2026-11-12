@@ -272,12 +272,12 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
         {!compact && (<>
         <div className="absolute top-3 left-4 bg-ink/[0.04] px-3 py-1.5 rounded-xl border border-blue-500/30 text-xs text-blue-700 font-bold flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-pa" />
-          <span>{upperPlayerName} (xa camera)</span>
+          <span>{upperPlayerName}</span>
         </div>
 
         <div className="absolute top-3 right-4 bg-ink/[0.04] px-3 py-1.5 rounded-xl border border-amber-500/30 text-xs text-amber-700 font-bold flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-          <span>{lowerPlayerName} (gần camera)</span>
+          <span>{lowerPlayerName}</span>
         </div>
         </>)}
       </div>
@@ -300,7 +300,7 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
         <div className="p-4 rounded-lg bg-ink/[0.04] border border-ink/10 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/10 pb-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-ink/55 tabular-nums">Cú đánh #{currentEvent.eventOrder}</span>
+              <span className="text-xs text-ink/70 tabular-nums">Cú đánh #{currentEvent.eventOrder}</span>
               <span className="text-ink/40">•</span>
               <span className="text-xs font-semibold text-ink/75">Thời điểm: {currentEvent.timeSeconds.toFixed(2)}s</span>
             </div>
@@ -321,7 +321,7 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 space-y-0.5">
-              <span className="text-ink/50 text-[11px]">Người vung vợt:</span>
+              <span className="text-ink/65 text-[11px]">Người vung vợt:</span>
               <div className="font-bold text-ink truncate flex items-center gap-1.5">
                 <span className={`w-2 h-2 rounded-full ${currentEvent.playerSide === 'UPPER' ? 'bg-pa' : 'bg-amber-400'}`} />
                 <span>{currentEvent.playerSide === 'UPPER' ? upperPlayerName : lowerPlayerName}</span>
@@ -329,7 +329,7 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
             </div>
 
             <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 space-y-0.5">
-              <span className="text-ink/50 text-[11px]">Vận tốc cầu:</span>
+              <span className="text-ink/65 text-[11px]">Vận tốc cầu:</span>
               <div className="tabular-nums font-bold text-amber-700 flex items-center gap-1">
                 <Zap className="w-3.5 h-3.5 text-amber-700" />
                 <span>{currentEvent.averageShuttleSpeedImagePerSecond ? `${currentEvent.averageShuttleSpeedImagePerSecond.toFixed(1)} px/s` : 'N/A'}</span>
@@ -337,7 +337,7 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
             </div>
 
             <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 space-y-0.5">
-              <span className="text-ink/50 text-[11px]">Độ tin cậy AI:</span>
+              <span className="text-ink/65 text-[11px]">Độ tin cậy AI:</span>
               <div className="tabular-nums font-bold text-emerald-700 flex items-center gap-1">
                 <Target className="w-3.5 h-3.5 text-emerald-700" />
                 <span>{(currentEvent.confidence * 100).toFixed(1)}%</span>
@@ -345,7 +345,7 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
             </div>
 
             <div className="p-2.5 rounded-xl bg-ink/[0.04] border border-ink/10 space-y-0.5">
-              <span className="text-ink/50 text-[11px]">Trạng thái:</span>
+              <span className="text-ink/65 text-[11px]">Trạng thái:</span>
               <div className="font-semibold text-sky-700 flex items-center gap-1 capitalize">
                 <Wind className="w-3.5 h-3.5 text-sky-700" />
                 <span>{currentEvent.attackStateRule || 'Rallying'}</span>
@@ -356,18 +356,18 @@ export const Court2DViewer: React.FC<Court2DViewerProps> = ({
           {/* Vùng tiếp xúc -> Vùng rơi */}
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-pitch/10 border border-pitch/20 text-xs text-ink/75">
             <div className="flex items-center gap-1.5">
-              <span className="text-ink/55">Khu vực đánh:</span>
+              <span className="text-ink/70">Khu vực đánh:</span>
               <span className="font-bold text-ink bg-ink/[0.06] px-2 py-0.5 rounded-md">Ô {currentEvent.hittingArea3x3 ?? "?"}/9</span>
             </div>
             <ArrowRight className="w-4 h-4 text-pitch" />
             <div className="flex items-center gap-1.5">
-              <span className="text-ink/55">Cầu rơi (ước lượng):</span>
+              <span className="text-ink/70">Cầu rơi (ước lượng):</span>
               <span className="font-bold text-emerald-700 bg-emerald-500/20 px-2 py-0.5 rounded-md">Ô {currentEvent.landingArea3x3Proxy ?? "?"}/9</span>
             </div>
           </div>
         </div>
       ) : (
-        <div className="p-4 rounded-lg bg-ink/[0.04] border border-ink/10 text-center text-xs text-ink/50">
+        <div className="p-4 rounded-lg bg-ink/[0.04] border border-ink/10 text-center text-xs text-ink/65">
           Chưa chọn cú đánh nào trên timeline
         </div>
       )}

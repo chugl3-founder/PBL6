@@ -83,7 +83,7 @@ export const MatchHighlights: React.FC<MatchHighlightsProps> = ({
     >
       <span className="text-sm font-semibold text-ink/70 shrink-0">Đáng chú ý</span>
       {highlights.length === 0 ? (
-        <span className="text-sm text-ink/55 flex items-center gap-1.5">
+        <span className="text-sm text-ink/70 flex items-center gap-1.5">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-pitch" />
           AI đang tổng hợp, nhận định sẽ hiện sau vài pha cầu
         </span>
@@ -102,7 +102,7 @@ export const MatchHighlights: React.FC<MatchHighlightsProps> = ({
                 <span className="truncate">{item.title}</span>
                 <span
                   className={`shrink-0 rounded px-1.5 text-xs font-semibold tabular-nums ${
-                    item.tone === 'loss' ? 'bg-loss/10 text-loss' : 'bg-ink/[0.06] text-ink/60'
+                    item.tone === 'loss' ? 'bg-loss/10 text-loss' : 'bg-ink/[0.06] text-ink/70'
                   }`}
                 >
                   {item.tone === 'loss' ? `${item.count} điểm thua` : `pha ${item.rallies[0].rallyNumber}`}

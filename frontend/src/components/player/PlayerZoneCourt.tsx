@@ -67,7 +67,7 @@ export const PlayerZoneCourt: React.FC<{ profile: PlayerProfile }> = ({ profile 
                   setHovered(null);
                 }}
                 className={`flex items-center gap-1.5 py-1.5 px-3 rounded-md font-semibold transition-colors ${
-                  layer === key ? 'bg-ink text-white' : 'text-ink/60 hover:text-ink hover:bg-ink/[0.04]'
+                  layer === key ? 'bg-ink text-white' : 'text-ink/70 hover:text-ink hover:bg-ink/[0.04]'
                 }`}
               >
                 <span className="w-2 h-2 rounded-full" style={{ background: LAYERS[key].color }} aria-hidden />
@@ -75,7 +75,7 @@ export const PlayerZoneCourt: React.FC<{ profile: PlayerProfile }> = ({ profile 
               </button>
             ))}
           </div>
-          <p className="text-xs text-ink/55">{meta.caption(profile.name)}</p>
+          <p className="text-xs text-ink/70">{meta.caption(profile.name)}</p>
         </div>
 
         <div className="relative w-full aspect-[600/320] rounded-lg border-2 border-ink/15 overflow-hidden">
@@ -137,7 +137,7 @@ export const PlayerZoneCourt: React.FC<{ profile: PlayerProfile }> = ({ profile 
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-ink/55">
+        <div className="flex items-center gap-2 text-xs text-ink/70">
           <span>Ít</span>
           <span
             className="h-2.5 w-24 rounded-sm border border-ink/15"
@@ -152,9 +152,9 @@ export const PlayerZoneCourt: React.FC<{ profile: PlayerProfile }> = ({ profile 
       </div>
 
       <aside className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-ink/50">Vùng nổi bật</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-ink/65">Vùng nổi bật</h3>
         {top.length === 0 ? (
-          <p className="text-sm text-ink/55">Chưa có dữ liệu vị trí cho lớp này.</p>
+          <p className="text-sm text-ink/70">Chưa có dữ liệu vị trí cho lớp này.</p>
         ) : (
           <ol className="space-y-2">
             {top.map((zone, i) => (
@@ -175,7 +175,7 @@ export const PlayerZoneCourt: React.FC<{ profile: PlayerProfile }> = ({ profile 
             ))}
           </ol>
         )}
-        <p className="text-[11px] leading-relaxed text-ink/50">
+        <p className="text-[11px] leading-relaxed text-ink/65">
           Gộp từ {profile.analyzedMatchCount} trận đã phân tích; trận đứng sân trên được lật lại để VĐV luôn ở bên phải.
           Trái/phải theo hướng VĐV nhìn lên lưới.
           {layer !== 'position' && ' Điểm rơi là ước lượng từ vị trí người đỡ cầu, lệch khoảng 1–1,5 m.'}

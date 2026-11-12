@@ -3,7 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 
-// Pages in the light "court" identity: landing, library, the coach's matches, create, detail and replay.
+// Pages in the light "court" identity: every client page (landing, library, players, scouting,
+// the coach's matches, create, detail, replay, account and profile pages).
 const COURT_ROUTES = [
   /^\/$/,
   /^\/public-matches(\/\d+\/replay)?\/?$/,
@@ -12,11 +13,11 @@ const COURT_ROUTES = [
   /^\/my-matches\/?$/,
   /^\/matches\/create\/?$/,
   /^\/matches\/\d+(\/replay)?\/?$/,
+  /^\/(login|register|forgot-password|reset-password|profile)\/?$/,
 ];
 
 export const MainLayout: React.FC = () => {
   const location = useLocation();
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
   const isCourtPage = COURT_ROUTES.some(route => route.test(location.pathname));
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export const MainLayout: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className={isAuthPage ? "flex-1 w-full" : "flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6"}>
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Outlet />
       </main>
       {/* Only the landing page needs an ending; work pages stop where the work stops. */}

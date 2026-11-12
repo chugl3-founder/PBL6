@@ -150,9 +150,9 @@ export const TacticsBreakdown: React.FC<TacticsBreakdownProps> = ({
 
   if (rallies.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-center text-ink/55 space-y-1">
+      <div className="flex flex-col items-center justify-center p-8 text-center text-ink/70 space-y-1">
         <p className="text-sm font-medium">Trận này chưa có dữ liệu chiến thuật</p>
-        <p className="text-xs text-ink/50">Phân tích lại trận để AI nhận diện chiến thuật.</p>
+        <p className="text-xs text-ink/65">Phân tích lại trận để AI nhận diện chiến thuật.</p>
       </div>
     );
   }
@@ -183,7 +183,7 @@ export const TacticsBreakdown: React.FC<TacticsBreakdownProps> = ({
             <div className="flex items-center gap-2 mb-2">
               <span className={`w-1 h-4 rounded-full ${side === 'upper' ? 'bg-pa' : 'bg-pb'}`} aria-hidden />
               <span className="text-sm font-semibold text-ink truncate">{nameBySide(side)}</span>
-              <span className="text-xs text-ink/50 shrink-0 ml-auto">{total} pha</span>
+              <span className="text-xs text-ink/65 shrink-0 ml-auto">{total} pha</span>
             </div>
             <ul className="space-y-2">
               {rows.map((row) => {
@@ -192,13 +192,13 @@ export const TacticsBreakdown: React.FC<TacticsBreakdownProps> = ({
                 return (
                   <li key={row.code} title={meta?.hint}>
                     <div className="flex items-baseline justify-between text-xs gap-2 mb-1">
-                      <span className={NEUTRAL.has(row.code) ? 'text-ink/50 truncate' : 'text-ink/80 truncate'}>
+                      <span className={NEUTRAL.has(row.code) ? 'text-ink/65 truncate' : 'text-ink/80 truncate'}>
                         {tacticLabel(row.code)}
                       </span>
-                      <span className="tabular-nums text-ink/60 shrink-0">
+                      <span className="tabular-nums text-ink/70 shrink-0">
                         {row.uses} pha
                         {row.decided > 0 && !NEUTRAL.has(row.code) && (
-                          <span className="text-ink/45">, thắng {row.wins}/{row.decided}</span>
+                          <span className="text-ink/65">, thắng {row.wins}/{row.decided}</span>
                         )}
                       </span>
                     </div>
@@ -248,7 +248,7 @@ export const TacticsBreakdown: React.FC<TacticsBreakdownProps> = ({
       </div>
 
       {filter && TACTICS[filter] && (
-        <p className="text-xs text-ink/55 mb-2">
+        <p className="text-xs text-ink/70 mb-2">
           {TACTICS[filter].hint}.
         </p>
       )}
@@ -259,7 +259,7 @@ export const TacticsBreakdown: React.FC<TacticsBreakdownProps> = ({
           return (
             <li key={`${rally.rally_id}-${rally.player}`} className="flex items-center gap-2 py-2 text-xs min-w-0">
               <span className={`w-1 h-4 rounded-full shrink-0 ${rally.player === 'upper' ? 'bg-pa' : 'bg-pb'}`} aria-hidden />
-              <span className="text-ink/50 tabular-nums shrink-0">Pha {rally.rally_id}</span>
+              <span className="text-ink/65 tabular-nums shrink-0">Pha {rally.rally_id}</span>
               <span className="font-medium text-ink truncate">{nameBySide(rally.player)}</span>
               <span className="ml-auto flex items-center gap-2 shrink-0">
                 {rally.won != null && (
@@ -294,7 +294,7 @@ export const TacticsBreakdown: React.FC<TacticsBreakdownProps> = ({
         <div key={idx} className={idx === 0 ? 'mb-5' : ''}>{block}</div>
       ))}
 
-      <p className="mt-4 text-[11px] text-ink/50 leading-relaxed">
+      <p className="mt-4 text-[11px] text-ink/65 leading-relaxed">
         Một pha có thể dùng nhiều chiến thuật nên tổng có thể vượt số pha. AI ước lượng từ chuỗi cú đánh, nhịp cầu, vị trí người chơi và điểm rơi cầu, chưa phải nhận định của chuyên gia. Thắng/thua chỉ tính các pha xác định được người thắng.
       </p>
     </div>

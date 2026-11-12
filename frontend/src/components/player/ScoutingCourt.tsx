@@ -77,7 +77,7 @@ export const ScoutingCourt: React.FC<ScoutingCourtProps> = ({ target, threat, op
           <p className="flex items-center gap-2 text-sm font-semibold text-ink">
             <span className="w-3 h-3 rounded-sm" style={{ background: TARGET }} /> Đánh vào đây
           </p>
-          <p className="text-xs text-ink/55 mt-1">Nơi cú kết thúc rơi khi đối thủ mất điểm.</p>
+          <p className="text-xs text-ink/70 mt-1">Nơi cú kết thúc rơi khi đối thủ mất điểm.</p>
           {targetTop.length ? (
             <ul className="mt-2 space-y-1 text-sm">
               {targetTop.map(z => (
@@ -88,14 +88,14 @@ export const ScoutingCourt: React.FC<ScoutingCourtProps> = ({ target, threat, op
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-ink/45">Chưa đủ dữ liệu vị trí.</p>
+            <p className="mt-2 text-xs text-ink/65">Chưa đủ dữ liệu vị trí.</p>
           )}
         </div>
         <div className="rounded-lg border border-ink/10 p-3">
           <p className="flex items-center gap-2 text-sm font-semibold text-ink">
             <span className="w-3 h-3 rounded-sm" style={{ background: THREAT }} /> Cầu của đối thủ hay rơi
           </p>
-          <p className="text-xs text-ink/55 mt-1">Chuẩn bị đỡ cầu ở các vùng này trên sân bạn.</p>
+          <p className="text-xs text-ink/70 mt-1">Chuẩn bị đỡ cầu ở các vùng này trên sân bạn.</p>
           {threatTop.length ? (
             <ul className="mt-2 space-y-1 text-sm">
               {threatTop.map(z => (
@@ -106,11 +106,11 @@ export const ScoutingCourt: React.FC<ScoutingCourtProps> = ({ target, threat, op
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-ink/45">Chưa đủ dữ liệu vị trí.</p>
+            <p className="mt-2 text-xs text-ink/65">Chưa đủ dữ liệu vị trí.</p>
           )}
         </div>
       </div>
-      <p className="text-[11px] text-ink/45">Trái/phải tính theo hướng người đứng ở vùng đó nhìn lên lưới. Điểm rơi là ước lượng, lệch khoảng 1–1,5 m.</p>
+      <p className="text-[11px] text-ink/65">Trái/phải tính theo hướng người đứng ở vùng đó nhìn lên lưới. Điểm rơi là ước lượng, lệch khoảng 1–1,5 m.</p>
     </div>
   );
 };
