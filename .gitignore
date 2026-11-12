@@ -61,3 +61,5 @@ rabbitmq_data/
 
 # Paper drafts and review notes
 SuaBaoCao/
+
+.claude/settings.local.json
