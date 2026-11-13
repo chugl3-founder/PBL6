@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -107,6 +108,44 @@ class HighlightSelectorTest {
         assertThat(last.gameNumber()).isEqualTo(3);
         assertThat(last.scoreABefore()).isEqualTo(11);
         assertThat(last.scoreBBefore()).isEqualTo(1);
+    }
+
+    @Test
+    void ralliesAfterAStraightGamesWinAreMarkedAfterTheMatch() {
+        int[] count = {0, 0};
+        List<RallyFacts> rallies = new ArrayList<>();
+        run(rallies, "UPPER", 21, count);   // game 1: A on upper wins 21-0
+        run(rallies, "LOWER", 21, count);   // game 2: A, now on lower, wins 21-0: match over
+        run(rallies, "UPPER", 3, count);    // play the AI picked up after the match
+
+        Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies, true);
+        HighlightSelector.GameContext lastPoint = games.get(42L);
+        HighlightSelector.GameContext after = games.get(45L);
+
+        assertThat(lastPoint.afterMatch()).isFalse();
+        assertThat(lastPoint.game()).isEqualTo(2);
+        assertThat(after.afterMatch()).isTrue();
+        assertThat(after.game()).isEqualTo(2);
+        // The final score is kept, not a new game.
+        assertThat(after.aAfter()).isEqualTo(21);
+        assertThat(after.bAfter()).isZero();
+        assertThat(HighlightSelector.rank(rallies, null, true)).noneMatch(c -> c.rallyNumber() > 42);
+    }
+
+    @Test
+    void videoStartingMidGameUsesTheGivenScore() {
+        // The video starts in game 2 at A 15 - B 18 (A on upper); the AI counts from 0-0.
+        int[] count = {0, 0};
+        List<RallyFacts> rallies = new ArrayList<>();
+        run(rallies, "LOWER", 3, count);    // B reaches 21-15: game 2 ends
+        run(rallies, "UPPER", 1, count);    // game 3: players changed ends, B is on upper
+
+        List<Candidate> ranked = HighlightSelector.rank(rallies, null, true, new HighlightSelector.Start(2, 15, 18));
+
+        assertThat(ranked.get(2).label()).startsWith("Kết thúc ván 2 · 15-21");
+        assertThat(ranked.get(3).gameNumber()).isEqualTo(3);
+        assertThat(ranked.get(3).scoreABefore()).isZero();
+        assertThat(ranked.get(3).scoreBBefore()).isZero();
     }
 
     @Test

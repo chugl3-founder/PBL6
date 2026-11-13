@@ -51,13 +51,13 @@ public class PlayerProfileService {
     public PlayerProfileResponse getProfile(String viewerEmail, String name) {
         String key = name == null ? "" : name.trim().toLowerCase();
         if (key.isEmpty() || key.length() > MAX_NAME_LENGTH) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "INVALID_PLAYER_NAME",
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_INVALID_PLAYER_NAME",
                     "Tên vận động viên không hợp lệ");
         }
         long viewerId = viewerId(viewerEmail);
         List<MatchRow> rows = playerStatsRepository.findMatches(viewerId, key);
         if (rows.isEmpty()) {
-            throw new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "PLAYER_NOT_FOUND",
+            throw new ApiException(HttpStatus.NOT_FOUND, ErrorType.SYSTEM, "ERR_PLAYER_NOT_FOUND",
                     "Không tìm thấy vận động viên trong các trận bạn được xem");
         }
 

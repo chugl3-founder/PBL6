@@ -11,7 +11,7 @@ import {
   getHighlightSuggestions,
   isRendering,
 } from '../../api/highlights';
-import { useHighlightJobs } from '../highlight/HighlightJobsContext';
+import { useHighlightJobs } from '../highlight/useHighlightJobs';
 import { RallyPreviewPlayer } from './RallyPreviewPlayer';
 
 interface HighlightReelDialogProps {
@@ -164,7 +164,7 @@ export const HighlightReelDialog: React.FC<HighlightReelDialogProps> = ({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, candidates, current]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, onClose, candidates, current]);  
 
   const submit = async () => {
     if (chosen.length === 0 || overLimit) return;

@@ -1,5 +1,7 @@
 package com.badminton.dto.match;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -28,6 +30,19 @@ public class UpdateMatchRequest {
     private String lowerPlayer;
 
     private LocalDate matchDate;
+
+    /** Game and per-player score when the video starts, for a clip that starts mid-game. */
+    @Min(value = 1, message = "Ván bắt đầu phải từ 1 đến 3")
+    @Max(value = 3, message = "Ván bắt đầu phải từ 1 đến 3")
+    private Integer startGame;
+
+    @Min(value = 0, message = "Tỉ số bắt đầu phải từ 0 đến 29")
+    @Max(value = 29, message = "Tỉ số bắt đầu phải từ 0 đến 29")
+    private Integer startScoreA;
+
+    @Min(value = 0, message = "Tỉ số bắt đầu phải từ 0 đến 29")
+    @Max(value = 29, message = "Tỉ số bắt đầu phải từ 0 đến 29")
+    private Integer startScoreB;
 
     @Size(max = 200, message = "Tiêu đề trận đấu không được vượt quá 200 ký tự")
     private String title;

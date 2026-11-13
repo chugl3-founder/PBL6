@@ -1,25 +1,11 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { HighlightReel, deleteHighlightReel, isRendering, listMyHighlightReels } from '../../api/highlights';
+import { getAccessToken } from '../../auth/session';
+import { errorMessage, errorStatus } from '../../api/errors';
+import { HighlightJobsValue, HighlightJobsContext } from './useHighlightJobs';
 
 const POLL_MS = 3000;
-
-interface HighlightJobsValue {
-  /** All reels of the signed-in user, newest first. */
-  reels: HighlightReel[];
-  loaded: boolean;
-  /** Message of the last failed load, cleared when a load succeeds. */
-  loadError: string | null;
-  /** Reels shown in the floating tray: started this session or still rendering. */
-  trayReels: HighlightReel[];
-  /** A reel was just queued: list it and follow it in the tray. */
-  track: (reel: HighlightReel) => void;
-  dismiss: (reelId: number) => void;
-  remove: (reel: HighlightReel) => Promise<void>;
-  refresh: () => Promise<void>;
-}
-
-const HighlightJobsContext = createContext<HighlightJobsValue | null>(null);
 
 /**
  * Highlight renders run on the media worker, so the user can leave the page like with a Drive upload. The list
@@ -28,7 +14,7 @@ const HighlightJobsContext = createContext<HighlightJobsValue | null>(null);
  */
 export const HighlightJobsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  const token = localStorage.getItem('access_token');
+  const token = getAccessToken();
   const [reels, setReels] = useState<HighlightReel[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -43,14 +29,14 @@ export const HighlightJobsProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoadError(null);
       // Jobs still running when the page loads go back into the tray.
       setTrayIds(prev => Array.from(new Set([...prev, ...list.filter(isRendering).map(r => r.id)])));
-    } catch (err: any) {
+    } catch (err) {
       // Keep the last list; tell the page why nothing came back instead of spinning forever.
-      const status = err?.response?.status;
+      const status = errorStatus(err);
       setLoadError(
         status === 404
           ? 'Máy chủ chưa có tính năng highlight. Hãy khởi động lại backend.'
-          : err?.response
-            ? err.response.data?.message || `Máy chủ báo lỗi (${status}).`
+          : status !== undefined
+            ? errorMessage(err, `Máy chủ báo lỗi (${status}).`)
             : 'Không kết nối được máy chủ.',
       );
     }
@@ -99,10 +85,4 @@ export const HighlightJobsProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [reels, loaded, loadError, trayIds, track, dismiss, remove, refresh]);
 
   return <HighlightJobsContext.Provider value={value}>{children}</HighlightJobsContext.Provider>;
-};
-
-export const useHighlightJobs = () => {
-  const value = useContext(HighlightJobsContext);
-  if (!value) throw new Error('useHighlightJobs must be used inside HighlightJobsProvider');
-  return value;
 };

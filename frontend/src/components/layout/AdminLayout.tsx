@@ -12,15 +12,15 @@ import {
   X,
   Activity,
 } from 'lucide-react';
-import apiClient from '../../api/client';
+import { logout } from '../../api/auth';
+import { getSessionUser } from '../../auth/session';
 
 export const AdminLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const userJson = localStorage.getItem('user_info');
-  const user = userJson ? JSON.parse(userJson) : null;
+  const user = getSessionUser();
 
   const navItems = [
     {
@@ -63,17 +63,11 @@ export const AdminLayout: React.FC = () => {
   const currentNav = navItems.find(isItemActive) || navItems[0];
 
   const handleLogout = async () => {
-    const refreshToken = localStorage.getItem('refresh_token');
     try {
-      if (refreshToken) {
-        await apiClient.post('/auth/logout', { refreshToken });
-      }
+      await logout();
     } catch {
       // ignore
     } finally {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_info');
       navigate('/login');
     }
   };

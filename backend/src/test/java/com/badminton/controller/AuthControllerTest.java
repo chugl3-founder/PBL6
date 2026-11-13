@@ -91,7 +91,7 @@ class AuthControllerTest {
                 .build();
 
         when(authService.register(any(RegisterRequest.class))).thenThrow(
-                new ApiException(HttpStatus.CONFLICT, ErrorType.VALIDATION, "AUTH_EMAIL_ALREADY_EXISTS", "Email này đã được sử dụng.")
+                new ApiException(HttpStatus.CONFLICT, ErrorType.VALIDATION, "ERR_EMAIL_ALREADY_EXISTS", "Email này đã được sử dụng.")
         );
 
         mockMvc.perform(post("/api/auth/register")
@@ -99,7 +99,7 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorType").value("VALIDATION"))
-                .andExpect(jsonPath("$.code").value("AUTH_EMAIL_ALREADY_EXISTS"));
+                .andExpect(jsonPath("$.code").value("ERR_EMAIL_ALREADY_EXISTS"));
     }
 }
 

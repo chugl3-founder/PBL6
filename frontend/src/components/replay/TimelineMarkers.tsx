@@ -1,6 +1,5 @@
 import React from 'react';
-import { AiEventData } from '../court/Court2DViewer';
-import { RallyData } from './RalliesExplorer';
+import { AiEventData, RallyData } from '../../types/replay';
 import { strokeLabel } from '../../utils/strokeLabels';
 
 interface TimelineMarkersProps {

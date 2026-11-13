@@ -16,6 +16,12 @@ Dựng video highlight (MP4) từ các pha cầu đã phân tích. Chỉ cần C
 Bitrate được tính theo tổng thời lượng để file luôn dưới ~40 MB (Supabase giới hạn 50 MB/file);
 backend giới hạn 180 giây và 20 pha mỗi video.
 
+## Ảnh thumbnail
+
+Sau khi video MP4 được tải lên, backend gửi job `{"type": "thumbnail"}` vào cùng hàng đợi. Worker cắt một khung
+hình (ở 20% thời lượng, tối đa giây 60), lưu `thumbnails/{matchId}.jpg` và ghi `videos.thumbnail_path`
+(migration V12). Video YouTube dùng ảnh của YouTube. Tạo bù cho video cũ: `python thumbnail.py --backfill`.
+
 ## Chạy
 
 ```bash

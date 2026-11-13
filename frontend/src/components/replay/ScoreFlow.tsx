@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Flame, PlayCircle } from 'lucide-react';
-import { RallyData } from './RalliesExplorer';
-import { PlaylistClip, toPlaylist } from './PointLossInsights';
+import { RallyData } from '../../types/replay';
+import { PlaylistClip, toPlaylist } from '../../utils/pointLoss';
 
 type Side = 'UPPER' | 'LOWER';
 

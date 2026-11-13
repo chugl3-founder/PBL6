@@ -1,48 +1,10 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Play, PlayCircle, X } from 'lucide-react';
 import { strokeLabelLower } from '../../utils/strokeLabels';
-import { TacticRally, tacticLabel, tacticsOf } from './TacticsBreakdown';
-import { PlaylistClip, toPlaylist } from './PointLossInsights';
-
-export interface RallyData {
-  id: number;
-  rallyNumber: number;
-  startEventId: number;
-  endEventId: number;
-  startTime: number;
-  endTime: number;
-  duration: number;
-  totalStrokes: number;
-  boundaryType: string;
-  serverSide: string; // UPPER, LOWER
-  winnerSide: string; // UPPER, LOWER
-  winReason: string;
-  scoreUpper: number;
-  scoreLower: number;
-  scoreText: string;
-  /** Per player within the game, split by the backend (players change ends between games). */
-  gameNumber?: number;
-  scoreA?: number;
-  scoreB?: number;
-  winnerPlayer?: 'PLAYER_A' | 'PLAYER_B' | null;
-  strokeSequence: string[];
-  isComplete: boolean;
-}
-
-/**
- * The rally winner as the side the player started the match on (game 1), so UPPER/LOWER keep naming the same
- * player in every game. The AI's winnerSide is the court half, and players change ends between games.
- */
-export const winnerByStartingSide = (rally: RallyData, upperPlayer: string): string => {
-  if (!rally.winnerPlayer) return rally.winnerSide;
-  return (rally.winnerPlayer === 'PLAYER_A') === (upperPlayer === 'PLAYER_A') ? 'UPPER' : 'LOWER';
-};
-
-/** "21-15" in player A-B order when the backend split the games, else the stored per-side text. */
-export const rallyScoreText = (rally: RallyData) =>
-  rally.scoreA != null && rally.scoreB != null
-    ? `${rally.scoreA}-${rally.scoreB}`
-    : rally.scoreText || `${rally.scoreUpper}-${rally.scoreLower}`;
+import { TacticRally, tacticLabel, tacticsOf } from '../../utils/tactics';
+import { PlaylistClip, toPlaylist } from '../../utils/pointLoss';
+import { winnerByStartingSide, rallyScoreText } from '../../utils/rallies';
+import { RallyData } from '../../types/replay';
 
 interface RalliesExplorerProps {
   rallies: RallyData[];
@@ -145,12 +107,13 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
     (r) => currentTimeSeconds >= r.startTime && currentTimeSeconds <= r.endTime
   );
 
-  // Tự động cuộn theo rally đang phát
+  // Tự động cuộn theo rally đang phát (chỉ khi sang pha khác)
+  const activeRallyId = activeRally?.id;
   useEffect(() => {
-    if (activeRally && activeRallyRef.current) {
+    if (activeRallyId != null && activeRallyRef.current) {
       activeRallyRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [activeRally?.id]);
+  }, [activeRallyId]);
 
   const getPlayerNameBySide = (side: string) => {
     if (side === 'UPPER') {
@@ -174,7 +137,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
   const multiGame = rallies.some((r) => (r.gameNumber ?? 1) > 1);
   const scoreTooltip = ocrAnchored
     ? 'Tỉ số đọc từ bảng điểm của video (OCR)'
-    : 'Không đọc được bảng điểm: AI tự đếm số pha thắng, tính từ 0-0 ở đầu video, không phải tỉ số thật của trận';
+    : 'Không đọc được bảng điểm: AI tự đếm số pha thắng từ tỉ số lúc video bắt đầu (mặc định 0-0, chủ trận sửa được ở trang chi tiết trận)';
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -265,13 +228,15 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                 }`}
               >
                 <span
-                  className={`w-1 self-stretch rounded-full ${winnerSide === 'UPPER' ? 'bg-pa' : 'bg-pb'}`}
+                  className={`w-1 self-stretch rounded-full ${rally.afterMatch ? 'bg-ink/15' : winnerSide === 'UPPER' ? 'bg-pa' : 'bg-pb'}`}
                   aria-hidden
                 />
                 <span className="flex-1 min-w-0">
                   <span className="flex items-baseline gap-2">
                     <span className="text-xs text-ink/65 tabular-nums w-10 shrink-0">Pha {rally.rallyNumber}</span>
-                    <span className="text-sm font-semibold text-ink truncate">{winnerName} ghi điểm</span>
+                    <span className="text-sm font-semibold text-ink truncate">
+                      {rally.afterMatch ? 'Không tính điểm' : `${winnerName} ghi điểm`}
+                    </span>
                   </span>
                   <span className="flex items-baseline gap-2 text-xs text-ink/70">
                     <span className="w-10 shrink-0 tabular-nums">{formatTime(rally.startTime)}</span>
@@ -281,12 +246,21 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                     </span>
                   </span>
                 </span>
-                <span className="font-score text-lg font-semibold tabular-nums text-ink shrink-0" title={scoreTooltip}>
-                  {multiGame && rally.gameNumber != null && (
-                    <span className="mr-1 text-xs font-medium text-ink/50">V{rally.gameNumber}</span>
-                  )}
-                  {rallyScoreText(rally)}
-                </span>
+                {rally.afterMatch ? (
+                  <span
+                    className="text-xs font-medium text-ink/50 shrink-0"
+                    title="Pha này diễn ra sau khi một VĐV đã thắng trận, thường là đoạn AI bắt nhầm sau trận. Không tính vào tỉ số và thống kê."
+                  >
+                    Sau trận
+                  </span>
+                ) : (
+                  <span className="font-score text-lg font-semibold tabular-nums text-ink shrink-0" title={scoreTooltip}>
+                    {multiGame && rally.gameNumber != null && (
+                      <span className="mr-1 text-xs font-medium text-ink/50">V{rally.gameNumber}</span>
+                    )}
+                    {rallyScoreText(rally)}
+                  </span>
+                )}
                 <Play
                   className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-pitch fill-pitch' : 'text-ink/25 group-hover:text-pitch'}`}
                   aria-hidden

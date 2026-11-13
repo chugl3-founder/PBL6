@@ -3,7 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, ArrowUpDown, AlertCircle } from 'lucide-react';
 import { CameraCourt } from '../components/court/CameraCourt';
 import { StepIndicator } from '../components/match/StepIndicator';
-import apiClient from '../api/client';
+import { createMatch } from '../api/matches';
+import { errorMessage } from '../api/errors';
 
 const inputClass =
   'w-full h-11 px-3 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder:text-ink/55 focus:outline-none focus:border-pitch focus:ring-2 focus:ring-pitch/20';
@@ -39,7 +40,7 @@ export const CreateMatchPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await apiClient.post('/matches', {
+      const created = await createMatch({
         playerAName: upper,
         playerBName: lower,
         upperPlayer: 'PLAYER_A',
@@ -48,9 +49,9 @@ export const CreateMatchPage: React.FC = () => {
         title: title.trim() || `${upper} gặp ${lower}`,
         description: description.trim(),
       });
-      navigate(`/matches/${res.data.id}`);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Không tạo được trận. Hãy kiểm tra lại thông tin.');
+      navigate(`/matches/${created.id}`);
+    } catch (err) {
+      setError(errorMessage(err, 'Không tạo được trận. Hãy kiểm tra lại thông tin.'));
     } finally {
       setLoading(false);
     }

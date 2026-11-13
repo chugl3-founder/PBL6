@@ -7,18 +7,10 @@ import com.badminton.config.S3Properties;
 import com.badminton.dto.highlight.HighlightReelRequest;
 import com.badminton.dto.highlight.HighlightReelResponse;
 import com.badminton.dto.highlight.HighlightSuggestionsResponse;
-import com.badminton.entity.AiAnalysis;
-import com.badminton.entity.AiEvent;
 import com.badminton.entity.HighlightReel;
 import com.badminton.entity.Match;
-import com.badminton.entity.Rally;
-import com.badminton.entity.Video;
-import com.badminton.repository.AiAnalysisRepository;
-import com.badminton.repository.AiEventRepository;
+import com.badminton.repository.HighlightQueryRepository;
 import com.badminton.repository.HighlightReelRepository;
-import com.badminton.repository.MatchRepository;
-import com.badminton.repository.RallyRepository;
-import com.badminton.repository.VideoRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -27,17 +19,18 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -61,31 +54,27 @@ public class HighlightReelService {
     private static final Duration URL_TTL = Duration.ofHours(12);
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    private final MatchRepository matchRepository;
-    private final VideoRepository videoRepository;
-    private final AiAnalysisRepository aiAnalysisRepository;
-    private final RallyRepository rallyRepository;
-    private final AiEventRepository aiEventRepository;
+    private final MatchAccessService matchAccess;
     private final HighlightReelRepository highlightReelRepository;
+    private final HighlightQueryRepository highlightQueryRepository;
     private final RabbitTemplate rabbitTemplate;
-    private final TransactionTemplate transactionTemplate;
     private final S3Presigner s3Presigner;
     private final S3Client s3Client;
     private final S3Properties s3Properties;
     private final ObjectMapper objectMapper;
 
-    @Transactional(readOnly = true)
+    /** One database round trip (see HighlightQueryRepository). */
     public HighlightSuggestionsResponse suggest(Long matchId, String email) {
-        Match match = ownedMatch(matchId, email);
-        AiAnalysis analysis = completedAnalysis(matchId);
-        List<HighlightSelector.Candidate> candidates = rank(match, analysis, videoDuration(matchId, analysis));
-        return new HighlightSuggestionsResponse(matchId, analysis.getId(), defaultTitle(match),
-                HighlightSelector.MAX_REEL_SECONDS, HighlightSelector.MAX_CLIPS, candidates);
+        HighlightQueryRepository.Loaded loaded = loadOwned(matchId, email);
+        HighlightQueryRepository.Context ctx = loaded.context();
+        requireCompleted(ctx);
+        return new HighlightSuggestionsResponse(matchId, ctx.analysisId(), defaultTitle(ctx),
+                HighlightSelector.MAX_REEL_SECONDS, HighlightSelector.MAX_CLIPS, rank(loaded));
     }
 
     @Transactional(readOnly = true)
     public List<HighlightReelResponse> list(Long matchId, String email) {
-        ownedMatch(matchId, email);
+        matchAccess.requireOwner(matchId, email);
         return highlightReelRepository.findByMatchIdOrderByCreatedAtDesc(matchId).stream()
                 .map(this::toResponse)
                 .toList();
@@ -101,38 +90,88 @@ public class HighlightReelService {
 
     @Transactional(readOnly = true)
     public HighlightReelResponse get(Long matchId, Long reelId, String email) {
-        ownedMatch(matchId, email);
+        matchAccess.requireOwner(matchId, email);
         return toResponse(reel(matchId, reelId));
     }
 
-    /** Returns at once with a QUEUED reel; the media worker renders it (HTTP 202). */
+    /**
+     * Returns at once with a QUEUED reel; the media worker renders it (HTTP 202). Two database round trips:
+     * one read of everything needed, then an autocommit INSERT, committed before the job is published so the
+     * worker always finds the row.
+     */
     public HighlightReelResponse create(Long matchId, HighlightReelRequest.Create request, String email) {
-        // Commit before publishing, as for AI analyses: the worker must always find the row.
-        Map<String, Object> job = new LinkedHashMap<>();
-        HighlightReel created = transactionTemplate.execute(status -> {
-            HighlightReel reel = buildReel(matchId, request, email, job);
-            return highlightReelRepository.save(reel);
-        });
-        job.put("reelId", created.getId());
-        job.put("outputPath", "highlights/" + matchId + "/" + created.getId() + ".mp4");
+        HighlightQueryRepository.Loaded loaded = loadOwned(matchId, email);
+        HighlightQueryRepository.Context ctx = loaded.context();
+        requireCompleted(ctx);
+        if (ctx.videoStoragePath() == null && ctx.youtubeUrl() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_VIDEO_NOT_FOUND",
+                    "Trận đấu chưa có video");
+        }
+        if (ctx.busy()) {
+            throw new ApiException(HttpStatus.CONFLICT, ErrorType.VALIDATION, "ERR_HIGHLIGHT_IN_PROGRESS",
+                    "Đang có một video highlight được dựng cho trận này. Hãy đợi video đó xong.");
+        }
 
+        List<Map<String, Object>> clips = choose(rank(loaded), request.rallyIds()).stream().map(c -> {
+            Map<String, Object> clip = new LinkedHashMap<>();
+            clip.put("rallyId", c.rallyId());
+            clip.put("rallyNumber", c.rallyNumber());
+            clip.put("start", c.clipStart());
+            clip.put("end", c.clipEnd());
+            clip.put("label", c.label());
+            clip.put("game", c.gameNumber());
+            clip.put("scoreA", c.scoreABefore());
+            clip.put("scoreB", c.scoreBBefore());
+            return clip;
+        }).toList();
+
+        String title = request.title() == null || request.title().isBlank() ? defaultTitle(ctx) : request.title().trim();
+        String clipsJson;
+        try {
+            clipsJson = objectMapper.writeValueAsString(clips);
+        } catch (JsonProcessingException e) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, ErrorType.SYSTEM, "ERR_HIGHLIGHT_SERIALIZE",
+                    "Không tạo được danh sách pha cầu");
+        }
+        HighlightQueryRepository.Inserted created = highlightQueryRepository.insertQueued(
+                matchId, ctx.analysisId(), ctx.ownerId(), title, clipsJson);
+
+        Map<String, Object> job = new LinkedHashMap<>();
+        job.put("matchId", matchId);
+        job.put("title", title);
+        job.put("subtitle", ctx.playerAName() + " vs " + ctx.playerBName()
+                + (ctx.matchDate() != null ? " · " + ctx.matchDate().format(DATE) : ""));
+        // The scoreboard is per player, not per court half: players change ends between games.
+        job.put("nameA", ctx.playerAName());
+        job.put("nameB", ctx.playerBName());
+        job.put("videoStoragePath", ctx.videoStoragePath());
+        if ("YOUTUBE".equalsIgnoreCase(ctx.videoSourceType()) && ctx.youtubeUrl() != null) {
+            job.put("youtubeUrl", ctx.youtubeUrl());
+        }
+        job.put("clips", clips);
+        job.put("reelId", created.id());
+        job.put("outputPath", "highlights/" + matchId + "/" + created.id() + ".mp4");
+
+        String status = created.status();
+        String error = null;
         try {
             String payload = objectMapper.writeValueAsString(job);
             rabbitTemplate.convertAndSend(RabbitMQConfig.MEDIA_EXCHANGE_NAME, RabbitMQConfig.MEDIA_ROUTING_KEY, payload);
-            log.info("Queued highlight reel {} for match {} ({} clips)", created.getId(), matchId,
-                    ((List<?>) job.get("clips")).size());
+            log.info("Queued highlight reel {} for match {} ({} clips)", created.id(), matchId, clips.size());
         } catch (Exception e) {
-            log.warn("Could not queue highlight reel {}: {}", created.getId(), e.getMessage());
-            created.setStatus("FAILED");
-            created.setErrorMessage("Không gửi được yêu cầu tới máy dựng video. Hãy thử lại sau.");
-            highlightReelRepository.save(created);
+            log.warn("Could not queue highlight reel {}: {}", created.id(), e.getMessage());
+            status = "FAILED";
+            error = "Không gửi được yêu cầu tới máy dựng video. Hãy thử lại sau.";
+            markFailed(created.id(), error);
         }
-        return toResponse(created);
+        return new HighlightReelResponse(created.id(), matchId, ctx.playerAName(), ctx.playerBName(),
+                ctx.analysisId(), title, status, created.progressPercent(), clips.size(),
+                null, null, error, null, null, created.createdAt(), null);
     }
 
     @Transactional
     public void delete(Long matchId, Long reelId, String email) {
-        ownedMatch(matchId, email);
+        matchAccess.requireOwner(matchId, email);
         HighlightReel reel = reel(matchId, reelId);
         highlightReelRepository.delete(reel);
         if (reel.getStoragePath() != null) {
@@ -146,155 +185,87 @@ public class HighlightReelService {
         }
     }
 
-    private HighlightReel buildReel(Long matchId, HighlightReelRequest.Create request, String email,
-                                    Map<String, Object> job) {
-        Match match = ownedMatch(matchId, email);
-        AiAnalysis analysis = completedAnalysis(matchId);
-        Video video = videoRepository.findByMatchId(matchId)
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_FOUND",
-                        "Trận đấu chưa có video"));
+    private void markFailed(Long reelId, String error) {
+        highlightReelRepository.findById(reelId).ifPresent(reel -> {
+            reel.setStatus("FAILED");
+            reel.setErrorMessage(error);
+            highlightReelRepository.save(reel);
+        });
+    }
 
-        OffsetDateTime staleBefore = OffsetDateTime.now().minus(STALE_JOB);
-        boolean busy = highlightReelRepository.findByMatchIdOrderByCreatedAtDesc(matchId).stream()
-                .anyMatch(r -> ACTIVE_STATUSES.contains(r.getStatus()) && r.getUpdatedAt().isAfter(staleBefore));
-        if (busy) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorType.VALIDATION, "HIGHLIGHT_IN_PROGRESS",
-                    "Đang có một video highlight được dựng cho trận này. Hãy đợi video đó xong.");
-        }
-
-        Set<Long> wanted = new HashSet<>(request.rallyIds());
+    /** The requested rallies in match order, checked against the current analysis and the reel limits. */
+    private static List<HighlightSelector.Candidate> choose(List<HighlightSelector.Candidate> ranked,
+                                                           List<Long> rallyIds) {
+        Set<Long> wanted = new HashSet<>(rallyIds);
         if (wanted.size() > HighlightSelector.MAX_CLIPS) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "TOO_MANY_CLIPS",
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_TOO_MANY_CLIPS",
                     "Chỉ chọn tối đa " + HighlightSelector.MAX_CLIPS + " pha cầu");
         }
-        Map<Long, HighlightSelector.Candidate> byId = rank(match, analysis, videoDuration(matchId, analysis)).stream()
+        Map<Long, HighlightSelector.Candidate> byId = ranked.stream()
                 .collect(Collectors.toMap(HighlightSelector.Candidate::rallyId, Function.identity()));
         List<HighlightSelector.Candidate> chosen = new ArrayList<>();
         for (Long id : wanted) {
             HighlightSelector.Candidate c = byId.get(id);
             if (c == null) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "INVALID_RALLY",
+                throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_INVALID_RALLY",
                         "Pha cầu không thuộc phân tích hiện tại của trận hoặc không dùng được cho highlight");
             }
             chosen.add(c);
         }
-        chosen.sort(java.util.Comparator.comparingInt(HighlightSelector.Candidate::rallyNumber));
+        chosen.sort(Comparator.comparingInt(HighlightSelector.Candidate::rallyNumber));
         double total = chosen.stream().mapToDouble(HighlightSelector.Candidate::clipDuration).sum();
         if (total > HighlightSelector.MAX_REEL_SECONDS) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "REEL_TOO_LONG",
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_REEL_TOO_LONG",
                     "Tổng thời lượng " + Math.round(total) + " giây vượt giới hạn "
                             + Math.round(HighlightSelector.MAX_REEL_SECONDS) + " giây. Hãy bỏ bớt pha cầu.");
         }
-
-        List<Map<String, Object>> clips = chosen.stream().map(c -> {
-            Map<String, Object> clip = new LinkedHashMap<>();
-            clip.put("rallyId", c.rallyId());
-            clip.put("rallyNumber", c.rallyNumber());
-            clip.put("start", c.clipStart());
-            clip.put("end", c.clipEnd());
-            clip.put("label", c.label());
-            clip.put("game", c.gameNumber());
-            clip.put("scoreA", c.scoreABefore());
-            clip.put("scoreB", c.scoreBBefore());
-            return clip;
-        }).toList();
-
-        String title = request.title() == null || request.title().isBlank() ? defaultTitle(match) : request.title().trim();
-        job.put("matchId", matchId);
-        job.put("title", title);
-        job.put("subtitle", match.getPlayerAName() + " vs " + match.getPlayerBName()
-                + (match.getMatchDate() != null ? " · " + match.getMatchDate().format(DATE) : ""));
-        // The scoreboard is per player, not per court half: players change ends between games.
-        job.put("nameA", match.getPlayerAName());
-        job.put("nameB", match.getPlayerBName());
-        job.put("videoStoragePath", video.getStoragePath());
-        if ("YOUTUBE".equalsIgnoreCase(video.getVideoSourceType()) && video.getYoutubeUrl() != null) {
-            job.put("youtubeUrl", video.getYoutubeUrl());
-        }
-        job.put("clips", clips);
-
-        try {
-            return HighlightReel.builder()
-                    .match(match)
-                    .analysis(analysis)
-                    .owner(match.getOwner())
-                    .title(title)
-                    .clips(objectMapper.writeValueAsString(clips))
-                    .build();
-        } catch (JsonProcessingException e) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, ErrorType.SYSTEM, "HIGHLIGHT_SERIALIZE",
-                    "Không tạo được danh sách pha cầu");
-        }
+        return chosen;
     }
 
-    private List<HighlightSelector.Candidate> rank(Match match, AiAnalysis analysis, Double videoDuration) {
-        List<Rally> rallies = rallyRepository.findByAnalysisIdOrderByRallyNumberAsc(analysis.getId());
-        // One query for all events instead of loading each rally's end event lazily.
-        Map<Long, AiEvent> events = aiEventRepository.findByAnalysisIdOrderByEventOrderAsc(analysis.getId()).stream()
-                .collect(Collectors.toMap(AiEvent::getId, Function.identity()));
-        List<HighlightSelector.RallyFacts> facts = rallies.stream().map(r -> {
-            AiEvent end = r.getEndEvent() != null ? events.get(r.getEndEvent().getId()) : null;
-            return new HighlightSelector.RallyFacts(
-                    r.getId(),
-                    r.getRallyNumber(),
-                    r.getStartTime().doubleValue(),
-                    r.getEndTime().doubleValue(),
-                    r.getTotalStrokes() != null ? r.getTotalStrokes() : 0,
-                    r.getWinnerSide(),
-                    r.getScoreUpper() != null ? r.getScoreUpper() : 0,
-                    r.getScoreLower() != null ? r.getScoreLower() : 0,
-                    end != null ? end.getStroke() : null,
-                    end != null ? end.getPlayerSide() : null,
-                    !Boolean.FALSE.equals(r.getIsComplete()));
-        }).toList();
-        return HighlightSelector.rank(facts, videoDuration, upperIsPlayerA(match));
+    private static List<HighlightSelector.Candidate> rank(HighlightQueryRepository.Loaded loaded) {
+        HighlightQueryRepository.Context ctx = loaded.context();
+        List<HighlightSelector.RallyFacts> facts = loaded.rallies().stream()
+                .map(r -> new HighlightSelector.RallyFacts(r.id(), r.rallyNumber(), r.startTime(), r.endTime(),
+                        r.totalStrokes(), r.winnerSide(), r.scoreUpper(), r.scoreLower(), r.endStroke(),
+                        r.endHitterSide(), r.complete()))
+                .toList();
+        BigDecimal duration = ctx.analysisVideoDuration() != null ? ctx.analysisVideoDuration() : ctx.videoDuration();
+        // upper_player is who stood on the upper half when the video starts.
+        return HighlightSelector.rank(facts, duration != null ? duration.doubleValue() : null,
+                !"PLAYER_B".equalsIgnoreCase(ctx.upperPlayer()),
+                HighlightSelector.Start.of(ctx.startGame(), ctx.startScoreA(), ctx.startScoreB()));
     }
 
-    /** Who started on the upper half of the court (game 1). */
-    private static boolean upperIsPlayerA(Match match) {
-        return !"PLAYER_B".equalsIgnoreCase(match.getUpperPlayer());
-    }
-
-    private Double videoDuration(Long matchId, AiAnalysis analysis) {
-        if (analysis.getVideoDurationSeconds() != null) {
-            return analysis.getVideoDurationSeconds().doubleValue();
-        }
-        return videoRepository.findByMatchId(matchId)
-                .map(Video::getDurationSeconds)
-                .map(java.math.BigDecimal::doubleValue)
-                .orElse(null);
-    }
-
-    private Match ownedMatch(Long matchId, String email) {
-        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND",
+    private HighlightQueryRepository.Loaded loadOwned(Long matchId, String email) {
+        HighlightQueryRepository.Loaded loaded = highlightQueryRepository
+                .load(matchId, OffsetDateTime.now().minus(STALE_JOB), true)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.SYSTEM, "ERR_MATCH_NOT_FOUND",
                         "Không tìm thấy trận đấu"));
-        if (email == null || !email.equalsIgnoreCase(match.getOwner().getEmail())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN",
-                    "Bạn không có quyền thao tác trên trận đấu này");
+        if (email == null || !email.equalsIgnoreCase(loaded.context().ownerEmail())) {
+            throw ApiException.forbidden("Bạn không có quyền thao tác trên trận đấu này.");
         }
-        return match;
+        return loaded;
     }
 
-    private AiAnalysis completedAnalysis(Long matchId) {
-        AiAnalysis analysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND",
-                        "Trận đấu chưa được phân tích"));
-        if (!"COMPLETED".equalsIgnoreCase(analysis.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ANALYSIS_NOT_COMPLETED",
+    private static void requireCompleted(HighlightQueryRepository.Context ctx) {
+        if (ctx.analysisId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_ANALYSIS_NOT_FOUND",
+                    "Trận đấu chưa được phân tích");
+        }
+        if (!"COMPLETED".equalsIgnoreCase(ctx.analysisStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_ANALYSIS_NOT_COMPLETED",
                     "Hãy đợi phân tích AI hoàn tất rồi tạo video highlight");
         }
-        return analysis;
     }
 
     private HighlightReel reel(Long matchId, Long reelId) {
         return highlightReelRepository.findByIdAndMatchId(reelId, matchId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "HIGHLIGHT_NOT_FOUND",
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.SYSTEM, "ERR_HIGHLIGHT_NOT_FOUND",
                         "Không tìm thấy video highlight"));
     }
 
-    private String defaultTitle(Match match) {
-        return "Highlight " + match.getPlayerAName() + " vs " + match.getPlayerBName();
+    private static String defaultTitle(HighlightQueryRepository.Context ctx) {
+        return "Highlight " + ctx.playerAName() + " vs " + ctx.playerBName();
     }
 
     private HighlightReelResponse toResponse(HighlightReel reel) {

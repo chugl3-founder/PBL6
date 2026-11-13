@@ -1,13 +1,21 @@
 package com.badminton.controller;
 
+import com.badminton.dto.analysis.AiEventResponse;
 import com.badminton.dto.analysis.AnalysisDispatchResponse;
+import com.badminton.dto.analysis.AnalysisFocusRequest;
 import com.badminton.dto.analysis.AnalysisStatusResponse;
+import com.badminton.dto.analysis.MatchStatisticsResponse;
+import com.badminton.dto.analysis.RallyResponse;
 import com.badminton.service.AnalysisService;
+import com.badminton.service.ReplayDataService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/matches/{id}/analysis")
@@ -15,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class AnalysisController {
 
     private final AnalysisService analysisService;
+    private final ReplayDataService replayDataService;
 
     /**
      * NFR-PER-02, NFR-AI-01: Bắt đầu phân tích AI, trả về 202 Accepted ngay lập tức (< 200ms)
@@ -44,10 +53,11 @@ public class AnalysisController {
      * Lấy toàn bộ danh sách các sự kiện cú đánh (AiEvents) kèm tọa độ 2D của trận đấu phục vụ Replay
      */
     @GetMapping("/events")
-    public ResponseEntity<java.util.List<com.badminton.dto.analysis.AiEventResponse>> getMatchEvents(
-            @PathVariable Long id
+    public ResponseEntity<List<AiEventResponse>> getMatchEvents(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
     ) {
-        java.util.List<com.badminton.dto.analysis.AiEventResponse> events = analysisService.getMatchEvents(id);
+        List<AiEventResponse> events = replayDataService.getEvents(id, email);
         return ResponseEntity.ok(events);
     }
 
@@ -55,10 +65,11 @@ public class AnalysisController {
      * VS-11: Lấy danh sách các đợt cầu (Rallies) của trận đấu
      */
     @GetMapping("/rallies")
-    public ResponseEntity<java.util.List<com.badminton.dto.analysis.RallyResponse>> getMatchRallies(
-            @PathVariable Long id
+    public ResponseEntity<List<RallyResponse>> getMatchRallies(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
     ) {
-        java.util.List<com.badminton.dto.analysis.RallyResponse> rallies = analysisService.getMatchRallies(id);
+        List<RallyResponse> rallies = replayDataService.getRallies(id, email);
         return ResponseEntity.ok(rallies);
     }
 
@@ -66,10 +77,11 @@ public class AnalysisController {
      * VS-12: Lấy dữ liệu thống kê chuyên sâu toàn diện của trận đấu
      */
     @GetMapping("/statistics")
-    public ResponseEntity<com.badminton.dto.analysis.MatchStatisticsResponse> getMatchStatistics(
-            @PathVariable Long id
+    public ResponseEntity<MatchStatisticsResponse> getMatchStatistics(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
     ) {
-        com.badminton.dto.analysis.MatchStatisticsResponse statistics = analysisService.getMatchStatistics(id);
+        MatchStatisticsResponse statistics = replayDataService.getStatistics(id, email);
         return ResponseEntity.ok(statistics);
     }
 
@@ -92,7 +104,7 @@ public class AnalysisController {
     @PostMapping("/focus")
     public ResponseEntity<AnalysisStatusResponse> focusAnalysis(
             @PathVariable Long id,
-            @jakarta.validation.Valid @RequestBody com.badminton.dto.analysis.AnalysisFocusRequest request,
+            @Valid @RequestBody AnalysisFocusRequest request,
             @AuthenticationPrincipal String email
     ) {
         AnalysisStatusResponse response = analysisService.focusAnalysis(id, request.getSeconds(), email);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { getSessionUser, isSignedIn } from '../../auth/session';
 
 interface RoleGuardProps {
   children: React.ReactNode;
@@ -7,11 +8,9 @@ interface RoleGuardProps {
 }
 
 export const RoleGuard: React.FC<RoleGuardProps> = ({ children, allowedRoles }) => {
-  const token = localStorage.getItem('access_token');
-  const userJson = localStorage.getItem('user_info');
-  const user = userJson ? JSON.parse(userJson) : null;
+  const user = getSessionUser();
 
-  if (!token) {
+  if (!isSignedIn()) {
     return <Navigate to="/login" replace />;
   }
 

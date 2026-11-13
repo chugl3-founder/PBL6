@@ -6,12 +6,17 @@ import com.badminton.common.dto.PaginationMeta;
 import com.badminton.common.exception.ApiException;
 import com.badminton.dto.match.CreateMatchRequest;
 import com.badminton.dto.match.MatchResponse;
+import com.badminton.dto.match.MatchResult;
 import com.badminton.dto.match.PagedMatchResponse;
 import com.badminton.dto.match.UpdateMatchRequest;
 import com.badminton.entity.Match;
 import com.badminton.entity.User;
+import com.badminton.entity.Video;
+import com.badminton.repository.AiAnalysisRepository;
 import com.badminton.repository.MatchRepository;
+import com.badminton.repository.MatchStatisticRepository;
 import com.badminton.repository.UserRepository;
+import com.badminton.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,27 +27,38 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MatchService {
 
+    /** Thumbnail links on match cards; the list is fetched again long before this runs out. */
+    private static final Duration THUMBNAIL_URL_TTL = Duration.ofHours(12);
+
     private final MatchRepository matchRepository;
+    private final MatchAccessService matchAccess;
+    private final StorageUrls storageUrls;
+    private final MatchResultService matchResultService;
     private final UserRepository userRepository;
-    private final com.badminton.repository.VideoRepository videoRepository;
-    private final com.badminton.repository.AiAnalysisRepository aiAnalysisRepository;
-    private final com.badminton.repository.MatchStatisticRepository matchStatisticRepository;
+    private final VideoRepository videoRepository;
+    private final AiAnalysisRepository aiAnalysisRepository;
+    private final MatchStatisticRepository matchStatisticRepository;
 
     @Transactional
     public MatchResponse createMatch(CreateMatchRequest request, String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_USER_NOT_FOUND",
                         "Không tìm thấy tài khoản người dùng."
                 ));
@@ -82,33 +98,7 @@ public class MatchService {
 
     @Transactional(readOnly = true)
     public MatchResponse getMatchById(Long id, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
-                        "ERR_USER_NOT_FOUND",
-                        "Không tìm thấy tài khoản người dùng."
-                ));
-
-        Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
-                        "ERR_MATCH_NOT_FOUND",
-                        "Không tìm thấy trận đấu với ID: " + id
-                ));
-
-        boolean isAdmin = "ROLE_ADMIN".equals(user.getRole());
-        boolean isOwner = match.getOwner().getId().equals(user.getId());
-
-        if (!isAdmin && !isOwner) {
-            throw new ApiException(
-                    HttpStatus.FORBIDDEN,
-                    ErrorType.SYSTEM,
-                    "AUTH_FORBIDDEN_RESOURCE",
-                    "Bạn không có quyền truy cập trận đấu này."
-            );
-        }
+        Match match = matchAccess.requireOwnerOrAdmin(id, userEmail);
 
         return mapToMatchResponse(match);
     }
@@ -118,7 +108,7 @@ public class MatchService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_USER_NOT_FOUND",
                         "Không tìm thấy tài khoản người dùng."
                 ));
@@ -131,9 +121,7 @@ public class MatchService {
             matchPage = matchRepository.findByOwnerIdAndDeletedAtIsNull(user.getId(), pageable);
         }
 
-        List<MatchResponse> data = matchPage.getContent().stream()
-                .map(this::mapToMatchResponse)
-                .toList();
+        List<MatchResponse> data = mapToMatchResponses(matchPage.getContent());
 
         PaginationMeta pagination = PaginationMeta.builder()
                 .page(matchPage.getNumber())
@@ -149,34 +137,9 @@ public class MatchService {
     }
 
     @Transactional
+    @EvictsPublicReplay // public rallies depend on the starting score and the players' ends
     public MatchResponse updateMatch(Long id, UpdateMatchRequest request, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
-                        "ERR_USER_NOT_FOUND",
-                        "Không tìm thấy tài khoản người dùng."
-                ));
-
-        Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
-                        "ERR_MATCH_NOT_FOUND",
-                        "Không tìm thấy trận đấu với ID: " + id
-                ));
-
-        boolean isAdmin = "ROLE_ADMIN".equals(user.getRole());
-        boolean isOwner = match.getOwner().getId().equals(user.getId());
-
-        if (!isAdmin && !isOwner) {
-            throw new ApiException(
-                    HttpStatus.FORBIDDEN,
-                    ErrorType.SYSTEM,
-                    "AUTH_FORBIDDEN_RESOURCE",
-                    "Bạn không có quyền chỉnh sửa trận đấu này."
-            );
-        }
+        Match match = matchAccess.requireOwnerOrAdmin(id, userEmail);
 
         if (request.getPlayerAName() != null && !request.getPlayerAName().isBlank()) {
             match.setPlayerAName(request.getPlayerAName().trim());
@@ -213,6 +176,16 @@ public class MatchService {
             match.setDescription(request.getDescription().trim());
         }
 
+        if (request.getStartGame() != null) {
+            match.setStartGame(request.getStartGame());
+        }
+        if (request.getStartScoreA() != null) {
+            match.setStartScoreA(request.getStartScoreA());
+        }
+        if (request.getStartScoreB() != null) {
+            match.setStartScoreB(request.getStartScoreB());
+        }
+
         Match updatedMatch = matchRepository.save(match);
         log.info("Đã cập nhật thông tin trận đấu: id={}", updatedMatch.getId());
 
@@ -222,33 +195,7 @@ public class MatchService {
     @Transactional
     @EvictsPublicReplay
     public MessageResponse softDeleteMatch(Long id, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
-                        "ERR_USER_NOT_FOUND",
-                        "Không tìm thấy tài khoản người dùng."
-                ));
-
-        Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
-                        "ERR_MATCH_NOT_FOUND",
-                        "Không tìm thấy trận đấu với ID: " + id
-                ));
-
-        boolean isAdmin = "ROLE_ADMIN".equals(user.getRole());
-        boolean isOwner = match.getOwner().getId().equals(user.getId());
-
-        if (!isAdmin && !isOwner) {
-            throw new ApiException(
-                    HttpStatus.FORBIDDEN,
-                    ErrorType.SYSTEM,
-                    "AUTH_FORBIDDEN_RESOURCE",
-                    "Bạn không có quyền xóa trận đấu này."
-            );
-        }
+        Match match = matchAccess.requireOwnerOrAdmin(id, userEmail);
 
         match.setDeletedAt(OffsetDateTime.now());
         matchRepository.save(match);
@@ -271,9 +218,7 @@ public class MatchService {
             matchPage = matchRepository.findByStatusAndDeletedAtIsNull("PUBLISHED", pageable);
         }
 
-        List<MatchResponse> data = matchPage.getContent().stream()
-                .map(this::mapToMatchResponse)
-                .toList();
+        List<MatchResponse> data = mapToMatchResponses(matchPage.getContent());
 
         PaginationMeta pagination = PaginationMeta.builder()
                 .page(matchPage.getNumber())
@@ -293,7 +238,7 @@ public class MatchService {
         Match match = matchRepository.findByIdAndStatusAndDeletedAtIsNull(id, "PUBLISHED")
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_MATCH_NOT_FOUND",
                         "Không tìm thấy trận đấu công khai với ID: " + id
                 ));
@@ -305,7 +250,7 @@ public class MatchService {
         if (!matchRepository.existsByIdAndStatusAndDeletedAtIsNull(id, "PUBLISHED")) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
-                    ErrorType.VALIDATION,
+                    ErrorType.SYSTEM,
                     "ERR_MATCH_NOT_FOUND",
                     "Không tìm thấy trận đấu công khai với ID: " + id
             );
@@ -313,30 +258,40 @@ public class MatchService {
     }
 
     public MatchResponse mapToMatchResponse(Match match) {
-        String thumbnailUrl = null;
-        String youtubeVideoId = null;
-        java.math.BigDecimal durationSeconds = null;
-        Integer totalStrokes = null;
-        Integer totalRallies = null;
+        return mapToMatchResponses(List.of(match)).get(0);
+    }
 
-        var videoOpt = videoRepository.findByMatchId(match.getId());
-        if (videoOpt.isPresent()) {
-            var v = videoOpt.get();
-            youtubeVideoId = v.getYoutubeVideoId();
-            durationSeconds = v.getDurationSeconds();
-            if (youtubeVideoId != null && !youtubeVideoId.isBlank()) {
-                thumbnailUrl = "https://img.youtube.com/vi/" + youtubeVideoId + "/hqdefault.jpg";
-            }
+    /**
+     * Responses for a page of matches with three extra queries in all (videos, totals, rally scores),
+     * not several per match: Supabase is ~45 ms away, so 50 matches took 9 s one by one.
+     */
+    public List<MatchResponse> mapToMatchResponses(List<Match> matches) {
+        if (matches.isEmpty()) {
+            return List.of();
         }
+        List<Long> ids = matches.stream().map(Match::getId).toList();
+        Map<Long, Video> videos = videoRepository.findByMatchIdIn(ids).stream()
+                .collect(Collectors.toMap(v -> v.getMatch().getId(), Function.identity(), (a, b) -> a));
+        Map<Long, MatchStatisticRepository.MatchTotals> totals = matchStatisticRepository.findCurrentTotalsByMatchIdIn(ids)
+                .stream()
+                .collect(Collectors.toMap(MatchStatisticRepository.MatchTotals::getMatchId, Function.identity(), (a, b) -> a));
+        Map<Long, MatchResult> results = matchResultService.resultsFor(matches);
+        return matches.stream()
+                .map(m -> toResponse(m, videos.get(m.getId()), totals.get(m.getId()), results.get(m.getId())))
+                .toList();
+    }
 
-        var analysisOpt = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(match.getId());
-        if (analysisOpt.isPresent()) {
-            var statOpt = matchStatisticRepository.findByAnalysisId(analysisOpt.get().getId());
-            if (statOpt.isPresent()) {
-                totalStrokes = statOpt.get().getTotalStrokes();
-                totalRallies = statOpt.get().getTotalRallies();
-            }
-        }
+    private MatchResponse toResponse(Match match, Video video, MatchStatisticRepository.MatchTotals totals,
+                                     MatchResult result) {
+        String youtubeVideoId = video != null ? video.getYoutubeVideoId() : null;
+        BigDecimal durationSeconds = video != null ? video.getDurationSeconds() : null;
+        String thumbnailUrl = youtubeVideoId != null && !youtubeVideoId.isBlank()
+                ? "https://img.youtube.com/vi/" + youtubeVideoId + "/hqdefault.jpg"
+                : video != null && video.getThumbnailPath() != null
+                        ? storageUrls.presignedGet(video.getThumbnailPath(), THUMBNAIL_URL_TTL)
+                        : null;
+        Integer totalStrokes = totals != null ? totals.getTotalStrokes() : null;
+        Integer totalRallies = totals != null ? totals.getTotalRallies() : null;
 
         return MatchResponse.builder()
                 .id(match.getId())
@@ -347,6 +302,9 @@ public class MatchService {
                 .upperPlayer(match.getUpperPlayer())
                 .lowerPlayer(match.getLowerPlayer())
                 .matchDate(match.getMatchDate())
+                .startGame(match.getStartGame())
+                .startScoreA(match.getStartScoreA())
+                .startScoreB(match.getStartScoreB())
                 .title(match.getTitle())
                 .description(match.getDescription())
                 .source(match.getSource())
@@ -356,6 +314,7 @@ public class MatchService {
                 .durationSeconds(durationSeconds)
                 .totalStrokes(totalStrokes)
                 .totalRallies(totalRallies)
+                .result(result)
                 .deletedAt(match.getDeletedAt())
                 .createdAt(match.getCreatedAt())
                 .updatedAt(match.getUpdatedAt())
@@ -368,7 +327,7 @@ public class MatchService {
         Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_MATCH_NOT_FOUND",
                         "Không tìm thấy trận đấu với ID: " + id
                 ));
@@ -400,7 +359,7 @@ public class MatchService {
         Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_MATCH_NOT_FOUND",
                         "Không tìm thấy trận đấu với ID: " + id
                 ));
@@ -416,7 +375,7 @@ public class MatchService {
         Match match = matchRepository.findById(id)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_MATCH_NOT_FOUND",
                         "Không tìm thấy trận đấu với ID: " + id
                 ));
@@ -429,7 +388,7 @@ public class MatchService {
         Match match = matchRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_MATCH_NOT_FOUND",
                         "Không tìm thấy trận đấu hoặc trận đấu đã bị xóa."
                 ));
@@ -451,7 +410,7 @@ public class MatchService {
         Match match = matchRepository.findById(id)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_MATCH_NOT_FOUND",
                         "Không tìm thấy trận đấu với ID: " + id
                 ));
@@ -482,9 +441,7 @@ public class MatchService {
             }
         }
 
-        List<MatchResponse> data = matchPage.getContent().stream()
-                .map(this::mapToMatchResponse)
-                .toList();
+        List<MatchResponse> data = mapToMatchResponses(matchPage.getContent());
 
         PaginationMeta pagination = PaginationMeta.builder()
                 .page(matchPage.getNumber())

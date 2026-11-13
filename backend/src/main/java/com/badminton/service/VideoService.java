@@ -2,22 +2,22 @@ package com.badminton.service;
 
 import com.badminton.common.dto.ErrorType;
 import com.badminton.common.exception.ApiException;
+import com.badminton.config.S3Properties;
 import com.badminton.dto.video.VideoCompleteRequest;
 import com.badminton.dto.video.VideoResponse;
 import com.badminton.dto.video.VideoUploadUrlRequest;
 import com.badminton.dto.video.VideoUploadUrlResponse;
 import com.badminton.dto.video.YoutubeVideoRequest;
 import com.badminton.entity.Match;
-import com.badminton.entity.User;
 import com.badminton.entity.Video;
 import com.badminton.repository.MatchRepository;
-import com.badminton.repository.UserRepository;
 import com.badminton.repository.VideoRepository;
-import com.badminton.config.S3Properties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -31,6 +31,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,10 +42,11 @@ public class VideoService {
 
     private final MatchRepository matchRepository;
     private final VideoRepository videoRepository;
-    private final UserRepository userRepository;
+    private final MatchAccessService matchAccess;
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final S3Properties s3Properties;
+    private final MediaJobPublisher mediaJobs;
 
     // Giới hạn dung lượng tối đa 500MB theo NFR-VID-01
     private static final long MAX_VIDEO_SIZE = 500L * 1024 * 1024;
@@ -55,17 +57,19 @@ public class VideoService {
     public VideoService(
             MatchRepository matchRepository,
             VideoRepository videoRepository,
-            UserRepository userRepository,
+            MatchAccessService matchAccess,
             S3Client s3Client,
             S3Presigner s3Presigner,
-            S3Properties s3Properties
+            S3Properties s3Properties,
+            MediaJobPublisher mediaJobs
     ) {
         this.matchRepository = matchRepository;
         this.videoRepository = videoRepository;
-        this.userRepository = userRepository;
+        this.matchAccess = matchAccess;
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.s3Properties = s3Properties;
+        this.mediaJobs = mediaJobs;
     }
 
     private String getVideoBucket() {
@@ -108,9 +112,7 @@ public class VideoService {
 
     @Transactional
     public VideoUploadUrlResponse getPresignedUploadUrl(Long matchId, VideoUploadUrlRequest request, String userEmail) {
-        User user = findUserByEmail(userEmail);
-        Match match = findMatchById(matchId);
-        checkOwnership(match, user);
+        Match match = matchAccess.requireOwnerOrAdmin(matchId, userEmail);
 
         // 1–2. Kiểm tra dung lượng 500MB (NFR-VID-01) và định dạng file
         String ext = validateVideoFile(matchId, request.getFileName(), request.getFileSize());
@@ -166,9 +168,7 @@ public class VideoService {
 
     @Transactional
     public VideoResponse completeVideoUpload(Long matchId, VideoCompleteRequest request, String userEmail) {
-        User user = findUserByEmail(userEmail);
-        Match match = findMatchById(matchId);
-        checkOwnership(match, user);
+        Match match = matchAccess.requireOwnerOrAdmin(matchId, userEmail);
 
         // 1. Kiểm tra sự tồn tại thực tế của file trên S3
         HeadObjectResponse stat;
@@ -207,15 +207,14 @@ public class VideoService {
         matchRepository.save(match);
 
         log.info("Xác nhận hoàn tất upload video cho match ID={}: size={} bytes", matchId, stat.contentLength());
+        mediaJobs.requestThumbnailAfterCommit(matchId, savedVideo.getStoragePath());
 
         return mapToVideoResponse(savedVideo);
     }
 
     @Transactional
-    public VideoResponse uploadVideoDirectly(Long matchId, org.springframework.web.multipart.MultipartFile file, String userEmail) {
-        User user = findUserByEmail(userEmail);
-        Match match = findMatchById(matchId);
-        checkOwnership(match, user);
+    public VideoResponse uploadVideoDirectly(Long matchId, MultipartFile file, String userEmail) {
+        Match match = matchAccess.requireOwnerOrAdmin(matchId, userEmail);
 
         // Đường dự phòng phải chặn giống Presigned URL, nếu không file sai định dạng vẫn lọt qua
         String fileName = file.getOriginalFilename();
@@ -229,7 +228,7 @@ public class VideoService {
                     .key(storagePath)
                     .build();
 
-            s3Client.putObject(putReq, software.amazon.awssdk.core.sync.RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+            s3Client.putObject(putReq, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
         } catch (Exception e) {
             log.error("Tải video lên S3 trực tiếp thất bại: matchId={}, err={}", matchId, e.getMessage(), e);
             throw new ApiException(
@@ -256,6 +255,7 @@ public class VideoService {
 
         log.info("Xác nhận tải video trực tiếp thành công cho match ID={}: storagePath={}, size={}",
                 matchId, storagePath, file.getSize());
+        mediaJobs.requestThumbnailAfterCommit(matchId, storagePath);
 
         return mapToVideoResponse(savedVideo);
     }
@@ -265,10 +265,10 @@ public class VideoService {
             "^(?:https?://)?(?:(?:www\\.|m\\.|music\\.)?youtube\\.com/(?:watch\\?(?:.*&)?v=|shorts/|live/|embed/)|youtu\\.be/)([A-Za-z0-9_-]{11})(?:[?&#/].*)?$");
 
     /** The 11-character video id of a YouTube link, or empty when the link is not one. */
-    public static java.util.Optional<String> parseYoutubeId(String url) {
-        if (url == null) return java.util.Optional.empty();
+    public static Optional<String> parseYoutubeId(String url) {
+        if (url == null) return Optional.empty();
         Matcher m = YOUTUBE_ID.matcher(url.trim());
-        return m.matches() ? java.util.Optional.of(m.group(1)) : java.util.Optional.empty();
+        return m.matches() ? Optional.of(m.group(1)) : Optional.empty();
     }
 
     /**
@@ -277,9 +277,7 @@ public class VideoService {
      */
     @Transactional
     public VideoResponse attachYoutubeVideo(Long matchId, YoutubeVideoRequest request, String userEmail) {
-        User user = findUserByEmail(userEmail);
-        Match match = findMatchById(matchId);
-        checkOwnership(match, user);
+        Match match = matchAccess.requireOwnerOrAdmin(matchId, userEmail);
 
         if ("ANALYZING".equals(match.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, ErrorType.VALIDATION, "ERR_MATCH_ANALYZING",
@@ -310,18 +308,15 @@ public class VideoService {
 
     @Transactional(readOnly = true)
     public VideoResponse getVideoByMatchId(Long matchId, String userEmail) {
-        User user = findUserByEmail(userEmail);
-        Match match = findMatchById(matchId);
-
-        boolean isPublic = "PUBLISHED".equals(match.getStatus());
-        if (!isPublic) {
-            checkOwnership(match, user);
+        Match match = matchAccess.findActive(matchId);
+        if (!"PUBLISHED".equals(match.getStatus())) {
+            matchAccess.requireOwnerOrAdmin(match, userEmail);
         }
 
         Video video = videoRepository.findByMatchId(matchId)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_VIDEO_NOT_FOUND",
                         "Trận đấu này chưa có video được tải lên."
                 ));
@@ -334,7 +329,7 @@ public class VideoService {
         Match match = matchRepository.findByIdAndStatusAndDeletedAtIsNull(matchId, "PUBLISHED")
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_MATCH_NOT_FOUND",
                         "Không tìm thấy trận đấu công khai với ID: " + matchId
                 ));
@@ -342,7 +337,7 @@ public class VideoService {
         Video video = videoRepository.findByMatchId(matchId)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_VIDEO_NOT_FOUND",
                         "Trận đấu này chưa có thông tin video."
                 ));
@@ -350,39 +345,8 @@ public class VideoService {
         return mapToVideoResponse(video);
     }
 
-    private User findUserByEmail(String email) {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
-                        "ERR_USER_NOT_FOUND",
-                        "Không tìm thấy tài khoản người dùng."
-                ));
-    }
 
-    private Match findMatchById(Long id) {
-        return matchRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
-                        "ERR_MATCH_NOT_FOUND",
-                        "Không tìm thấy trận đấu với ID: " + id
-                ));
-    }
 
-    private void checkOwnership(Match match, User user) {
-        boolean isAdmin = "ROLE_ADMIN".equals(user.getRole());
-        boolean isOwner = match.getOwner() != null && match.getOwner().getId().equals(user.getId());
-
-        if (!isAdmin && !isOwner) {
-            throw new ApiException(
-                    HttpStatus.FORBIDDEN,
-                    ErrorType.SYSTEM,
-                    "AUTH_FORBIDDEN_RESOURCE",
-                    "Bạn không có quyền thao tác trên video của trận đấu này."
-            );
-        }
-    }
 
     public VideoResponse mapToVideoResponse(Video video) {
         String videoUrl;

@@ -1,25 +1,31 @@
 package com.badminton.service;
 
 import com.badminton.common.dto.ErrorType;
+import com.badminton.common.dto.PaginationMeta;
 import com.badminton.common.exception.ApiException;
+import com.badminton.config.S3Properties;
+import com.badminton.dto.admin.PagedUserResponse;
 import com.badminton.dto.auth.UserResponse;
 import com.badminton.dto.user.AvatarResponse;
 import com.badminton.dto.user.UpdateProfileRequest;
 import com.badminton.entity.User;
 import com.badminton.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
-import com.badminton.config.S3Properties;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -175,22 +181,22 @@ public class UserService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_USER_NOT_FOUND",
                         "Không tìm thấy thông tin người dùng."
                 ));
     }
 
     @Transactional(readOnly = true)
-    public com.badminton.dto.admin.PagedUserResponse getAllUsersForAdmin(String search, String status, int page, int size) {
-        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+    public PagedUserResponse getAllUsersForAdmin(String search, String status, int page, int size) {
+        Pageable pageable = PageRequest.of(
                 page,
                 size,
-                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")
+                Sort.by(Sort.Direction.DESC, "createdAt")
         );
         String cleanSearch = (search != null) ? search.trim() : "";
 
-        org.springframework.data.domain.Page<User> userPage;
+        Page<User> userPage;
         if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
             userPage = userRepository.searchUsersByStatus(status.trim().toUpperCase(), cleanSearch, pageable);
         } else {
@@ -201,14 +207,14 @@ public class UserService {
                 .map(authService::mapToUserResponse)
                 .toList();
 
-        com.badminton.common.dto.PaginationMeta pagination = com.badminton.common.dto.PaginationMeta.builder()
+        PaginationMeta pagination = PaginationMeta.builder()
                 .page(userPage.getNumber())
                 .size(userPage.getSize())
                 .totalElements(userPage.getTotalElements())
                 .totalPages(userPage.getTotalPages())
                 .build();
 
-        return com.badminton.dto.admin.PagedUserResponse.builder()
+        return PagedUserResponse.builder()
                 .data(data)
                 .pagination(pagination)
                 .build();
@@ -219,7 +225,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_USER_NOT_FOUND",
                         "Không tìm thấy người dùng với ID: " + id
                 ));
@@ -242,7 +248,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        ErrorType.VALIDATION,
+                        ErrorType.SYSTEM,
                         "ERR_USER_NOT_FOUND",
                         "Không tìm thấy người dùng với ID: " + id
                 ));

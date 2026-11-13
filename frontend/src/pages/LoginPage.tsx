@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Lock, Mail } from 'lucide-react';
 import { AuthShell, AuthField, AuthAlert, AuthSubmit, authLinkClass } from '../components/auth/AuthShell';
-import apiClient from '../api/client';
+import { login } from '../api/auth';
+import { errorMessage } from '../api/errors';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -21,20 +22,15 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await apiClient.post('/auth/login', { email, password });
-      const { accessToken, refreshToken, user } = res.data;
-      localStorage.setItem('access_token', accessToken);
-      localStorage.setItem('refresh_token', refreshToken);
-      localStorage.setItem('user_info', JSON.stringify(user));
+      const user = await login(email, password);
 
       if (user.role === 'ROLE_ADMIN') {
         navigate('/admin');
       } else {
         navigate('/my-matches');
       }
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      setError(serverMsg || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu.');
+    } catch (err) {
+      setError(errorMessage(err, 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu.'));
     } finally {
       setLoading(false);
     }

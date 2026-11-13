@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Camera, Save, User as UserIcon, AlertCircle, CheckCircle2 } from 'lucide-react';
-import apiClient from '../api/client';
+import { getMyProfile, updateMyProfile, uploadAvatar } from '../api/auth';
+import { errorMessage, errorStatus } from '../api/errors';
+import { updateSessionUser } from '../auth/session';
+import type { UserAccount } from '../types/admin';
 
 const LEVELS = [
   { value: 'BEGINNER', label: 'Mới chơi', hint: 'dưới 1 năm' },
@@ -11,7 +14,7 @@ const LEVELS = [
 ];
 
 export const ProfilePage: React.FC = () => {
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<UserAccount | null>(null);
   const [fullName, setFullName] = useState('');
   const [age, setAge] = useState<number | ''>('');
   const [gender, setGender] = useState('MALE');
@@ -30,20 +33,18 @@ export const ProfilePage: React.FC = () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const res = await apiClient.get('/users/me');
-      const data = res.data;
+      const data = await getMyProfile();
       setProfile(data);
       setFullName(data.fullName || '');
       setAge(data.age || '');
       setGender(data.gender || 'MALE');
       setBadmintonLevel(data.badmintonLevel || 'INTERMEDIATE');
       setAvatarUrl(data.avatarUrl || null);
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      if (err.response?.status === 401) {
+    } catch (err) {
+      if (errorStatus(err) === 401) {
         setErrorMsg('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
       } else {
-        setErrorMsg(serverMsg || 'Không thể tải thông tin hồ sơ.');
+        setErrorMsg(errorMessage(err, 'Không thể tải thông tin hồ sơ.'));
       }
     } finally {
       setLoading(false);
@@ -61,18 +62,17 @@ export const ProfilePage: React.FC = () => {
     setSaving(true);
 
     try {
-      const res = await apiClient.put('/users/me', {
+      const saved = await updateMyProfile({
         fullName,
         age: age ? Number(age) : null,
         gender,
         badmintonLevel,
       });
-      setProfile(res.data);
-      const currentUser = JSON.parse(localStorage.getItem('user_info') || '{}');
-      localStorage.setItem('user_info', JSON.stringify({ ...currentUser, ...res.data }));
+      setProfile(saved);
+      updateSessionUser(saved);
       setSuccessMsg('Đã lưu hồ sơ.');
-    } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Cập nhật thất bại. Vui lòng thử lại.');
+    } catch (err) {
+      setErrorMsg(errorMessage(err, 'Cập nhật thất bại. Vui lòng thử lại.'));
     } finally {
       setSaving(false);
     }
@@ -87,23 +87,17 @@ export const ProfilePage: React.FC = () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('avatar', file);
-
     setUploadingAvatar(true);
     setErrorMsg(null);
     setSuccessMsg(null);
 
     try {
-      const res = await apiClient.post('/users/me/avatar', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setAvatarUrl(res.data.avatarUrl);
-      const currentUser = JSON.parse(localStorage.getItem('user_info') || '{}');
-      localStorage.setItem('user_info', JSON.stringify({ ...currentUser, avatarUrl: res.data.avatarUrl }));
+      const { avatarUrl: uploaded } = await uploadAvatar(file);
+      setAvatarUrl(uploaded);
+      updateSessionUser({ avatarUrl: uploaded });
       setSuccessMsg('Đã đổi ảnh đại diện.');
-    } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Không tải được ảnh lên. Thử lại với ảnh PNG, JPG hoặc WebP dưới 2 MB.');
+    } catch (err) {
+      setErrorMsg(errorMessage(err, 'Không tải được ảnh lên. Thử lại với ảnh PNG, JPG hoặc WebP dưới 2 MB.'));
     } finally {
       setUploadingAvatar(false);
     }

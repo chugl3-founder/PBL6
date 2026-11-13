@@ -3,8 +3,10 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, User, Plus, ChevronDown } from 'lucide-react';
 import apiClient from '../../api/client';
 import { BrandLogo } from '../brand/BrandLogo';
-import { useHighlightJobs } from '../highlight/HighlightJobsContext';
+import { useHighlightJobs } from '../highlight/useHighlightJobs';
 import { isRendering } from '../../api/highlights';
+import { logout } from '../../api/auth';
+import { getAccessToken, getSessionUser } from '../../auth/session';
 
 /**
  * An ink strip in the language of a broadcast scoreboard: links follow the logo, the current
@@ -14,9 +16,8 @@ import { isRendering } from '../../api/highlights';
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const token = localStorage.getItem('access_token');
-  const userJson = localStorage.getItem('user_info');
-  const user = userJson ? JSON.parse(userJson) : null;
+  const token = getAccessToken();
+  const user = getSessionUser();
   const isAdmin = user?.role === 'ROLE_ADMIN';
   const [accountOpen, setAccountOpen] = useState(false);
   const renderingCount = useHighlightJobs().reels.filter(isRendering).length;
@@ -57,17 +58,11 @@ export const Navbar: React.FC = () => {
   }, [token, location.pathname]);
 
   const handleLogout = async () => {
-    const refreshToken = localStorage.getItem('refresh_token');
     try {
-      if (refreshToken) {
-        await apiClient.post('/auth/logout', { refreshToken });
-      }
-    } catch (err) {
-      // Ignored: Still cleanup client session
+      await logout();
+    } catch {
+      // Ignored: the local session is cleared in any case
     } finally {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_info');
       navigate('/login');
     }
   };

@@ -4,12 +4,21 @@ import {
   Sparkles, Award, Lightbulb, Activity,
   PieChart as PieIcon, Users, Target
 } from 'lucide-react';
-import { TacticsBreakdown, StructuredTacticsData } from './TacticsBreakdown';
+import { TacticsBreakdown } from './TacticsBreakdown';
+import { StructuredTacticsData } from '../../utils/tactics';
 
 interface CoachInsight {
   target: string;
   category: string;
   insight: string;
+}
+
+/** A stroke sequence the AI counted: "A -> B -> C", or a from/to pair for older analyses. */
+interface StrokePattern {
+  sequence?: string;
+  from?: string;
+  to?: string;
+  count: number;
 }
 
 export interface MatchStatisticsData {
@@ -28,7 +37,7 @@ export interface MatchStatisticsData {
   unknownSideCount: number;
   avgConfidence: number;
   strokeDistribution?: Record<string, number>;
-  summaryData?: any;
+  summaryData?: unknown;
   radarChart?: {
     axes: string[];
     upper: number[];
@@ -40,9 +49,9 @@ export interface MatchStatisticsData {
   // The AI pipeline stores a plain list; older/mock analyses wrap it in { insights }.
   coachInsights?: CoachInsight[] | { insights: CoachInsight[] };
   tacticalPatterns?: {
-    top_transitions_2gram?: Array<{ sequence?: string; from?: string; to?: string; count: number }>;
-    top_sequences_3gram?: Array<{ sequence?: string; count: number }>;
-    estimated_winning_combinations?: Record<string, any>;
+    top_transitions_2gram?: StrokePattern[];
+    top_sequences_3gram?: StrokePattern[];
+    estimated_winning_combinations?: Record<string, unknown>;
   };
   structuredTactics?: StructuredTacticsData | null;
 }
@@ -697,11 +706,11 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
             </div>
 
             <div className={`grid ${compact ? 'grid-cols-1 gap-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'}`}>
-              {activeList.map((trans: any, idx: number) => {
+              {activeList.map((trans: StrokePattern, idx: number) => {
                 const rawSeq = trans.sequence || '';
                 const parts = rawSeq
                   ? rawSeq.split('->').map((s: string) => s.trim().toUpperCase())
-                  : [trans.from, trans.to].filter(Boolean).map((s: string) => s.toUpperCase());
+                  : [trans.from, trans.to].filter((s): s is string => Boolean(s)).map((s) => s.toUpperCase());
 
                 return (
                   <div key={idx} className="p-2.5 px-3 rounded-xl bg-ink/[0.03] border border-ink/10 flex items-center justify-between min-w-0 hover:border-ink/10 transition-colors">

@@ -1,28 +1,7 @@
 import React from 'react';
 import { Target, Zap, Wind, ArrowRight } from 'lucide-react';
 import { strokeSideLabel } from '../../utils/strokeSide';
-
-export interface AiEventData {
-  id: number;
-  eventOrder: number;
-  timeSeconds: number;
-  playerSide: 'UPPER' | 'LOWER';
-  stroke: string;
-  strokeSide: string;
-  confidence: number;
-  playerPositionCourt?: [number, number]; // [x, y] 0..1 (x: 0..1 ngang sân, y: 0..1 dọc sân)
-  opponentPositionCourt?: [number, number]; // [x, y] 0..1
-  contactShuttleProjectionCourt?: [number, number];
-  landingPositionCourtProxy?: [number, number];
-  hittingArea3x3?: number;
-  landingArea3x3Proxy?: number;
-  averageShuttleSpeedImagePerSecond?: number;
-  averageWristSpeedImagePerSecond?: number;
-  attackStateRule?: string;
-  ballRound?: number;
-  top2?: string[] | null;
-  flightTimeToNextHitSeconds?: number;
-}
+import { AiEventData } from '../../types/replay';
 
 interface Court2DViewerProps {
   currentEvent: AiEventData | null;

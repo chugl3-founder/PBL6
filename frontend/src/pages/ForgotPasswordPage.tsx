@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { AuthShell, AuthField, AuthAlert, AuthSubmit, authLinkClass } from '../components/auth/AuthShell';
-import apiClient from '../api/client';
+import { requestPasswordReset } from '../api/auth';
+import { errorMessage } from '../api/errors';
 
 export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -16,11 +17,10 @@ export const ForgotPasswordPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await apiClient.post('/auth/forgot-password', { email });
+      await requestPasswordReset(email);
       setSuccess(true);
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      setError(serverMsg || 'Không thể gửi yêu cầu đặt lại mật khẩu. Vui lòng kiểm tra lại email.');
+    } catch (err) {
+      setError(errorMessage(err, 'Không thể gửi yêu cầu đặt lại mật khẩu. Vui lòng kiểm tra lại email.'));
     } finally {
       setLoading(false);
     }

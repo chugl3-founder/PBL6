@@ -1,14 +1,21 @@
 package com.badminton.service;
 
 import com.badminton.common.dto.ErrorType;
+import com.badminton.common.dto.MessageResponse;
 import com.badminton.common.exception.ApiException;
 import com.badminton.config.JwtTokenProvider;
 import com.badminton.dto.auth.AuthResponse;
+import com.badminton.dto.auth.ForgotPasswordRequest;
 import com.badminton.dto.auth.LoginRequest;
+import com.badminton.dto.auth.RefreshTokenRequest;
 import com.badminton.dto.auth.RegisterRequest;
+import com.badminton.dto.auth.ResetPasswordRequest;
+import com.badminton.dto.auth.TokenResponse;
 import com.badminton.dto.auth.UserResponse;
+import com.badminton.entity.PasswordReset;
 import com.badminton.entity.RefreshToken;
 import com.badminton.entity.User;
+import com.badminton.repository.PasswordResetRepository;
 import com.badminton.repository.RefreshTokenRepository;
 import com.badminton.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +38,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final com.badminton.repository.PasswordResetRepository passwordResetRepository;
+    private final PasswordResetRepository passwordResetRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -43,7 +50,7 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     ErrorType.VALIDATION,
-                    "AUTH_EMAIL_ALREADY_EXISTS",
+                    "ERR_EMAIL_ALREADY_EXISTS",
                     "Email này đã được sử dụng. Vui lòng chọn email khác hoặc đăng nhập."
             );
         }
@@ -80,7 +87,7 @@ public class AuthService {
                     return new ApiException(
                             HttpStatus.UNAUTHORIZED,
                             ErrorType.VALIDATION,
-                            "AUTH_INVALID_CREDENTIALS",
+                            "ERR_INVALID_CREDENTIALS",
                             "Email hoặc mật khẩu không chính xác."
                     );
                 });
@@ -91,7 +98,7 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.UNAUTHORIZED,
                     ErrorType.VALIDATION,
-                    "AUTH_INVALID_CREDENTIALS",
+                    "ERR_INVALID_CREDENTIALS",
                     "Email hoặc mật khẩu không chính xác."
             );
         }
@@ -102,7 +109,7 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
                     ErrorType.SYSTEM,
-                    "AUTH_ACCOUNT_LOCKED",
+                    "ERR_ACCOUNT_LOCKED",
                     "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên."
             );
         }
@@ -137,7 +144,7 @@ public class AuthService {
     }
 
     @Transactional
-    public com.badminton.dto.auth.TokenResponse refreshToken(com.badminton.dto.auth.RefreshTokenRequest request) {
+    public TokenResponse refreshToken(RefreshTokenRequest request) {
         String rawToken = request.getRefreshToken().trim();
         String hashedToken = hashToken(rawToken);
 
@@ -148,7 +155,7 @@ public class AuthService {
                     return new ApiException(
                             HttpStatus.UNAUTHORIZED,
                             ErrorType.VALIDATION,
-                            "AUTH_INVALID_REFRESH_TOKEN",
+                            "ERR_INVALID_REFRESH_TOKEN",
                             "Refresh token không hợp lệ hoặc đã bị thu hồi."
                     );
                 });
@@ -159,7 +166,7 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.UNAUTHORIZED,
                     ErrorType.VALIDATION,
-                    "AUTH_REFRESH_TOKEN_REVOKED",
+                    "ERR_REFRESH_TOKEN_REVOKED",
                     "Refresh token này đã bị thu hồi. Vui lòng đăng nhập lại."
             );
         }
@@ -170,7 +177,7 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.UNAUTHORIZED,
                     ErrorType.VALIDATION,
-                    "AUTH_REFRESH_TOKEN_EXPIRED",
+                    "ERR_REFRESH_TOKEN_EXPIRED",
                     "Refresh token đã hết hạn. Vui lòng đăng nhập lại."
             );
         }
@@ -183,7 +190,7 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
                     ErrorType.SYSTEM,
-                    "AUTH_ACCOUNT_LOCKED",
+                    "ERR_ACCOUNT_LOCKED",
                     "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên."
             );
         }
@@ -210,7 +217,7 @@ public class AuthService {
 
         log.info("Làm mới token thành công cho user: id={}, email={}", user.getId(), user.getEmail());
 
-        return com.badminton.dto.auth.TokenResponse.builder()
+        return TokenResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRawRefreshToken)
                 .tokenType("Bearer")
@@ -219,7 +226,7 @@ public class AuthService {
     }
 
     @Transactional
-    public com.badminton.common.dto.MessageResponse logout(com.badminton.dto.auth.RefreshTokenRequest request) {
+    public MessageResponse logout(RefreshTokenRequest request) {
         String rawToken = request.getRefreshToken().trim();
         String hashedToken = hashToken(rawToken);
 
@@ -230,13 +237,13 @@ public class AuthService {
             log.info("Đã thu hồi refresh token của user id={}", tokenEntity.getUser().getId());
         });
 
-        return com.badminton.common.dto.MessageResponse.builder()
+        return MessageResponse.builder()
                 .message("Đăng xuất thành công.")
                 .build();
     }
 
     @Transactional
-    public com.badminton.common.dto.MessageResponse forgotPassword(com.badminton.dto.auth.ForgotPasswordRequest request) {
+    public MessageResponse forgotPassword(ForgotPasswordRequest request) {
         String email = request.getEmail().trim().toLowerCase();
 
         User user = userRepository.findByEmail(email)
@@ -244,7 +251,7 @@ public class AuthService {
                     log.warn("Yêu cầu quên mật khẩu thất bại: Không tìm thấy email {}", email);
                     return new ApiException(
                             HttpStatus.NOT_FOUND,
-                            ErrorType.VALIDATION,
+                            ErrorType.SYSTEM,
                             "ERR_USER_NOT_FOUND",
                             "Không tìm thấy tài khoản với email này."
                     );
@@ -258,7 +265,7 @@ public class AuthService {
         String hashedToken = hashToken(rawToken);
 
         // 3. Lưu vào bảng password_resets với thời hạn 15 phút
-        com.badminton.entity.PasswordReset passwordReset = com.badminton.entity.PasswordReset.builder()
+        PasswordReset passwordReset = PasswordReset.builder()
                 .user(user)
                 .tokenHash(hashedToken)
                 .expiresAt(OffsetDateTime.now().plusMinutes(15))
@@ -273,17 +280,17 @@ public class AuthService {
         log.info("Token: {}", rawToken);
         log.info("==========================================================================");
 
-        return com.badminton.common.dto.MessageResponse.builder()
+        return MessageResponse.builder()
                 .message("Yêu cầu đặt lại mật khẩu đã được tiếp nhận. Vui lòng kiểm tra email của bạn.")
                 .build();
     }
 
     @Transactional
-    public com.badminton.common.dto.MessageResponse resetPassword(com.badminton.dto.auth.ResetPasswordRequest request) {
+    public MessageResponse resetPassword(ResetPasswordRequest request) {
         String rawToken = request.getToken().trim();
         String hashedToken = hashToken(rawToken);
 
-        com.badminton.entity.PasswordReset resetEntity = passwordResetRepository.findByTokenHash(hashedToken)
+        PasswordReset resetEntity = passwordResetRepository.findByTokenHash(hashedToken)
                 .orElseThrow(() -> {
                     log.warn("Đặt lại mật khẩu thất bại: Token không tồn tại");
                     return new ApiException(
@@ -331,7 +338,7 @@ public class AuthService {
 
         log.info("Đặt lại mật khẩu thành công cho user: id={}, email={}", user.getId(), user.getEmail());
 
-        return com.badminton.common.dto.MessageResponse.builder()
+        return MessageResponse.builder()
                 .message("Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bằng mật khẩu mới.")
                 .build();
     }

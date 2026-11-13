@@ -37,10 +37,9 @@ frontend/*.local
 frontend/.npm/
 
 # AI Worker - Python
-backend/integrations/ai-worker/__pycache__/
-backend/integrations/ai-worker/**/__pycache__/
-backend/integrations/ai-worker/*.pyc
-backend/integrations/ai-worker/**/*.pyc
+# Python bytecode, anywhere in the repository
+__pycache__/
+*.pyc
 backend/integrations/ai-worker/.pytest_cache/
 backend/integrations/ai-worker/venv/
 backend/integrations/ai-worker/.venv/

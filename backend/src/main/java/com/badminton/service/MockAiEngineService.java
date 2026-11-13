@@ -47,7 +47,7 @@ public class MockAiEngineService {
         return stageMap.getOrDefault(analysisId, "hit_scan");
     }
 
-    private final Set<Long> cancelledAnalyses = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final Set<Long> cancelledAnalyses = ConcurrentHashMap.newKeySet();
 
     public void cancelAnalysis(Long analysisId) {
         cancelledAnalyses.add(analysisId);

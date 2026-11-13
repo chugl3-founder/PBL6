@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { PlayCircle } from 'lucide-react';
-import { AiEventData } from './Court2DViewer';
-import { COURT_RECT, COURT_VIEWBOX, CourtLines } from './CourtLines';
+import { AiEventData } from '../../types/replay';
+import { CourtLines } from './CourtLines';
+import { COURT_RECT, COURT_VIEWBOX } from './courtGeometry';
 import { strokeLabel, strokeLabelLower } from '../../utils/strokeLabels';
-import type { PlaylistClip } from '../replay/PointLossInsights';
+import type { PlaylistClip } from '../../utils/pointLoss';
 
 type Side = 'UPPER' | 'LOWER';
 type Mode = 'POSITION' | 'LANDING';
@@ -117,7 +118,7 @@ export const CourtHeatmap: React.FC<CourtHeatmapProps> = ({
       zones.set(name, (zones.get(name) ?? 0) + c.shots.length);
     }
     return [...zones.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
-  }, [cells]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cells]);  
 
   const hoveredCell = cells.find(([key]) => key === hovered)?.[1];
   const strokeText = stroke === 'ALL' ? 'cú' : `cú ${strokeLabelLower(stroke)}`;

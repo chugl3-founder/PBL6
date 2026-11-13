@@ -5,13 +5,19 @@ import com.badminton.common.dto.ErrorResponse;
 import com.badminton.common.dto.ErrorType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -82,6 +88,39 @@ public class GlobalExceptionHandler {
                 .timestamp(Instant.now())
                 .build();
         return new ResponseEntity<>(errorResponse, HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+
+    /** Unknown path: 404, not a system error. */
+    @ExceptionHandler({NoResourceFoundException.class,
+            NoHandlerFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNotFound(Exception ex) {
+        return simple(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ERR_NOT_FOUND",
+                "Không tìm thấy đường dẫn yêu cầu.");
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex) {
+        return simple(HttpStatus.METHOD_NOT_ALLOWED, ErrorType.VALIDATION, "ERR_METHOD_NOT_ALLOWED",
+                "Phương thức " + ex.getMethod() + " không được hỗ trợ cho đường dẫn này.");
+    }
+
+    /** Malformed JSON, a path or query value of the wrong type, or a missing required parameter. */
+    @ExceptionHandler({HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class})
+    public ResponseEntity<ErrorResponse> handleBadRequest(Exception ex) {
+        return simple(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_INVALID_PAYLOAD",
+                "Dữ liệu gửi lên không đúng định dạng hoặc thiếu tham số bắt buộc.");
+    }
+
+    private static ResponseEntity<ErrorResponse> simple(HttpStatus status, ErrorType type, String code, String message) {
+        return new ResponseEntity<>(ErrorResponse.builder()
+                .errorType(type)
+                .code(code)
+                .message(message)
+                .timestamp(Instant.now())
+                .build(), status);
     }
 
     @ExceptionHandler(Exception.class)

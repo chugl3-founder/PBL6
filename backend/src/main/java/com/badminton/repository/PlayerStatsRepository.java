@@ -16,6 +16,7 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -236,7 +237,7 @@ public class PlayerStatsRepository {
                 """.formatted(SCORED);
         Map<String, List<ZoneCell>> layers = new TreeMap<>();
         jdbc.query(sql, params(viewerId, key), rs -> {
-            layers.computeIfAbsent(rs.getString("layer"), k -> new java.util.ArrayList<>())
+            layers.computeIfAbsent(rs.getString("layer"), k -> new ArrayList<>())
                     .add(new ZoneCell(rs.getInt("along"), rs.getInt("across"), rs.getInt("total")));
         });
         return layers;

@@ -1,8 +1,13 @@
 package com.badminton.controller;
 
+import com.badminton.common.dto.MessageResponse;
 import com.badminton.dto.auth.AuthResponse;
+import com.badminton.dto.auth.ForgotPasswordRequest;
 import com.badminton.dto.auth.LoginRequest;
+import com.badminton.dto.auth.RefreshTokenRequest;
 import com.badminton.dto.auth.RegisterRequest;
+import com.badminton.dto.auth.ResetPasswordRequest;
+import com.badminton.dto.auth.TokenResponse;
 import com.badminton.dto.auth.UserResponse;
 import com.badminton.service.AuthService;
 import jakarta.validation.Valid;
@@ -34,34 +39,34 @@ public class AuthController {
     }
 
     @PostMapping("/refresh-token")
-    public ResponseEntity<com.badminton.dto.auth.TokenResponse> refreshToken(
-            @Valid @RequestBody com.badminton.dto.auth.RefreshTokenRequest request
+    public ResponseEntity<TokenResponse> refreshToken(
+            @Valid @RequestBody RefreshTokenRequest request
     ) {
-        com.badminton.dto.auth.TokenResponse response = authService.refreshToken(request);
+        TokenResponse response = authService.refreshToken(request);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<com.badminton.common.dto.MessageResponse> logout(
-            @Valid @RequestBody com.badminton.dto.auth.RefreshTokenRequest request
+    public ResponseEntity<MessageResponse> logout(
+            @Valid @RequestBody RefreshTokenRequest request
     ) {
-        com.badminton.common.dto.MessageResponse response = authService.logout(request);
+        MessageResponse response = authService.logout(request);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<com.badminton.common.dto.MessageResponse> forgotPassword(
-            @Valid @RequestBody com.badminton.dto.auth.ForgotPasswordRequest request
+    public ResponseEntity<MessageResponse> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request
     ) {
-        com.badminton.common.dto.MessageResponse response = authService.forgotPassword(request);
+        MessageResponse response = authService.forgotPassword(request);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<com.badminton.common.dto.MessageResponse> resetPassword(
-            @Valid @RequestBody com.badminton.dto.auth.ResetPasswordRequest request
+    public ResponseEntity<MessageResponse> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request
     ) {
-        com.badminton.common.dto.MessageResponse response = authService.resetPassword(request);
+        MessageResponse response = authService.resetPassword(request);
         return ResponseEntity.ok(response);
     }
 }

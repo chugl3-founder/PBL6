@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Download, Film, Loader2, X } from 'lucide-react';
 import { HighlightReel, isRendering } from '../../api/highlights';
-import { useHighlightJobs } from './HighlightJobsContext';
+import { useHighlightJobs } from './useHighlightJobs';
 
 /**
  * Floating panel in the bottom-right corner, like the upload panel of Google Drive: follows highlight renders

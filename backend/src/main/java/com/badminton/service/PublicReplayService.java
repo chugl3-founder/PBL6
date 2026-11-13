@@ -20,7 +20,7 @@ public class PublicReplayService {
 
     private final MatchService matchService;
     private final VideoService videoService;
-    private final AnalysisService analysisService;
+    private final ReplayDataService replayDataService;
 
     @Cacheable(cacheNames = "publicVideo", key = "#id", sync = true)
     public VideoResponse getVideo(Long id) {
@@ -30,18 +30,18 @@ public class PublicReplayService {
     @Cacheable(cacheNames = "publicEvents", key = "#id", sync = true)
     public List<AiEventResponse> getEvents(Long id) {
         matchService.ensurePublished(id);
-        return analysisService.getMatchEvents(id);
+        return replayDataService.getPublishedEvents(id);
     }
 
     @Cacheable(cacheNames = "publicRallies", key = "#id", sync = true)
     public List<RallyResponse> getRallies(Long id) {
         matchService.ensurePublished(id);
-        return analysisService.getMatchRallies(id);
+        return replayDataService.getPublishedRallies(id);
     }
 
     @Cacheable(cacheNames = "publicStatistics", key = "#id", sync = true)
     public MatchStatisticsResponse getStatistics(Long id) {
         matchService.ensurePublished(id);
-        return analysisService.getMatchStatistics(id);
+        return replayDataService.getPublishedStatistics(id);
     }
 }

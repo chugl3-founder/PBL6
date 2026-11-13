@@ -1,550 +1,181 @@
 package com.badminton.service;
 
-import com.badminton.common.dto.ErrorType;
 import com.badminton.common.exception.ApiException;
+import com.badminton.common.exception.ErrorCodes;
 import com.badminton.dto.analysis.AnalysisDispatchResponse;
 import com.badminton.dto.analysis.AnalysisStatusResponse;
 import com.badminton.entity.AiAnalysis;
 import com.badminton.entity.Match;
-import com.badminton.entity.User;
 import com.badminton.entity.Video;
 import com.badminton.repository.AiAnalysisRepository;
 import com.badminton.repository.AnalysisQueueRepository;
 import com.badminton.repository.MatchRepository;
-import com.badminton.repository.UserRepository;
 import com.badminton.repository.VideoRepository;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
-import java.util.Optional;
+import java.util.Set;
 
+/**
+ * The life cycle of an analysis: start it, follow its progress, point the worker at a part of the video,
+ * retry it after a failure and cancel it. Every start, first run or retry, is committed first and then handed
+ * to AnalysisJobPublisher, which sends it to the AI worker (or the Mock Engine). Replay data is read through
+ * ReplayDataService; the admin list through AdminAnalysisService.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AnalysisService {
 
+    private static final String MODEL_NAME = "CoachAI+";
+    private static final String MODEL_VERSION = "2.0_pbl6_coachai";
+    private static final Set<String> RETRYABLE = Set.of("FAILED", "UNSUPPORTED");
+    private static final Set<String> RETRYABLE_BY_ADMIN = Set.of("FAILED", "UNSUPPORTED", "CANCELLED");
+    private static final Set<String> RUNNING = Set.of("QUEUED", "PROCESSING");
+
+    private final MatchAccessService matchAccess;
     private final MatchRepository matchRepository;
     private final VideoRepository videoRepository;
-    private final UserRepository userRepository;
     private final AiAnalysisRepository aiAnalysisRepository;
-    private final com.badminton.repository.AiEventRepository aiEventRepository;
-    private final com.badminton.repository.RallyRepository rallyRepository;
-    private final com.badminton.repository.MatchStatisticRepository matchStatisticRepository;
-    private final MockAiEngineService mockAiEngineService;
-    private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
-    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
     private final AnalysisQueueRepository analysisQueueRepository;
+    private final AnalysisJobPublisher jobPublisher;
+    private final AnalysisMapper mapper;
+    private final TransactionTemplate transactionTemplate;
 
-    public AnalysisDispatchResponse dispatchAnalysis(Long matchId, String userEmail) {
-        // Commit before publishing: the broker call holds no database connection and the worker always finds the row.
-        AnalysisQueueRepository.QueuedAnalysis queued = analysisQueueRepository.createQueuedAnalysis(matchId, userEmail)
-                .orElseThrow(() -> transactionTemplate.execute(status -> dispatchRejection(matchId, userEmail)));
-
-        // Gửi Analysis Job lên CloudAMQP cho external AI Worker (GPU)
-        boolean sentToRabbit = false;
-        try {
-            java.util.Map<String, Object> job = new java.util.HashMap<>();
-            job.put("analysisId", queued.analysisId());
-            job.put("matchId", matchId);
-            job.put("videoStoragePath", queued.videoStoragePath());
-            if (queued.fromYoutube()) {
-                // The worker downloads the video from YouTube instead of object storage.
-                job.put("youtubeUrl", queued.youtubeUrl());
-            }
-
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            String payload = mapper.writeValueAsString(job);
-            rabbitTemplate.convertAndSend(com.badminton.config.RabbitMQConfig.EXCHANGE_NAME, com.badminton.config.RabbitMQConfig.ROUTING_KEY, payload);
-            sentToRabbit = true;
-            log.info("Đã gửi Analysis Job lên CloudAMQP cho external AI Worker: {}", payload);
-        } catch (Exception e) {
-            log.warn("Không thể gửi lên RabbitMQ ({}), fallback sang MockAiEngine.", e.getMessage());
-        }
-
-        if (!sentToRabbit) {
-            mockAiEngineService.runMockAnalysis(queued.analysisId());
-        }
-
-        return AnalysisDispatchResponse.builder()
-                .analysisId(queued.analysisId())
-                .matchId(matchId)
-                .status("QUEUED")
-                .message("Yêu cầu phân tích đã được tiếp nhận và đưa vào hàng đợi xử lý.")
-                .queuedAt(OffsetDateTime.now())
-                .build();
+    /** NFR-PER-02: one database round trip, then the broker; answers 202 at once. */
+    public AnalysisDispatchResponse dispatchAnalysis(Long matchId, String email) {
+        AnalysisQueueRepository.QueuedAnalysis queued = analysisQueueRepository.createQueuedAnalysis(matchId, email)
+                .orElseThrow(() -> transactionTemplate.execute(status -> dispatchRejection(matchId, email)));
+        jobPublisher.publish(new AnalysisJobPublisher.AnalysisJob(queued.analysisId(), matchId,
+                queued.videoStoragePath(), queued.fromYoutube() ? queued.youtubeUrl() : null));
+        return queuedResponse(queued.analysisId(), matchId, "Yêu cầu phân tích đã được tiếp nhận và đưa vào hàng đợi xử lý.");
     }
 
     /** Explains why createQueuedAnalysis created nothing. Only rejected requests pay for these extra queries. */
-    private ApiException dispatchRejection(Long matchId, String userEmail) {
-        Optional<User> user = userRepository.findByEmail(userEmail);
-        if (user.isEmpty()) {
-            return new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại");
-        }
-        Optional<Match> match = matchRepository.findById(matchId).filter(m -> m.getDeletedAt() == null);
-        if (match.isEmpty()) {
-            return new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu");
-        }
-        if (!match.get().getOwner().getId().equals(user.get().getId())) {
-            return new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
+    private ApiException dispatchRejection(Long matchId, String email) {
+        try {
+            matchAccess.requireOwner(matchId, email);
+        } catch (ApiException e) {
+            return e;
         }
         if (!videoRepository.existsByMatchId(matchId)) {
-            return new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_FOUND", "Trận đấu chưa có video được tải lên");
+            return ApiException.badRequest(ErrorCodes.VIDEO_NOT_FOUND, "Trận đấu chưa có video được tải lên");
         }
-        return new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "VIDEO_NOT_READY", "Video chưa sẵn sàng để phân tích");
+        return ApiException.badRequest("ERR_VIDEO_NOT_READY", "Video chưa sẵn sàng để phân tích");
     }
 
     @Transactional(readOnly = true)
-    public AnalysisStatusResponse getAnalysisStatus(Long matchId, String userEmail) {
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        Optional<AiAnalysis> analysisOpt = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId);
-        if (analysisOpt.isEmpty()) {
-            // Nếu chưa có phiên phân tích hiện tại, thử tìm phiên gần nhất
-            analysisOpt = aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId);
-        }
-
-        if (analysisOpt.isEmpty()) {
-            return AnalysisStatusResponse.builder()
-                    .matchId(matchId)
-                    .status("NONE")
-                    .progressPercent(0)
-                    .currentStage("Chưa có phiên phân tích")
-                    .build();
-        }
-
-        AiAnalysis analysis = analysisOpt.get();
-        java.util.List<java.util.List<Double>> analyzedRanges = parseAnalyzedRanges(analysis.getAnalyzedRanges());
-        int progress = mockAiEngineService.getProgress(analysis.getId());
-        String currentStage = mockAiEngineService.getCurrentStage(analysis.getId());
-
-        if ("COMPLETED".equalsIgnoreCase(analysis.getStatus())) {
-            progress = 100;
-            currentStage = "completed";
-        } else if ("FAILED".equalsIgnoreCase(analysis.getStatus())) {
-            currentStage = "failed";
-        } else if ("PROCESSING".equalsIgnoreCase(analysis.getStatus()) && progress == 0) {
-            if (analysis.getAnalyzedUntilSeconds() != null && analysis.getVideoDurationSeconds() != null
-                    && analysis.getVideoDurationSeconds().signum() > 0) {
-                // The GPU worker streams results; progress is the share of the video they cover
-                // (several ranges once the viewer has made the worker jump ahead).
-                double duration = analysis.getVideoDurationSeconds().doubleValue();
-                double covered = analyzedRanges != null
-                        ? analyzedRanges.stream().mapToDouble(r -> Math.max(0, r.get(1) - r.get(0))).sum()
-                        : analysis.getAnalyzedUntilSeconds().doubleValue();
-                progress = (int) Math.min(99, Math.floor(covered * 100 / duration));
-                currentStage = "streaming: Đang phân tích, kết quả hiện dần trên Replay";
-            } else {
-                // No streamed progress yet (video download, model warm-up): start from 0 so the
-                // bar never jumps back once the first real progress arrives.
-                progress = 0;
-                currentStage = "Đang khởi động GPU Worker (tải video, nạp model)";
-            }
-        }
-
-        return AnalysisStatusResponse.builder()
-                .analysisId(analysis.getId())
-                .matchId(matchId)
-                .status(analysis.getStatus())
-                .progressPercent(progress)
-                .currentStage(currentStage)
-                .modelName(analysis.getModelName())
-                .modelVersion(analysis.getModelVersion())
-                .startedAt(analysis.getStartedAt())
-                .completedAt(analysis.getCompletedAt())
-                .errorMessage(analysis.getErrorMessage())
-                .analyzedUntilSeconds(analysis.getAnalyzedUntilSeconds() != null ? analysis.getAnalyzedUntilSeconds().doubleValue() : null)
-                .videoDurationSeconds(analysis.getVideoDurationSeconds() != null ? analysis.getVideoDurationSeconds().doubleValue() : null)
-                .analyzedRanges(analyzedRanges)
-                .build();
+    public AnalysisStatusResponse getAnalysisStatus(Long matchId, String email) {
+        matchAccess.requireOwnerOrAdmin(matchId, email);
+        return statusOf(matchId);
     }
 
-    private java.util.List<java.util.List<Double>> parseAnalyzedRanges(String json) {
-        if (json == null || json.isBlank()) {
-            return null;
-        }
-        try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(
-                    json, new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.List<Double>>>() {});
-        } catch (Exception e) {
-            log.warn("Không đọc được analyzed_ranges: {}", e.getMessage());
-            return null;
-        }
+    private AnalysisStatusResponse statusOf(Long matchId) {
+        return aiAnalysisRepository.findCurrentOrLatest(matchId)
+                .map(analysis -> mapper.toStatusResponse(analysis, matchId))
+                .orElseGet(() -> AnalysisStatusResponse.builder()
+                        .matchId(matchId)
+                        .status("NONE")
+                        .progressPercent(0)
+                        .currentStage("Chưa có phiên phân tích")
+                        .build());
     }
 
     /**
-     * Ghi lại vị trí người xem tua tới khi phân tích đang chạy; GPU worker đọc giá trị này và quét đoạn đó trước.
-     * Phiên đã kết thúc thì bỏ qua (không lỗi), vì người xem có thể tua ngay lúc phân tích vừa xong.
+     * Records where the viewer jumped to while the analysis runs; the GPU worker scans that part first.
+     * A finished analysis is left alone without an error: the viewer may seek just as it completes.
      */
     @Transactional
-    public AnalysisStatusResponse focusAnalysis(Long matchId, Double seconds, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
-
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        if (!match.getOwner().getId().equals(user.getId()) && !"ROLE_ADMIN".equals(user.getRole())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
-        }
-
-        aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
-                .or(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId))
+    public AnalysisStatusResponse focusAnalysis(Long matchId, Double seconds, String email) {
+        matchAccess.requireOwnerOrAdmin(matchId, email);
+        aiAnalysisRepository.findCurrentOrLatest(matchId)
                 .ifPresent(a -> aiAnalysisRepository.updateFocusIfRunning(
-                        a.getId(),
-                        java.math.BigDecimal.valueOf(seconds).setScale(2, java.math.RoundingMode.HALF_UP),
-                        OffsetDateTime.now()));
-
-        return getAnalysisStatus(matchId, userEmail);
+                        a.getId(), BigDecimal.valueOf(seconds).setScale(2, RoundingMode.HALF_UP), OffsetDateTime.now()));
+        return statusOf(matchId);
     }
 
-    @Transactional(readOnly = true)
-    public java.util.List<com.badminton.dto.analysis.AiEventResponse> getMatchEvents(Long matchId) {
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        AiAnalysis analysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
-                .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
-                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Trận đấu chưa có dữ liệu phân tích")));
-
-        java.util.List<com.badminton.entity.AiEvent> events = aiEventRepository.findByAnalysisIdOrderByEventOrderAsc(analysis.getId());
-
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-
-        return events.stream().map(e -> {
-            java.util.List<String> top2 = parseJsonList(mapper, e.getTop2(), String.class);
-            java.util.List<Integer> cropBox = parseJsonList(mapper, e.getCropBox(), Integer.class);
-            java.util.List<Double> playerPos = parseJsonList(mapper, e.getPlayerPositionCourt(), Double.class);
-            java.util.List<Double> oppPos = parseJsonList(mapper, e.getOpponentPositionCourt(), Double.class);
-            java.util.List<Double> contactPos = parseJsonList(mapper, e.getContactShuttleProjectionCourt(), Double.class);
-            java.util.List<Double> landPos = parseJsonList(mapper, e.getLandingPositionCourtProxy(), Double.class);
-
-            return (com.badminton.dto.analysis.AiEventResponse) com.badminton.dto.analysis.AiEventResponse.builder()
-                    .id(e.getId())
-                    .eventOrder(e.getEventOrder())
-                    .rallyNumber(e.getRallyNumber())
-                    .startFrame(e.getStartFrame())
-                    .hitFrame(e.getHitFrame())
-                    .endFrame(e.getEndFrame())
-                    .timeSeconds(e.getTimeSeconds())
-                    .playerSide(e.getPlayerSide())
-                    .hitterName(e.getHitterName())
-                    .stroke(e.getStroke())
-                    .strokeSide(e.getStrokeSide())
-                    .confidence(e.getConfidence())
-                    .refinedFrame(e.getRefinedFrame())
-                    .contactOffset(e.getContactOffset())
-                    .hitScore(e.getHitScore())
-                    .ballRound(e.getBallRound())
-                    .gapFromPreviousHitSeconds(e.getGapFromPreviousHitSeconds())
-                    .top2(top2)
-                    .ttaUsed(e.getTtaUsed())
-                    .ttaWindows(e.getTtaWindows())
-                    .cropBox(cropBox)
-                    .playerPositionCourt(playerPos)
-                    .opponentPositionCourt(oppPos)
-                    .contactShuttleProjectionCourt(contactPos)
-                    .contactHeightImageRatio(e.getContactHeightImageRatio())
-                    .hittingArea3x3(e.getHittingArea3x3())
-                    .landingPositionCourtProxy(landPos)
-                    .landingArea3x3Proxy(e.getLandingArea3x3Proxy())
-                    .landingProxyFrame(e.getLandingProxyFrame())
-                    .landingProxyConfidence(e.getLandingProxyConfidence())
-                    .landingIsProxy(e.getLandingIsProxy())
-                    .flightTimeToNextHitSeconds(e.getFlightTimeToNextHitSeconds())
-                    .averageShuttleSpeedImagePerSecond(e.getAverageShuttleSpeedImagePerSecond())
-                    .averageWristSpeedImagePerSecond(e.getAverageWristSpeedImagePerSecond())
-                    .shuttleVisibilityRatio(e.getShuttleVisibilityRatio())
-                    .attackStateRule(e.getAttackStateRule())
-                    .build();
-        }).collect(java.util.stream.Collectors.toList());
-
-    }
-
-    @Transactional(readOnly = true)
-    public java.util.List<com.badminton.dto.analysis.RallyResponse> getMatchRallies(Long matchId) {
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        AiAnalysis analysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
-                .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
-                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Trận đấu chưa có dữ liệu phân tích")));
-
-        java.util.List<com.badminton.entity.Rally> rallies = rallyRepository.findByAnalysisIdOrderByRallyNumberAsc(analysis.getId());
-
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        boolean upperIsPlayerA = !"PLAYER_B".equalsIgnoreCase(match.getUpperPlayer());
-        java.util.Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies.stream()
-                .map(r -> new HighlightSelector.RallyFacts(r.getId(), r.getRallyNumber(), 0, 0, 0, r.getWinnerSide(),
-                        r.getScoreUpper() != null ? r.getScoreUpper() : 0,
-                        r.getScoreLower() != null ? r.getScoreLower() : 0, null, null, true))
-                .toList(), upperIsPlayerA);
-
-        return rallies.stream().map(r -> {
-            java.util.List<String> strokeSeq = parseJsonList(mapper, r.getStrokeSequence(), String.class);
-            HighlightSelector.GameContext game = games.get(r.getId());
-
-            return com.badminton.dto.analysis.RallyResponse.builder()
-                    .id(r.getId())
-                    .rallyNumber(r.getRallyNumber())
-                    .startEventId(r.getStartEvent() != null ? r.getStartEvent().getId() : null)
-                    .endEventId(r.getEndEvent() != null ? r.getEndEvent().getId() : null)
-                    .startTime(r.getStartTime())
-                    .endTime(r.getEndTime())
-                    .duration(r.getDuration())
-                    .totalStrokes(r.getTotalStrokes())
-                    .boundaryType(r.getBoundaryType())
-                    .serverSide(r.getServerSide())
-                    .winnerSide(r.getWinnerSide())
-                    .winReason(r.getWinReason())
-                    .scoreUpper(r.getScoreUpper())
-                    .scoreLower(r.getScoreLower())
-                    .scoreText(r.getScoreText())
-                    .gameNumber(game.game())
-                    .scoreA(game.aAfter())
-                    .scoreB(game.bAfter())
-                    .winnerPlayer(game.aWon() ? "PLAYER_A" : game.bWon() ? "PLAYER_B" : null)
-                    .upperPlayer(game.aOnUpper() ? "PLAYER_A" : "PLAYER_B")
-                    .strokeSequence(strokeSeq)
-                    .isComplete(r.getIsComplete())
-                    .partialStart(r.getPartialStart())
-                    .partialEnd(r.getPartialEnd())
-                    .build();
-        }).collect(java.util.stream.Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public com.badminton.dto.analysis.MatchStatisticsResponse getMatchStatistics(Long matchId) {
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        AiAnalysis analysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
-                .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
-                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Trận đấu chưa có dữ liệu phân tích")));
-
-        return buildStatisticsResponse(analysis);
-    }
-
-    @Transactional(readOnly = true)
-    public com.badminton.dto.analysis.MatchStatisticsResponse getStatisticsByAnalysisId(Long analysisId) {
-        AiAnalysis analysis = aiAnalysisRepository.findById(analysisId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích"));
-
-        return buildStatisticsResponse(analysis);
-    }
-
-    private com.badminton.dto.analysis.MatchStatisticsResponse buildStatisticsResponse(AiAnalysis analysis) {
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-
-        // 1. Tìm hoặc tổng hợp MatchStatistic
-        java.util.List<com.badminton.entity.AiEvent> events = aiEventRepository.findByAnalysisIdOrderByEventOrderAsc(analysis.getId());
-        java.util.List<com.badminton.entity.Rally> rallies = rallyRepository.findByAnalysisIdOrderByRallyNumberAsc(analysis.getId());
-
-        java.util.Optional<com.badminton.entity.MatchStatistic> statsOpt = matchStatisticRepository.findByAnalysisId(analysis.getId());
-
-        com.badminton.entity.MatchStatistic stats;
-        if (statsOpt.isPresent()) {
-            stats = statsOpt.get();
-        } else {
-            // Aggregate tự động nếu chưa có bản ghi
-            int totalStrokes = events.size();
-            int totalRallies = rallies.size();
-            double avgStrokes = totalRallies > 0 ? (double) totalStrokes / totalRallies : 0.0;
-            double avgDuration = rallies.stream()
-                    .filter(r -> r.getDuration() != null)
-                    .mapToDouble(r -> r.getDuration().doubleValue())
-                    .average().orElse(0.0);
-
-            int playerAStrokes = (int) events.stream().filter(e -> "UPPER".equalsIgnoreCase(e.getPlayerSide())).count();
-            int playerBStrokes = totalStrokes - playerAStrokes;
-            int forehands = (int) events.stream().filter(e -> "FOREHAND".equalsIgnoreCase(e.getStrokeSide())).count();
-            int backhands = (int) events.stream().filter(e -> "BACKHAND".equalsIgnoreCase(e.getStrokeSide())).count();
-            int aroundheads = (int) events.stream().filter(e -> "AROUNDHEAD".equalsIgnoreCase(e.getStrokeSide()) || "AROUND_HEAD".equalsIgnoreCase(e.getStrokeSide())).count();
-            int unknownSides = totalStrokes - forehands - backhands - aroundheads;
-            double avgConf = events.stream()
-                    .filter(e -> e.getConfidence() != null)
-                    .mapToDouble(e -> e.getConfidence().doubleValue())
-                    .average().orElse(0.0);
-
-            stats = com.badminton.entity.MatchStatistic.builder()
-                    .match(analysis.getMatch())
-                    .analysis(analysis)
-                    .totalStrokes(totalStrokes)
-                    .totalRallies(totalRallies)
-                    .avgStrokesPerRally(java.math.BigDecimal.valueOf(avgStrokes).setScale(2, java.math.RoundingMode.HALF_UP))
-                    .avgRallyDuration(java.math.BigDecimal.valueOf(avgDuration).setScale(2, java.math.RoundingMode.HALF_UP))
-                    .playerAStrokes(playerAStrokes)
-                    .playerBStrokes(playerBStrokes)
-                    .forehandCount(forehands)
-                    .backhandCount(backhands)
-                    .aroundheadCount(aroundheads)
-                    .unknownSideCount(unknownSides)
-                    .avgConfidence(java.math.BigDecimal.valueOf(avgConf).setScale(3, java.math.RoundingMode.HALF_UP))
-                    .build();
-        }
-
-        // 2. Tính phân bố chi tiết cú đánh (strokeDistribution)
-        java.util.Map<String, Integer> strokeDistribution = new java.util.HashMap<>();
-        for (com.badminton.entity.AiEvent evt : events) {
-            String stroke = evt.getStroke();
-            if (stroke != null) {
-                strokeDistribution.put(stroke, strokeDistribution.getOrDefault(stroke, 0) + 1);
+    /** Retries a FAILED or UNSUPPORTED analysis on the AI worker (owner or admin). */
+    public AnalysisDispatchResponse retryAnalysis(Long matchId, Long analysisId, String email) {
+        AnalysisJobPublisher.AnalysisJob job = transactionTemplate.execute(status -> {
+            Match match = matchAccess.requireOwnerOrAdmin(matchId, email);
+            AiAnalysis old = analysisId != null ? findAnalysis(analysisId) : aiAnalysisRepository.findCurrentOrLatest(matchId)
+                    .orElseThrow(() -> ApiException.notFound(ErrorCodes.ANALYSIS_NOT_FOUND, "Không tìm thấy phiên phân tích để thử lại"));
+            requireBelongsTo(old, matchId);
+            if (!RETRYABLE.contains(upper(old.getStatus()))) {
+                throw ApiException.badRequest("ERR_ANALYSIS_NOT_FAILED",
+                        "Chỉ có thể thử lại phiên phân tích khi đang ở trạng thái FAILED hoặc UNSUPPORTED");
             }
-        }
-
-        // 3. Parse CoachAI+ 2.0 metrics
-        Object summaryData = parseJsonObject(mapper, analysis.getSummaryData());
-        Object radarChart = parseJsonObject(mapper, analysis.getRadarChart());
-        Object coachInsights = parseJsonObject(mapper, analysis.getCoachInsights());
-        Object tacticalPatterns = parseJsonObject(mapper, analysis.getTacticalPatterns());
-        Object structuredTactics = parseJsonObject(mapper, analysis.getStructuredTactics());
-
-        return com.badminton.dto.analysis.MatchStatisticsResponse.builder()
-                .id(stats.getId())
-                .matchId(analysis.getMatch().getId())
-                .analysisId(analysis.getId())
-                .totalStrokes(stats.getTotalStrokes())
-                .totalRallies(stats.getTotalRallies())
-                .avgStrokesPerRally(stats.getAvgStrokesPerRally())
-                .avgRallyDuration(stats.getAvgRallyDuration())
-                .playerAStrokes(stats.getPlayerAStrokes())
-                .playerBStrokes(stats.getPlayerBStrokes())
-                .forehandCount(stats.getForehandCount())
-                .backhandCount(stats.getBackhandCount())
-                .aroundheadCount(stats.getAroundheadCount())
-                .unknownSideCount(stats.getUnknownSideCount())
-                .avgConfidence(stats.getAvgConfidence())
-                .strokeDistribution(strokeDistribution)
-                .summaryData(summaryData)
-                .radarChart(radarChart)
-                .coachInsights(coachInsights)
-                .tacticalPatterns(tacticalPatterns)
-                .structuredTactics(structuredTactics)
-                .build();
+            return requeue(match, old);
+        });
+        jobPublisher.publish(job);
+        log.info("Retried analysis for match {}: new analysis {}", matchId, job.analysisId());
+        return queuedResponse(job.analysisId(), matchId, "Đã khởi tạo lại phiên phân tích AI và đưa vào hàng đợi xử lý.");
     }
 
-    private Object parseJsonObject(com.fasterxml.jackson.databind.ObjectMapper mapper, String json) {
-        if (json == null || json.isBlank()) return null;
-        try {
-            return mapper.readValue(json, Object.class);
-        } catch (Exception ex) {
-            return null;
-        }
+    /** Admin AI monitor: retries any FAILED, UNSUPPORTED or CANCELLED analysis. */
+    public AnalysisDispatchResponse retryAnalysisForAdmin(Long analysisId) {
+        AnalysisJobPublisher.AnalysisJob job = transactionTemplate.execute(status -> {
+            AiAnalysis old = findAnalysis(analysisId);
+            if (!RETRYABLE_BY_ADMIN.contains(upper(old.getStatus()))) {
+                throw ApiException.badRequest("ERR_ANALYSIS_NOT_FAILED",
+                        "Chỉ có thể thử lại phiên phân tích khi đang ở trạng thái lỗi (FAILED, UNSUPPORTED) hoặc đã hủy (CANCELLED).");
+            }
+            return requeue(old.getMatch(), old);
+        });
+        jobPublisher.publish(job);
+        log.info("[Admin AI Monitor] Retried analysis {} as {} for match {}", analysisId, job.analysisId(), job.matchId());
+        return queuedResponse(job.analysisId(), job.matchId(),
+                "Quản trị viên đã kích hoạt chạy lại phiên phân tích AI thành công và đưa vào hàng đợi xử lý.");
     }
 
-    @Transactional
-    public AnalysisDispatchResponse retryAnalysis(Long matchId, Long analysisId, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
+    /** A new current QUEUED analysis on the same video. Runs in the caller's transaction. */
+    private AnalysisJobPublisher.AnalysisJob requeue(Match match, AiAnalysis old) {
+        // Read the video before the demote below clears the persistence context.
+        Video video = old.getVideo();
+        String storagePath = video.getStoragePath();
+        String youtubeUrl = "YOUTUBE".equalsIgnoreCase(video.getVideoSourceType()) ? video.getYoutubeUrl() : null;
 
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        if (!match.getOwner().getId().equals(user.getId()) && !"ROLE_ADMIN".equals(user.getRole())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
-        }
-
-        AiAnalysis oldAnalysis;
-        if (analysisId != null) {
-            oldAnalysis = aiAnalysisRepository.findById(analysisId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích"));
-        } else {
-            oldAnalysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
-                    .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
-                            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích để thử lại")));
-        }
-
-        if (!oldAnalysis.getMatch().getId().equals(matchId)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ANALYSIS_MATCH_MISMATCH", "Phiên phân tích không thuộc về trận đấu này");
-        }
-
-        if (!"FAILED".equalsIgnoreCase(oldAnalysis.getStatus()) && !"UNSUPPORTED".equalsIgnoreCase(oldAnalysis.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ANALYSIS_NOT_FAILED", "Chỉ có thể thử lại phiên phân tích khi đang ở trạng thái FAILED hoặc UNSUPPORTED");
-        }
-
-        // Đánh dấu toàn bộ các bản ghi phân tích cũ của trận đấu thành isCurrent = false
-        aiAnalysisRepository.demoteAllCurrentByMatchId(matchId);
-
-        // Tạo phiên phân tích mới với status QUEUED
-        AiAnalysis newAnalysis = AiAnalysis.builder()
+        aiAnalysisRepository.demoteAllCurrentByMatchId(match.getId());
+        AiAnalysis created = aiAnalysisRepository.saveAndFlush(AiAnalysis.builder()
                 .match(match)
-                .video(oldAnalysis.getVideo())
+                .video(video)
                 .status("QUEUED")
-                .modelName("CoachAI+")
-                .modelVersion("2.0_pbl6_coachai")
+                .modelName(MODEL_NAME)
+                .modelVersion(MODEL_VERSION)
                 .isCurrent(true)
-                .build();
-
-        AiAnalysis savedNewAnalysis = aiAnalysisRepository.saveAndFlush(newAnalysis);
-
+                .build());
         match.setStatus("ANALYZING");
         matchRepository.saveAndFlush(match);
-
-        mockAiEngineService.runMockAnalysis(savedNewAnalysis.getId());
-        log.info("Đã khởi tạo lại (retry) phiên phân tích AI cho Match ID: {}, New Analysis ID: {}", matchId, savedNewAnalysis.getId());
-
-        return AnalysisDispatchResponse.builder()
-                .analysisId(savedNewAnalysis.getId())
-                .matchId(matchId)
-                .status("QUEUED")
-                .message("Đã khởi tạo lại phiên phân tích AI và đưa vào hàng đợi xử lý.")
-                .queuedAt(OffsetDateTime.now())
-                .build();
+        return new AnalysisJobPublisher.AnalysisJob(created.getId(), match.getId(), storagePath, youtubeUrl);
     }
 
     @Transactional
-    public AnalysisStatusResponse cancelAnalysis(Long matchId, Long analysisId, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "USER_NOT_FOUND", "Người dùng không tồn tại"));
-
-        Match match = matchRepository.findById(matchId)
-                .filter(m -> m.getDeletedAt() == null)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "MATCH_NOT_FOUND", "Không tìm thấy trận đấu"));
-
-        if (!match.getOwner().getId().equals(user.getId()) && !"ROLE_ADMIN".equals(user.getRole())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, ErrorType.VALIDATION, "FORBIDDEN", "Bạn không có quyền thao tác trên trận đấu này");
+    public AnalysisStatusResponse cancelAnalysis(Long matchId, Long analysisId, String email) {
+        Match match = matchAccess.requireOwnerOrAdmin(matchId, email);
+        AiAnalysis analysis = analysisId != null ? findAnalysis(analysisId) : aiAnalysisRepository.findCurrentOrLatest(matchId)
+                .orElseThrow(() -> ApiException.notFound(ErrorCodes.ANALYSIS_NOT_FOUND, "Không tìm thấy phiên phân tích để hủy"));
+        requireBelongsTo(analysis, matchId);
+        if (!RUNNING.contains(upper(analysis.getStatus()))) {
+            throw ApiException.badRequest("ERR_CANNOT_CANCEL",
+                    "Chỉ có thể hủy phiên phân tích đang ở trạng thái QUEUED hoặc PROCESSING");
         }
 
-        AiAnalysis analysis;
-        if (analysisId != null) {
-            analysis = aiAnalysisRepository.findById(analysisId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích"));
-        } else {
-            analysis = aiAnalysisRepository.findByMatchIdAndIsCurrentTrue(matchId)
-                    .orElseGet(() -> aiAnalysisRepository.findTopByMatchIdOrderByCreatedAtDesc(matchId)
-                            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ANALYSIS_NOT_FOUND", "Không tìm thấy phiên phân tích để hủy")));
-        }
-
-        if (!analysis.getMatch().getId().equals(matchId)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ANALYSIS_MATCH_MISMATCH", "Phiên phân tích không thuộc về trận đấu này");
-        }
-
-        if (!"QUEUED".equalsIgnoreCase(analysis.getStatus()) && !"PROCESSING".equalsIgnoreCase(analysis.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "CANNOT_CANCEL", "Chỉ có thể hủy phiên phân tích đang ở trạng thái QUEUED hoặc PROCESSING");
-        }
-
-        // Thông báo Mock Engine ngắt luồng
-        mockAiEngineService.cancelAnalysis(analysis.getId());
-
-        // Cập nhật trạng thái CANCELLED
+        jobPublisher.cancel(analysis.getId());
+        String message = "Phiên phân tích đã bị hủy bởi người dùng.";
         analysis.setStatus("CANCELLED");
         analysis.setCompletedAt(OffsetDateTime.now());
-        analysis.setErrorMessage("Phiên phân tích đã bị hủy bởi người dùng.");
+        analysis.setErrorMessage(message);
         aiAnalysisRepository.saveAndFlush(analysis);
-
         match.setStatus("READY");
         matchRepository.saveAndFlush(match);
-        log.info("Đã hủy phiên phân tích AI cho Match ID: {}, Analysis ID: {}", matchId, analysis.getId());
+        log.info("Cancelled analysis {} of match {}", analysis.getId(), matchId);
 
         return AnalysisStatusResponse.builder()
                 .analysisId(analysis.getId())
@@ -556,129 +187,32 @@ public class AnalysisService {
                 .modelVersion(analysis.getModelVersion())
                 .startedAt(analysis.getStartedAt())
                 .completedAt(analysis.getCompletedAt())
-                .errorMessage("Phiên phân tích đã bị hủy bởi người dùng.")
+                .errorMessage(message)
                 .build();
     }
 
-    @Transactional(readOnly = true)
-    public com.badminton.dto.admin.PagedAnalysisResponse getAllAnalysesForAdmin(String status, int page, int size) {
-        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
-                Math.max(page, 0),
-                Math.min(Math.max(size, 1), 100)
-        );
-
-        org.springframework.data.domain.Page<AiAnalysis> analysisPage;
-        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status.trim())) {
-            analysisPage = aiAnalysisRepository.findByStatusIgnoreCaseOrderByCreatedAtDesc(status.trim(), pageable);
-        } else {
-            analysisPage = aiAnalysisRepository.findAllByOrderByCreatedAtDesc(pageable);
-        }
-
-        java.util.List<com.badminton.dto.admin.AdminAnalysisResponse> items = analysisPage.getContent()
-                .stream()
-                .map(this::toAdminAnalysisResponse)
-                .collect(java.util.stream.Collectors.toList());
-
-        return com.badminton.dto.admin.PagedAnalysisResponse.builder()
-                .data(items)
-                .pagination(com.badminton.common.dto.PaginationMeta.builder()
-                        .page(analysisPage.getNumber())
-                        .size(analysisPage.getSize())
-                        .totalElements(analysisPage.getTotalElements())
-                        .totalPages(analysisPage.getTotalPages())
-                        .build())
-                .build();
+    private AiAnalysis findAnalysis(Long analysisId) {
+        return aiAnalysisRepository.findById(analysisId)
+                .orElseThrow(() -> ApiException.notFound(ErrorCodes.ANALYSIS_NOT_FOUND, "Không tìm thấy phiên phân tích"));
     }
 
-    @Transactional
-    public AnalysisDispatchResponse retryAnalysisForAdmin(Long analysisId) {
-        AiAnalysis oldAnalysis = aiAnalysisRepository.findById(analysisId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "ERR_RESOURCE_NOT_FOUND", "Không tìm thấy phiên phân tích AI với ID tương ứng."));
-
-        if (!"FAILED".equalsIgnoreCase(oldAnalysis.getStatus())
-                && !"UNSUPPORTED".equalsIgnoreCase(oldAnalysis.getStatus())
-                && !"CANCELLED".equalsIgnoreCase(oldAnalysis.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.AI, "ANALYSIS_NOT_FAILED", "Chỉ có thể thử lại phiên phân tích khi đang ở trạng thái lỗi (FAILED, UNSUPPORTED) hoặc đã hủy (CANCELLED).");
+    private static void requireBelongsTo(AiAnalysis analysis, Long matchId) {
+        if (!analysis.getMatch().getId().equals(matchId)) {
+            throw ApiException.badRequest(ErrorCodes.ANALYSIS_MATCH_MISMATCH, "Phiên phân tích không thuộc về trận đấu này");
         }
+    }
 
-        Match match = oldAnalysis.getMatch();
-        Long matchId = match.getId();
+    private static String upper(String status) {
+        return status == null ? "" : status.toUpperCase(Locale.ROOT);
+    }
 
-        aiAnalysisRepository.demoteAllCurrentByMatchId(matchId);
-
-        AiAnalysis newAnalysis = AiAnalysis.builder()
-                .match(match)
-                .video(oldAnalysis.getVideo())
-                .status("QUEUED")
-                .modelName("CoachAI+")
-                .modelVersion("2.0_pbl6_coachai_admin_retry")
-                .isCurrent(true)
-                .build();
-
-        AiAnalysis savedNewAnalysis = aiAnalysisRepository.saveAndFlush(newAnalysis);
-
-        match.setStatus("ANALYZING");
-        matchRepository.saveAndFlush(match);
-
-        mockAiEngineService.runMockAnalysis(savedNewAnalysis.getId());
-        log.info("[Admin AI Monitor] Đã kích hoạt chạy lại khẩn cấp phiên phân tích AI cũ ID={} -> phiên mới ID={} cho Match ID={}",
-                analysisId, savedNewAnalysis.getId(), matchId);
-
+    private static AnalysisDispatchResponse queuedResponse(Long analysisId, Long matchId, String message) {
         return AnalysisDispatchResponse.builder()
-                .analysisId(savedNewAnalysis.getId())
+                .analysisId(analysisId)
                 .matchId(matchId)
                 .status("QUEUED")
-                .message("Quản trị viên đã kích hoạt chạy lại phiên phân tích AI thành công và đưa vào hàng đợi xử lý.")
+                .message(message)
                 .queuedAt(OffsetDateTime.now())
                 .build();
     }
-
-    private com.badminton.dto.admin.AdminAnalysisResponse toAdminAnalysisResponse(AiAnalysis a) {
-        Match match = a.getMatch();
-        Video video = a.getVideo();
-        int progress = mockAiEngineService.getProgress(a.getId());
-        String currentStage = mockAiEngineService.getCurrentStage(a.getId());
-
-        if ("COMPLETED".equalsIgnoreCase(a.getStatus())) {
-            progress = 100;
-            currentStage = "completed: Phân tích hoàn tất";
-        } else if ("FAILED".equalsIgnoreCase(a.getStatus()) || "UNSUPPORTED".equalsIgnoreCase(a.getStatus())) {
-            progress = 0;
-            currentStage = "failed: Phiên phân tích gặp sự cố";
-        } else if ("CANCELLED".equalsIgnoreCase(a.getStatus())) {
-            progress = 0;
-            currentStage = "cancelled: Đã hủy";
-        }
-
-        return com.badminton.dto.admin.AdminAnalysisResponse.builder()
-                .id(a.getId())
-                .matchId(match != null ? match.getId() : null)
-                .matchTitle(match != null ? match.getTitle() : null)
-                .playerAName(match != null ? match.getPlayerAName() : null)
-                .playerBName(match != null ? match.getPlayerBName() : null)
-                .ownerEmail(match != null && match.getOwner() != null ? match.getOwner().getEmail() : null)
-                .videoId(video != null ? video.getId() : null)
-                .status(a.getStatus())
-                .modelName(a.getModelName())
-                .modelVersion(a.getModelVersion())
-                .progressPercent(progress)
-                .currentStage(currentStage)
-                .startedAt(a.getStartedAt())
-                .completedAt(a.getCompletedAt())
-                .errorCode(a.getErrorCode())
-                .errorMessage(a.getErrorMessage())
-                .isCurrent(a.getIsCurrent())
-                .createdAt(a.getCreatedAt())
-                .build();
-    }
-
-    private <T> java.util.List<T> parseJsonList(com.fasterxml.jackson.databind.ObjectMapper mapper, String json, Class<T> clazz) {
-        if (json == null || json.isBlank()) return java.util.Collections.emptyList();
-        try {
-            return mapper.readValue(json, mapper.getTypeFactory().constructCollectionType(java.util.List.class, clazz));
-        } catch (Exception ex) {
-            return java.util.Collections.emptyList();
-        }
-    }
 }
-

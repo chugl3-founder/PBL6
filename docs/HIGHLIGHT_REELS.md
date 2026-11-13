@@ -33,14 +33,23 @@ AI ghi tỉ số theo **sân** (trên/dưới) và có video không tính lại 
 
 Kiểm tra với trận 294: ván 1 kết thúc 24–22, ván 2 kết thúc 21–9, pha 72 là 17–5 trước pha, khớp bảng điểm của đài.
 
+## Đã xử lý ngày 13/11/2026
+
+- **Thống kê theo người khi đổi sân** (phần tính ở frontend): trang replay chuyển dữ liệu về "sân lúc video bắt đầu" theo `upperPlayer` của từng pha ([courtEnds.ts](../frontend/src/utils/courtEnds.ts)) trước khi đưa vào "Đáng chú ý", "Vì sao mất điểm", heatmap (lật cả toạ độ), biểu đồ tỉ số, timeline, danh sách cú đánh và số cú mỗi người ở tab Thống kê. Sơ đồ sân 2D và thẻ cú đánh dùng đúng người đang đứng sân trên tại thời điểm đó.
+- **Pha sau khi trận kết thúc**: `trackGames` kết thúc trận khi một người thắng 2 ván (hoặc xong ván 3); các pha sau đó có `afterMatch = true`, giữ tỉ số cuối, không vào gợi ý highlight, tỉ số, thống kê; danh sách pha ghi "Sau trận". Trận 294: pha 82–84.
+- **Tỉ số khi video bắt đầu giữa trận**: migration V11 thêm `start_game`, `start_score_a`, `start_score_b` cho bảng `matches`; chủ trận nhập ở trang chi tiết trận (khung "Hai vận động viên"). Tỉ số được tính lúc đọc nên áp dụng ngay, không cần phân tích lại. `upper_player` nghĩa là người ở sân trên **lúc video bắt đầu**.
+- **Phân quyền**: `/api/matches/{id}/analysis/{status,events,rallies,statistics}` và `/api/ai-analyses/{id}/statistics` chỉ cho chủ trận hoặc admin (403 với người khác). Trận công khai vẫn đọc qua `/api/public-matches/*`.
+- **API tạo video**: `HighlightQueryRepository` đọc trận, phân tích, video, trạng thái bận và toàn bộ rally trong 1 lượt; insert 1 lượt. Đo được: POST 0,29 s (gồm gửi RabbitMQ), gợi ý 0,12–0,22 s.
+- **Lỗi đường dẫn**: 404 `ERR_NOT_FOUND` cho đường dẫn không tồn tại, 405 cho sai phương thức, 400 cho JSON hỏng hoặc tham số sai kiểu.
+- **Pool kết nối**: mặc định còn 6 (+ 6 idle) mỗi backend, hai backend cùng chạy vẫn dưới 15.
+- **Reel 4** (trận 294) đã xóa; reel 5 tạo lại với các pha gợi ý mặc định, nhãn "Kết thúc ván 1 · 24-22", "Kết thúc ván 2 · 21-9".
+- **Xem trước pha YouTube** đã kiểm tra bằng tài khoản chủ trận (trình duyệt tự động) và sửa 2 lỗi trong [RallyPreviewPlayer.tsx](../frontend/src/components/replay/RallyPreviewPlayer.tsx):
+  - Bấm một pha trong 1–2 giây đầu sau khi mở hộp thoại thì YouTube bỏ qua lệnh phát. Giờ player kiểm tra vị trí phát sau 1,5 s và gửi lại tối đa 4 lần.
+  - "Xem liền các pha đã chọn" đôi khi bỏ qua một pha vì YouTube báo ENDED hai lần. Giờ mỗi lần nạp chỉ báo kết thúc một lần, và chỉ khi đang ở cuối đoạn.
+  - Kết quả: bấm ngay 8/8 lần phát đúng pha 49 (2660 → 2671 rồi dừng); "Xem liền" 3/3 lần phát đủ 42 → 44 → 46 → 49.
+
 ## Vấn đề còn tồn tại
 
-1. **Thống kê theo người vẫn tính theo sân.** "Đáng chú ý", "Vì sao mất điểm", heatmap, thống kê cú đánh và `match_statistics` gán số liệu theo sân. Với video nhiều ván, từ ván 2 trở đi số liệu của hai VĐV bị trộn. `match_statistics` do AI worker tính sẵn nên phía web không tách lại được. Cách sửa tận gốc thuộc pipeline AI (AI_Classifier): ghi nhận người đánh theo danh tính, hoặc ít nhất đánh dấu thời điểm đổi sân và tách ván.
-2. **Pha bắt nhầm sau khi trận kết thúc.** Trận 294 có pha 82–84 bị xếp vào "ván 3" dù trận kết thúc 2–0; nhiều khả năng AI bắt các đoạn sau trận. Cũng thuộc phía AI.
-3. **Tỉ số tự đếm khi không đọc được bảng điểm.** Không có OCR, AI đếm từ 0–0 ở đầu video, nên clip bắt đầu giữa ván sẽ lệch tỉ số thật (trận 245: video ghi 1–4, đài ghi 2–5).
-4. **Lỗ hổng phân quyền có từ trước.** `GET /api/matches/{id}/analysis/rallies` trả dữ liệu cho cả người không phải chủ trận (đã thử: tài khoản E2E Tester đọc được rally của trận 294 thuộc E2E YT Full). Cần kiểm tra quyền giống các API khác của trận. Nên rà luôn các API `/analysis/*` cùng controller.
-5. **API tạo video mất khoảng 0,5–0,9 giây**, chậm hơn mức dưới 200 ms của API phân tích AI. Nguyên nhân là 7–8 lượt truy vấn tới Supabase. Có thể gộp còn 1–2 truy vấn như `AnalysisQueueRepository`.
-6. **Thông báo lỗi khi backend chưa có endpoint.** `GlobalExceptionHandler` biến mọi lỗi lạ thành 500 "Lỗi hệ thống nội bộ", kể cả đường dẫn không tồn tại (`NoResourceFoundException`); nên trả 404.
-7. **Chạy hai backend cùng lúc** với pool mặc định (8 + 8) vượt giới hạn 15 kết nối của Supabase (session mode). Khi cần backend thứ hai để thử, đặt `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3`.
-8. **Video highlight tạo trước ngày 12/11/2026** (trận 294, reel id 4) lưu tỉ số cộng dồn cũ. Xóa và tạo lại.
-9. **Chưa kiểm tra giao diện xem trước pha YouTube** trong hộp thoại với tài khoản chủ trận thật; mới kiểm tra riêng các lời gọi YouTube IFrame API (`loadVideoById` với `startSeconds`/`endSeconds`, sự kiện ENDED).
+1. **Số liệu do AI tính sẵn vẫn theo sân**: biểu đồ radar, nhận xét HLV và chiến thuật trong `match_statistics`. Phía web không có dữ liệu từng cú để tách lại. Cần pipeline AI (AI_Classifier) tách theo ván hoặc theo danh tính người đánh.
+2. **Phát hiện pha sau trận** chỉ dựa vào luật tính điểm: nếu AI bỏ sót điểm kết thúc một ván thì trận không được coi là đã kết thúc. Gốc vẫn ở phía AI.
+3. **Tỉ số bắt đầu là nhập tay**: khi không có OCR, chủ trận phải tự nhập. Trận 245 (video ghi 1–4, đài ghi 2–5) chưa được nhập.

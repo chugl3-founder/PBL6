@@ -1,4 +1,4 @@
-"""Highlight media worker: renders highlight reels queued by the backend.
+"""Media worker: renders highlight reels queued by the backend, and thumbnails of uploaded videos (thumbnail.py).
 
 1. Listens to `badminton.media.queue` (the backend publishes when the owner clicks "Tạo video highlight").
 2. Reads only the needed parts of the match video (S3 presigned URL or YouTube stream) with ffmpeg.
@@ -25,6 +25,7 @@ import psycopg2
 from config import settings
 from render import Clip, RenderError, render_reel
 from sources import download_storage, download_youtube, s3_client, storage_source, youtube_source
+from thumbnail import process_thumbnail_job
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] [MEDIA-WORKER] %(message)s")
 logger = logging.getLogger(__name__)
@@ -155,10 +156,22 @@ def _settle(connection, channel, delivery_tag: int, ack: bool, requeue: bool = F
         logger.warning("Could not settle message (%r); the broker will redeliver it.", e)
 
 
+def _run_thumbnail(connection, channel, delivery_tag: int, payload: Dict[str, Any]) -> None:
+    """A card thumbnail is a nicety: on failure the card keeps its placeholder, so the job is dropped."""
+    try:
+        process_thumbnail_job(payload)
+    except Exception as e:
+        logger.warning("Thumbnail for match %s failed: %s", payload.get("matchId"), e)
+    _settle(connection, channel, delivery_tag, ack=True)
+
+
 def _run_job(connection, channel, delivery_tag: int, body: bytes) -> None:
     reel_id = None
     try:
         payload = json.loads(body.decode("utf-8"))
+        if payload.get("type") == "thumbnail":
+            _run_thumbnail(connection, channel, delivery_tag, payload)
+            return
         reel_id = payload.get("reelId")
         logger.info("==> Reel %s: %d clips for match %s", reel_id, len(payload.get("clips", [])),
                     payload.get("matchId"))

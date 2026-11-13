@@ -2,7 +2,10 @@ package com.badminton.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -79,36 +82,58 @@ public final class HighlightSelector {
 
     /**
      * Where the rally stands in the match: game number, the per-player score before and after it, who won it
-     * and whether player A was on the upper half of the court while it was played.
+     * and whether player A was on the upper half of the court while it was played. afterMatch marks a rally
+     * played once a player had already won two games: the AI picked up play after the match (warm-down,
+     * replays), so it belongs to no game.
      */
     public record GameContext(int game, int aBefore, int bBefore, int aAfter, int bAfter, boolean aWon, boolean bWon,
-                              boolean aOnUpper) {
+                              boolean aOnUpper, boolean afterMatch) {
+    }
+
+    /**
+     * The game and per-player score when the video starts. The AI counts from 0-0 when it cannot read the
+     * scoreboard, so a clip that starts mid-game needs the owner to give the real starting score.
+     */
+    public record Start(int game, int scoreA, int scoreB) {
+        public static final Start NONE = new Start(1, 0, 0);
+
+        public static Start of(Integer game, Integer scoreA, Integer scoreB) {
+            return new Start(game != null && game >= 1 && game <= 3 ? game : 1,
+                    scoreA != null && scoreA >= 0 ? scoreA : 0,
+                    scoreB != null && scoreB >= 0 ? scoreB : 0);
+        }
     }
 
     /**
      * All usable rallies in rally order, each scored and labelled; the default cut is marked suggested.
      *
      * @param videoDuration     seconds, or null when unknown; clips are clamped to it
-     * @param upperIsPlayerA    who was on the upper half of the court in game 1
+     * @param upperIsPlayerA    who was on the upper half of the court when the video starts
      */
     public static List<Candidate> rank(List<RallyFacts> rallies, Double videoDuration, boolean upperIsPlayerA) {
+        return rank(rallies, videoDuration, upperIsPlayerA, Start.NONE);
+    }
+
+    public static List<Candidate> rank(List<RallyFacts> rallies, Double videoDuration, boolean upperIsPlayerA,
+                                       Start start) {
         List<RallyFacts> ordered = new ArrayList<>(rallies);
         ordered.sort(Comparator.comparingInt(RallyFacts::rallyNumber));
-        Map<Long, GameContext> games = trackGames(ordered, upperIsPlayerA);
+        Map<Long, GameContext> games = trackGames(ordered, upperIsPlayerA, start);
 
         List<Candidate> scored = new ArrayList<>();
         for (RallyFacts r : ordered) {
             double length = r.endTime() - r.startTime();
-            if (!r.complete() || length < MIN_RALLY_SECONDS || length > MAX_RALLY_SECONDS) {
+            GameContext game = games.get(r.rallyId());
+            if (!r.complete() || game.afterMatch() || length < MIN_RALLY_SECONDS || length > MAX_RALLY_SECONDS) {
                 continue;
             }
-            scored.add(score(r, games.get(r.rallyId()), videoDuration));
+            scored.add(score(r, game, videoDuration));
         }
 
         // Greedy by score under the target length, then shown in match order.
         List<Candidate> byScore = new ArrayList<>(scored);
         byScore.sort(Comparator.comparingInt(Candidate::score).reversed().thenComparingInt(Candidate::rallyNumber));
-        Set<Long> picked = new java.util.HashSet<>();
+        Set<Long> picked = new HashSet<>();
         double total = 0;
         for (Candidate c : byScore) {
             // A short clip or a quiet match may have no standout rally; still offer the best few.
@@ -135,17 +160,32 @@ public final class HighlightSelector {
      * half and does not always reset between games, while players change ends after every game and at 11 in
      * game 3. So the walk ends a game by the scoring rules, restarts it at 0-0 and follows who is on which half.
      * A count that drops below the game's starting point means the stored data already restarts per game.
+     * Once a player has won two games (or a third game has ended) the match is over and later rallies are
+     * marked afterMatch.
      */
     public static Map<Long, GameContext> trackGames(List<RallyFacts> ordered, boolean upperIsPlayerA) {
-        Map<Long, GameContext> out = new java.util.HashMap<>();
-        int game = 1;
+        return trackGames(ordered, upperIsPlayerA, Start.NONE);
+    }
+
+    public static Map<Long, GameContext> trackGames(List<RallyFacts> ordered, boolean upperIsPlayerA, Start start) {
+        Map<Long, GameContext> out = new HashMap<>();
+        int game = start.game();
         int offUpper = 0, offLower = 0;   // side counts when the game started
         int segUpper = 0, segLower = 0;   // per-game side counts when the players last changed ends
-        int baseA = 0, baseB = 0;         // player scores when the players last changed ends
+        int baseA = start.scoreA(), baseB = start.scoreB(); // player scores when the players last changed ends
         boolean aOnUpper = upperIsPlayerA;
-        boolean switchedAt11 = false;
+        boolean switchedAt11 = game == 3 && Math.max(baseA, baseB) >= 11;
+        int gamesA = 0, gamesB = 0;       // games won in this video; earlier games are unknown
+        boolean matchOver = false;
+        GameContext last = null;
 
         for (RallyFacts r : ordered) {
+            if (matchOver) {
+                // Keeps the final score of the match, so a scoreboard following the video does not jump.
+                out.put(r.rallyId(), new GameContext(game, last.aAfter(), last.bAfter(), last.aAfter(), last.bAfter(),
+                        false, false, last.aOnUpper(), true));
+                continue;
+            }
             int upper = r.scoreUpper() - offUpper;
             int lower = r.scoreLower() - offLower;
             if (upper < 0 || lower < 0) {
@@ -159,15 +199,22 @@ public final class HighlightSelector {
             String winner = normalize(r.winnerSide());
             boolean aWon = ("UPPER".equals(winner) && aOnUpper) || ("LOWER".equals(winner) && !aOnUpper);
             boolean bWon = ("UPPER".equals(winner) && !aOnUpper) || ("LOWER".equals(winner) && aOnUpper);
-            out.put(r.rallyId(), new GameContext(game, Math.max(0, a - (aWon ? 1 : 0)), Math.max(0, b - (bWon ? 1 : 0)),
-                    Math.max(0, a), Math.max(0, b), aWon, bWon, aOnUpper));
+            last = new GameContext(game, Math.max(0, a - (aWon ? 1 : 0)), Math.max(0, b - (bWon ? 1 : 0)),
+                    Math.max(0, a), Math.max(0, b), aWon, bWon, aOnUpper, false);
+            out.put(r.rallyId(), last);
 
             if ((aWon && winsGame(a, b)) || (bWon && winsGame(b, a))) {
+                if (aWon) gamesA++;
+                else gamesB++;
+                matchOver = gamesA >= 2 || gamesB >= 2 || game >= 3;
+                if (matchOver) {
+                    continue;
+                }
                 game++;
                 offUpper = r.scoreUpper();
                 offLower = r.scoreLower();
                 segUpper = segLower = baseA = baseB = 0;
-                aOnUpper = (game % 2 == 1) == upperIsPlayerA;
+                aOnUpper = !aOnUpper;   // players change ends after every game
                 switchedAt11 = false;
             } else if (game == 3 && !switchedAt11 && Math.max(a, b) >= 11) {
                 baseA = a;
@@ -249,7 +296,7 @@ public final class HighlightSelector {
     }
 
     private static String normalize(String value) {
-        return value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private static double round(double seconds) {

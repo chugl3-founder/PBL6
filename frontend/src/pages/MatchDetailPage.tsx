@@ -1,57 +1,21 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
 import { 
   ArrowLeft, CheckCircle2, UploadCloud, AlertCircle, RefreshCw,
   Sparkles, Check, AlertTriangle, Ban, Play, Youtube, Link2, ArrowUpDown, Film
 } from 'lucide-react';
-import apiClient from '../api/client';
 import { CameraCourt } from '../components/court/CameraCourt';
+import { StartScoreForm } from '../components/match/StartScoreForm';
 import { StepIndicator } from '../components/match/StepIndicator';
-
-interface MatchData {
-  id: number;
-  ownerId: number;
-  playerAName: string;
-  playerBName: string;
-  upperPlayer: string;
-  lowerPlayer: string;
-  matchDate: string;
-  title: string | null;
-  description: string | null;
-  source: string;
-  status: string;
-  createdAt: string;
-}
-
-interface VideoData {
-  id: number;
-  matchId: number;
-  fileName: string;
-  storagePath: string;
-  videoUrl: string;
-  mimeType: string;
-  fileSize: number | null;
-  status: string;
-  videoSourceType?: string;
-  youtubeVideoId?: string | null;
-}
+import { attachYoutubeVideo, getMatch, getMatchVideo, updateMatch, uploadMatchVideo } from '../api/matches';
+import { cancelAnalysis, dispatchAnalysis, getAnalysisStatus, retryAnalysis } from '../api/analysis';
+import { errorMessage, isNetworkError } from '../api/errors';
+import type { Match, MatchVideo } from '../types/match';
+import type { AnalysisStatus } from '../types/replay';
 
 /** Same patterns the backend accepts: watch?v=, youtu.be/, /shorts/, /live/ and /embed/ links. */
 const YOUTUBE_ID = /^(?:https?:\/\/)?(?:(?:www\.|m\.|music\.)?youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})(?:[?&#/].*)?$/;
 const parseYoutubeId = (url: string) => url.trim().match(YOUTUBE_ID)?.[1] ?? null;
-
-interface AnalysisStatusData {
-  analysisId: number | null;
-  matchId: number;
-  status: string; // NONE, QUEUED, PROCESSING, COMPLETED, FAILED, UNSUPPORTED, CANCELLED
-  progressPercent: number;
-  currentStage: string;
-  modelName?: string;
-  modelVersion?: string;
-  errorCode?: string | null;
-  errorMessage?: string | null;
-}
 
 /** Name plates laid over the video frame: upper (far) player at the top, lower (near) at the bottom. */
 const SidePlates: React.FC<{ upper: string; lower: string }> = ({ upper, lower }) => (
@@ -63,13 +27,13 @@ const SidePlates: React.FC<{ upper: string; lower: string }> = ({ upper, lower }
 
 export const MatchDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [match, setMatch] = useState<MatchData | null>(null);
-  const [video, setVideo] = useState<VideoData | null>(null);
+  const [match, setMatch] = useState<Match | null>(null);
+  const [video, setVideo] = useState<MatchVideo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Analysis State
-  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusData | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus | null>(null);
   const [dispatchingAnalysis, setDispatchingAnalysis] = useState(false);
   const [cancellingAnalysis, setCancellingAnalysis] = useState(false);
   const [retryingAnalysis, setRetryingAnalysis] = useState(false);
@@ -107,55 +71,53 @@ export const MatchDetailPage: React.FC = () => {
   }, [selectedFile]);
   const uploadBusy = uploadStatus === 'presigning' || uploadStatus === 'uploading' || uploadStatus === 'verifying';
 
-  const fetchAnalysisStatus = async () => {
+  const fetchAnalysisStatus = useCallback(async () => {
     try {
-      const res = await apiClient.get(`/matches/${id}/analysis/status`);
-      setAnalysisStatus(res.data);
-      return res.data;
+      const status = await getAnalysisStatus(id!);
+      setAnalysisStatus(status);
+      return status;
     } catch (err) {
       console.error('Không thể lấy trạng thái phân tích AI:', err);
       return null;
     }
-  };
+  }, [id]);
 
-  const fetchMatchDetails = async () => {
+  const fetchMatchDetails = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await apiClient.get(`/matches/${id}`);
-      setMatch(res.data);
+      const loaded = await getMatch(id!);
+      setMatch(loaded);
 
       // Nếu match đã READY, ANALYZING hoặc COMPLETED, thử lấy metadata video
-      if (res.data.status !== 'DRAFT') {
+      if (loaded.status !== 'DRAFT') {
         try {
-          const videoRes = await apiClient.get(`/matches/${id}/video`);
-          setVideo(videoRes.data);
-        } catch (vErr) {
+          setVideo(await getMatchVideo(id!));
+        } catch {
           // Bỏ qua nếu chưa có video
         }
 
         // Lấy thông tin phân tích AI
         await fetchAnalysisStatus();
       }
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      setError(serverMsg || 'Không thể tải thông tin trận đấu.');
+    } catch (err) {
+      setError(errorMessage(err, 'Không thể tải thông tin trận đấu.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, fetchAnalysisStatus]);
 
   // Polling tiến trình phân tích khi status đang là QUEUED hoặc PROCESSING
+  const matchStatus = match?.status;
   useEffect(() => {
-    let intervalId: any;
-    if (match && (match.status === 'ANALYZING' || analysisStatus?.status === 'QUEUED' || analysisStatus?.status === 'PROCESSING')) {
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    if (matchStatus && (matchStatus === 'ANALYZING' || analysisStatus?.status === 'QUEUED' || analysisStatus?.status === 'PROCESSING')) {
       intervalId = setInterval(async () => {
         const latest = await fetchAnalysisStatus();
         if (latest && (latest.status === 'COMPLETED' || latest.status === 'FAILED' || latest.status === 'CANCELLED')) {
           clearInterval(intervalId);
           // Cập nhật lại trạng thái match
-          const matchRes = await apiClient.get(`/matches/${id}`);
-          setMatch(matchRes.data);
+          setMatch(await getMatch(id!));
         }
       }, 2000);
     }
@@ -163,7 +125,7 @@ export const MatchDetailPage: React.FC = () => {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [id, match?.status, analysisStatus?.status]);
+  }, [id, matchStatus, analysisStatus?.status, fetchAnalysisStatus]);
 
   const handleStartAnalysis = async () => {
     if (!id) return;
@@ -172,15 +134,14 @@ export const MatchDetailPage: React.FC = () => {
     setCancelSuccessMsg(null);
 
     try {
-      await apiClient.post(`/matches/${id}/analysis/dispatch`);
+      await dispatchAnalysis(id);
       // Lập tức chuyển match sang trạng thái ANALYZING
       if (match) {
         setMatch({ ...match, status: 'ANALYZING' });
       }
       await fetchAnalysisStatus();
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      setAnalysisError(serverMsg || 'Không thể khởi động phân tích AI. Vui lòng thử lại.');
+    } catch (err) {
+      setAnalysisError(errorMessage(err, 'Không thể khởi động phân tích AI. Vui lòng thử lại.'));
     } finally {
       setDispatchingAnalysis(false);
     }
@@ -194,16 +155,14 @@ export const MatchDetailPage: React.FC = () => {
     setAnalysisError(null);
 
     try {
-      const cancelRes = await apiClient.post(`/matches/${id}/analysis/cancel`);
-      setAnalysisStatus(cancelRes.data);
+      setAnalysisStatus(await cancelAnalysis(id));
       if (match) {
         setMatch({ ...match, status: 'READY' });
       }
       setCancelSuccessMsg('Đã hủy phiên phân tích AI thành công.');
       setTimeout(() => setCancelSuccessMsg(null), 4000);
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      setAnalysisError(serverMsg || 'Không thể hủy phiên phân tích. Vui lòng thử lại.');
+    } catch (err) {
+      setAnalysisError(errorMessage(err, 'Không thể hủy phiên phân tích. Vui lòng thử lại.'));
     } finally {
       setCancellingAnalysis(false);
     }
@@ -216,14 +175,13 @@ export const MatchDetailPage: React.FC = () => {
     setCancelSuccessMsg(null);
 
     try {
-      await apiClient.post(`/matches/${id}/analysis/retry`);
+      await retryAnalysis(id);
       if (match) {
         setMatch({ ...match, status: 'ANALYZING' });
       }
       await fetchAnalysisStatus();
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      setAnalysisError(serverMsg || 'Không thể thử lại phân tích AI. Vui lòng thử lại.');
+    } catch (err) {
+      setAnalysisError(errorMessage(err, 'Không thể thử lại phân tích AI. Vui lòng thử lại.'));
     } finally {
       setRetryingAnalysis(false);
     }
@@ -233,7 +191,7 @@ export const MatchDetailPage: React.FC = () => {
     if (id) {
       fetchMatchDetails();
     }
-  }, [id]);
+  }, [id, fetchMatchDetails]);
 
   const acceptFile = (file: File | undefined) => {
     if (!file) return;
@@ -269,13 +227,9 @@ export const MatchDetailPage: React.FC = () => {
     setSwappingSides(true);
     setSwapError(null);
     try {
-      const res = await apiClient.put(`/matches/${id}`, {
-        upperPlayer: match.lowerPlayer,
-        lowerPlayer: match.upperPlayer,
-      });
-      setMatch(res.data);
-    } catch (err: any) {
-      setSwapError(err.response?.data?.message || 'Chưa đổi được sân. Hãy thử lại.');
+      setMatch(await updateMatch(id, { upperPlayer: match.lowerPlayer, lowerPlayer: match.upperPlayer }));
+    } catch (err) {
+      setSwapError(errorMessage(err, 'Chưa đổi được sân. Hãy thử lại.'));
     } finally {
       setSwappingSides(false);
     }
@@ -291,12 +245,11 @@ export const MatchDetailPage: React.FC = () => {
     setYoutubeSaving(true);
     setYoutubeError(null);
     try {
-      const res = await apiClient.post(`/matches/${id}/videos/youtube`, { url: youtubeUrl.trim() });
-      setVideo(res.data);
+      setVideo(await attachYoutubeVideo(id, youtubeUrl.trim()));
       if (match) setMatch({ ...match, status: 'READY' });
       setYoutubeUrl('');
-    } catch (err: any) {
-      setYoutubeError(err.response?.data?.message || 'Không lưu được link YouTube. Hãy thử lại.');
+    } catch (err) {
+      setYoutubeError(errorMessage(err, 'Không lưu được link YouTube. Hãy thử lại.'));
     } finally {
       setYoutubeSaving(false);
     }
@@ -310,95 +263,27 @@ export const MatchDetailPage: React.FC = () => {
     setUploadProgress(0);
 
     try {
-      let uploadSuccess = false;
-
-      // CÁCH 1: Thử S3 Presigned URL
-      // Only retry through the backend when presigning or the S3 PUT fails.
-      // A verification failure must not upload the whole video a second time.
-      let storagePath: string | null = null;
-      try {
-        const presignRes = await apiClient.post(`/matches/${id}/videos/upload-url`, {
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          mimeType: selectedFile.type || 'video/mp4'
-        });
-
-        const { uploadUrl, storagePath: presignedStoragePath } = presignRes.data;
-        storagePath = presignedStoragePath;
-
-        setUploadStatus('uploading');
-        let startTime = Date.now();
-        let lastLoaded = 0;
-
-        await axios.put(uploadUrl, selectedFile, {
-          timeout: 600000,
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percent);
-
-              const elapsedSec = (Date.now() - startTime) / 1000;
-              if (elapsedSec > 0.5) {
-                const bytesPerSec = (progressEvent.loaded - lastLoaded) / elapsedSec;
-                const mbps = (bytesPerSec / (1024 * 1024)).toFixed(1);
-                setUploadSpeed(`${mbps} MB/s`);
-                startTime = Date.now();
-                lastLoaded = progressEvent.loaded;
-              }
-            }
-          }
-        });
-
-      } catch (presignErr) {
-        console.warn('Presigned PUT không khả dụng, tự động chuyển sang Direct Upload:', presignErr);
-
-        // CÁCH 2: Tự động Fallback sang Direct Upload qua Backend
-        setUploadStatus('uploading');
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-
-        const directRes = await apiClient.post(`/matches/${id}/videos/direct-upload`, formData, {
-          timeout: 600000,
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percent);
-            }
-          }
-        });
-
-        setVideo(directRes.data);
-        uploadSuccess = true;
-        storagePath = null;
-      }
-
-      if (storagePath) {
-        setUploadStatus('verifying');
-        const completeRes = await apiClient.post(`/matches/${id}/videos/complete`, {
-          storagePath,
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size
-        });
-
-        setVideo(completeRes.data);
-        uploadSuccess = true;
-      }
-
-      if (uploadSuccess && match) {
+      const uploaded = await uploadMatchVideo(id, selectedFile, {
+        onStage: setUploadStatus,
+        onProgress: setUploadProgress,
+        onSpeed: setUploadSpeed,
+      });
+      setVideo(uploaded);
+      if (match) {
         setMatch({ ...match, status: 'READY' });
       }
       setUploadStatus('idle');
       setSelectedFile(null);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Lỗi trong tiến trình upload video:', err);
-      const serverMsg = err.response?.data?.message;
       setUploadStatus('error');
       setUploadError(
-        serverMsg || 
-        (err.code === 'ERR_NETWORK' 
-          ? 'Mất kết nối mạng trong quá trình upload video. Vui lòng bấm "Thử lại".' 
-          : 'Upload video không thành công. Vui lòng kiểm tra lại file.')
+        errorMessage(
+          err,
+          isNetworkError(err)
+            ? 'Mất kết nối mạng trong quá trình upload video. Vui lòng bấm "Thử lại".'
+            : 'Upload video không thành công. Vui lòng kiểm tra lại file.',
+        ),
       );
     }
   };
@@ -831,6 +716,15 @@ export const MatchDetailPage: React.FC = () => {
           {match.description && (
             <p className="text-sm text-ink/70 leading-relaxed border-t border-ink/10 pt-4">{match.description}</p>
           )}
+          <StartScoreForm
+            matchId={match.id}
+            playerAName={match.playerAName}
+            playerBName={match.playerBName}
+            startGame={match.startGame}
+            startScoreA={match.startScoreA}
+            startScoreB={match.startScoreB}
+            onSaved={setMatch}
+          />
           {video && match.status === 'READY' && (
             video.videoSourceType === 'YOUTUBE' && video.youtubeVideoId ? (
               <iframe

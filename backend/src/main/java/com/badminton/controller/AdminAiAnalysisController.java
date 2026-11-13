@@ -2,6 +2,7 @@ package com.badminton.controller;
 
 import com.badminton.dto.admin.PagedAnalysisResponse;
 import com.badminton.dto.analysis.AnalysisDispatchResponse;
+import com.badminton.service.AdminAnalysisService;
 import com.badminton.service.AnalysisService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminAiAnalysisController {
 
+    private final AdminAnalysisService adminAnalysisService;
     private final AnalysisService analysisService;
 
     @GetMapping
@@ -23,7 +25,7 @@ public class AdminAiAnalysisController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        PagedAnalysisResponse response = analysisService.getAllAnalysesForAdmin(status, page, size);
+        PagedAnalysisResponse response = adminAnalysisService.getAllAnalyses(status, page, size);
         return ResponseEntity.ok(response);
     }
 

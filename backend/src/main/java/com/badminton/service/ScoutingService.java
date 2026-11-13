@@ -54,7 +54,7 @@ public class ScoutingService {
         String opponent = request.opponentName().trim();
         String own = blankToNull(request.ownPlayerName());
         if (own != null && own.equalsIgnoreCase(opponent)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "SAME_PLAYER",
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_SAME_PLAYER",
                     "Vận động viên của bạn và đối thủ phải khác nhau");
         }
         ScoutingPlan plan = buildPlan(owner, opponent, own);
@@ -81,7 +81,7 @@ public class ScoutingService {
         if (request.title() != null) {
             String title = request.title().trim();
             if (title.isEmpty()) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "INVALID_TITLE",
+                throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_INVALID_TITLE",
                         "Tiêu đề không được để trống");
             }
             report.setTitle(title);
@@ -128,7 +128,7 @@ public class ScoutingService {
     @Transactional(readOnly = true)
     public ScoutingReportResponse getShared(String token) {
         ScoutingReport report = scoutingReportRepository.findByShareToken(token)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "REPORT_NOT_FOUND",
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.SYSTEM, "ERR_REPORT_NOT_FOUND",
                         "Link chia sẻ không tồn tại hoặc đã bị tắt"));
         return toResponse(report, false, true);
     }
@@ -166,13 +166,13 @@ public class ScoutingService {
 
     private ScoutingReport owned(String email, Long id) {
         return scoutingReportRepository.findByIdAndOwnerId(id, user(email).getId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.VALIDATION, "REPORT_NOT_FOUND",
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.SYSTEM, "ERR_REPORT_NOT_FOUND",
                         "Không tìm thấy báo cáo trinh sát"));
     }
 
     private User user(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, ErrorType.VALIDATION, "USER_NOT_FOUND",
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, ErrorType.VALIDATION, "ERR_USER_NOT_FOUND",
                         "Người dùng không tồn tại"));
     }
 
@@ -180,7 +180,7 @@ public class ScoutingService {
         try {
             return objectMapper.writeValueAsString(plan);
         } catch (JsonProcessingException e) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, ErrorType.SYSTEM, "SCOUTING_SERIALIZE_FAILED",
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, ErrorType.SYSTEM, "ERR_SCOUTING_SERIALIZE_FAILED",
                     "Không lưu được báo cáo");
         }
     }
@@ -189,7 +189,7 @@ public class ScoutingService {
         try {
             return objectMapper.readValue(json, ScoutingPlan.class);
         } catch (JsonProcessingException e) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, ErrorType.SYSTEM, "SCOUTING_READ_FAILED",
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, ErrorType.SYSTEM, "ERR_SCOUTING_READ_FAILED",
                     "Không đọc được báo cáo");
         }
     }

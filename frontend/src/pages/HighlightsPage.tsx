@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Download, Film, Loader2, Play, Trash2, X } from 'lucide-react';
 import { HighlightReel, isRendering } from '../api/highlights';
-import { useHighlightJobs } from '../components/highlight/HighlightJobsContext';
+import { useHighlightJobs } from '../components/highlight/useHighlightJobs';
 
 const formatDuration = (seconds: number) => {
   const s = Math.max(0, Math.round(seconds));
