@@ -750,54 +750,38 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
         <div className="flex flex-col w-[380px] sm:w-[480px] h-[610px] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden">
           {/* HEADER TRẮNG SÁNG */}
           <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200/90">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               {showHistory || showCompareModal || showRecommendModal ? (
-                <button
-                  onClick={() => {
-                    setShowHistory(false);
-                    setShowCompareModal(false);
-                    setShowRecommendModal(false);
-                  }}
-                  className="p-1 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors"
-                  title="Quay lại khung chat"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-              ) : (
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 border border-emerald-300/60 flex items-center justify-center text-emerald-700 shadow-2xs">
-                  <Bot className="w-5 h-5" />
-                </div>
-              )}
-              <div>
                 <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setShowHistory(false);
+                      setShowCompareModal(false);
+                      setShowRecommendModal(false);
+                    }}
+                    className="p-1 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors"
+                    title="Quay lại khung chat"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
                   <h3 className="font-semibold text-sm text-slate-900">
                     {showRecommendModal
-                      ? 'Khảo sát gợi ý trận đấu'
+                      ? 'Gợi ý trận đấu'
                       : showCompareModal
-                      ? 'So sánh phong độ 2 trận'
-                      : showHistory
-                      ? 'Lịch sử trò chuyện'
-                      : 'BadmintonAI Coach'}
+                      ? 'So sánh phong độ'
+                      : 'Lịch sử hội thoại'}
                   </h3>
-                  {!showHistory && !showCompareModal && !showRecommendModal && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium border border-emerald-300/50">
-                      Trợ lý AI
-                    </span>
-                  )}
                 </div>
-                <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                  {showRecommendModal
-                    ? 'Chọn sở thích để AI gợi ý trận đấu'
-                    : showCompareModal
-                    ? 'Chọn 2 trận để AI đối chiếu chỉ số'
-                    : showHistory
-                    ? `${sessionsList.length} cuộc hội thoại đã lưu`
-                    : currentMatchId
-                    ? `Đang theo dõi trận #${currentMatchId}`
-                    : 'Sẵn sàng hỗ trợ (Voice & RAG)'}
-                </p>
-              </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 border border-emerald-300/60 flex items-center justify-center text-emerald-700 shadow-2xs">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-semibold border border-emerald-300/50">
+                    Trợ lý AI
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-1">
