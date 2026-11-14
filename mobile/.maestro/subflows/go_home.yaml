@@ -1,0 +1,38 @@
+appId: host.exp.exponent
+---
+# Subflow: đưa app về màn Khám phá dù flow trước dừng ở đâu
+- runFlow:
+    when:
+      visible:
+        id: "btn-close-guest-modal"
+    commands:
+      - tapOn:
+          id: "btn-close-guest-modal"
+- runFlow:
+    when:
+      visible:
+        id: "btn-back-stats"
+    commands:
+      - tapOn:
+          id: "btn-back-stats"
+- runFlow:
+    when:
+      visible:
+        id: "btn-back-replay"
+    commands:
+      - tapOn:
+          id: "btn-back-replay"
+- runFlow:
+    when:
+      visible:
+        id: "btn-clear-search"
+    commands:
+      - tapOn:
+          id: "btn-clear-search"
+- tapOn: "Khám phá"
+# Cuộn về đầu danh sách (flow trước có thể để list đang cuộn giữa chừng)
+- scrollUntilVisible:
+    element:
+      id: "search-match-input"
+    direction: UP
+    timeout: 20000

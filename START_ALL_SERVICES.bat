@@ -15,14 +15,20 @@ start "2. Frontend (React Vite 5173)" cmd /k "cd /d "%~dp0frontend" && npm run d
 
 ping 127.0.0.1 -n 3 >nul
 
-echo [3/3] Dang khoi dong AI Worker (CloudAMQP Consumer)...
+echo [3/4] Dang khoi dong AI Worker (CloudAMQP Consumer)...
 start "3. AI Worker (PyTorch Pipeline)" cmd /k "cd /d "%~dp0backend\integrations\ai-worker" && python worker.py"
+
+ping 127.0.0.1 -n 3 >nul
+
+echo [4/4] Dang khoi dong BadmintonAI Coach Service (Port 8000)...
+start "4. AI Coach RAG (FastAPI 8000)" cmd /k "cd /d "%~dp0ai-rag-coach" && python main.py"
 
 echo.
 echo ========================================================
-echo   TAT CA 3 TERMINAL DA DUOC MO THANH CONG!
+echo   TAT CA 4 TERMINAL DA DUOC MO THANH CONG!
 echo   - Backend:  http://localhost:8080
 echo   - Frontend: http://localhost:5173
 echo   - AI Worker: Dang lang nghe hang doi CloudAMQP...
+echo   - AI Coach: http://localhost:8000 (RAG & Chatbot)
 echo ========================================================
 

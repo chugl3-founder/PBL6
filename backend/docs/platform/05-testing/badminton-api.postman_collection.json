@@ -1,2601 +1,3169 @@
 {
-	"info": {
-		"_postman_id": "badminton-pbl6-api-collection",
-		"name": "Badminton Platform API Tests (PBL6)",
-		"description": "Collection kiểm thử API cho nền tảng Badminton Match Analysis & Replay Platform",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "http://localhost:8080/api",
-			"type": "string"
-		},
-		{
-			"key": "accessToken",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "resetToken",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "matchId",
-			"value": "1",
-			"type": "string"
-		},
-		{
-			"key": "analysisId",
-			"value": "1",
-			"type": "string"
-		}
-	],
-	"item": [
-		{
-			"name": "01 - Authentication",
-			"item": [
-				{
-					"name": "TC-AUTH-REG-01: Đăng ký thành công (201)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"athlete_new@badminton.vn\",\n  \"password\": \"Password@123\",\n  \"fullName\": \"Nguyễn Văn A\",\n  \"badmintonLevel\": \"INTERMEDIATE\",\n  \"gender\": \"MALE\",\n  \"age\": 22\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"register"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-REG-02: Đăng ký trùng Email (409 Conflict)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"athlete_new@badminton.vn\",\n  \"password\": \"Password@123\",\n  \"fullName\": \"Nguyễn Văn B\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"register"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-REG-03: Email sai định dạng (400 Bad Request)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"invalid-email-format\",\n  \"password\": \"Password@123\",\n  \"fullName\": \"Nguyễn Văn C\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"register"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-REG-04: Mật khẩu quá ngắn (400 Bad Request)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"athlete_shortpass@badminton.vn\",\n  \"password\": \"123\",\n  \"fullName\": \"Nguyễn Văn D\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"register"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-LOG-01: Đăng nhập thành công (200 OK)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"athlete@test.com\",\n  \"password\": \"password123\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"login"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-LOG-02: Sai mật khẩu (401 Unauthorized)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"athlete@test.com\",\n  \"password\": \"wrong_password\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"login"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-LOG-03: Email chưa đăng ký (401 Unauthorized)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"non_existent@badminton.vn\",\n  \"password\": \"password123\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"login"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-REF-01: Refresh Token thành công (200 OK)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/refresh-token",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"refresh-token"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-REF-02: Bắt lỗi Refresh Token sai / đã thu hồi (401 Unauthorized)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"refreshToken\": \"invalid_or_revoked_token\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/refresh-token",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"refresh-token"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-OUT-01: Đăng xuất thành công (200 OK)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/logout",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"logout"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-FORGOT-01: Yêu cầu quên mật khẩu thành công (200 OK)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"athlete@test.com\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/forgot-password",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"forgot-password"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-FORGOT-02: Email không tồn tại (404 Not Found)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"not_exist_email@badminton.vn\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/forgot-password",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"forgot-password"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-RESET-01: Đặt lại mật khẩu thành công (200 OK)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"NewPassword@123\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/reset-password",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"reset-password"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AUTH-RESET-02: Bắt lỗi Token không hợp lệ / đã dùng (400 Bad Request)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"token\": \"already_used_or_invalid_token\",\n  \"newPassword\": \"NewPassword@123\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/reset-password",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"reset-password"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "02 - User Profile",
-			"item": [
-				{
-					"name": "TC-USER-PRF-01: Lấy hồ sơ cá nhân (200 OK)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/users/me",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"users",
-								"me"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-USER-PRF-03: Cập nhật thông tin profile (200 OK)",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"fullName\": \"Lê Quang Liêm Pro\",\n  \"age\": 24,\n  \"gender\": \"MALE\",\n  \"badmintonLevel\": \"PRO\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/users/me",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"users",
-								"me"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-USER-AVA-01: Tải lên avatar lên MinIO (200 OK)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": [
-								{
-									"key": "avatar",
-									"type": "file",
-									"src": ""
-								}
-							]
-						},
-						"url": {
-							"raw": "{{baseUrl}}/users/me/avatar",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"users",
-								"me",
-								"avatar"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "03 - Matches",
-			"item": [
-				{
-					"name": "TC-MATCH-CRE-01: Tạo trận đấu thành công (201 Created)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"playerAName\": \"Nguyễn Tiến Minh\",\n  \"playerBName\": \"Lee Chong Wei\",\n  \"upperPlayer\": \"PLAYER_A\",\n  \"lowerPlayer\": \"PLAYER_B\",\n  \"matchDate\": \"2026-10-09\",\n  \"title\": \"Chung kết Đơn Nam 2026\",\n  \"description\": \"Trận đấu 1 set 21 điểm có AI analysis\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/matches",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-MATCH-CRE-02: Bắt lỗi vị trí sân trùng nhau (400 Bad Request)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"playerAName\": \"Player 1\",\n  \"playerBName\": \"Player 2\",\n  \"upperPlayer\": \"PLAYER_A\",\n  \"lowerPlayer\": \"PLAYER_A\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/matches",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-MATCH-GET-01: Xem chi tiết trận đấu (200 OK)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-MATCH-UPD-01: Chỉnh sửa trận đấu (200 OK)",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"Chung kết Đơn Nam 2026 - Bản Cập Nhật\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-MATCH-GET-02: Trận đấu không tồn tại (404 Not Found)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/9999",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"9999"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-MATCH-LIST-01: Lấy danh sách trận đấu của tôi (200 OK)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches?page=0&size=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-MATCH-DEL-01: Xóa mềm trận đấu thành công (200 OK)",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-MATCH-DEL-02: Xóa trận đấu không tồn tại hoặc đã xóa (404 Not Found)",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/9999",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"9999"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "04 - Videos (VS-06)",
-			"item": [
-				{
-					"name": "TC-VID-URL-01: Lấy S3 Presigned Upload URL thành công (200 OK)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"fileName\": \"match_sample.mp4\",\n  \"fileSize\": 15728640\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"videos",
-								"upload-url"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-VID-URL-02: Video vượt quá giới hạn 500MB (413 Payload Too Large)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"fileName\": \"huge_match.mp4\",\n  \"fileSize\": 629145600\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"videos",
-								"upload-url"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-VID-URL-03: Định dạng file không hợp lệ (400 Bad Request)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"fileName\": \"malicious.exe\",\n  \"fileSize\": 10485760\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"videos",
-								"upload-url"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-VID-COM-01: Xác nhận upload hoàn tất (200 OK)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"storagePath\": \"matches/1/sample.mp4\",\n  \"fileName\": \"match_sample.mp4\",\n  \"fileSize\": 15728640,\n  \"durationSeconds\": 120.5,\n  \"resolution\": \"1080p\",\n  \"fps\": 30.0\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/complete",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"videos",
-								"complete"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-VID-COM-02: Xác nhận file không tồn tại (400 Bad Request)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"storagePath\": \"matches/1/non_existent.mp4\",\n  \"fileName\": \"non_existent.mp4\",\n  \"fileSize\": 1024\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/videos/complete",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"videos",
-								"complete"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-VID-GET-01: Lấy thông tin video trận đấu (200 OK)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/video",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"video"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "05 - AI Analysis & Dispatch (VS-08)",
-			"item": [
-				{
-					"name": "TC-AI-DISP-01: Yêu cầu phân tích AI thành công (202 Accepted)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 202 Accepted\", function () {",
-									"    pm.response.to.have.status(202);",
-									"});",
-									"pm.test(\"Contains analysisId and status is QUEUED/PROCESSING\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('analysisId');",
-									"    pm.expect(jsonData.status).to.be.oneOf(['QUEUED', 'PROCESSING']);",
-									"    pm.collectionVariables.set('analysisId', jsonData.analysisId.toString());",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/dispatch",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"analysis",
-								"dispatch"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AI-DISP-02: Bắt lỗi phân tích trận đấu không tồn tại (404 Not Found)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 404 Not Found\", function () {",
-									"    pm.response.to.have.status(404);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/99999/analysis/dispatch",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"99999",
-								"analysis",
-								"dispatch"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AI-STAT-01: Polling trạng thái tiến trình phân tích AI (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Response has status, progressPercent, currentStage\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('status');",
-									"    pm.expect(jsonData).to.have.property('progressPercent');",
-									"    pm.expect(jsonData.progressPercent).to.be.at.least(0);",
-									"    pm.expect(jsonData.progressPercent).to.be.at.most(100);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/status",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"analysis",
-								"status"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "06 - Replay & AI Events Telemetry (VS-09 & VS-10)",
-			"item": [
-				{
-					"name": "TC-AI-EVT-01: Lấy danh sách sự kiện cú đánh kèm tọa độ 2D phục vụ Replay (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Returns list of AiEvents with 2D court coordinates\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.be.an('array');",
-									"    pm.expect(jsonData.length).to.be.above(0);",
-									"    var first = jsonData[0];",
-									"    pm.expect(first).to.have.property('stroke');",
-									"    pm.expect(first).to.have.property('strokeSide');",
-									"    pm.expect(first).to.have.property('timeSeconds');",
-									"    pm.expect(first).to.have.property('playerPositionCourt');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/events",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"analysis",
-								"events"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AI-EVT-02: Kiểm tra dữ liệu Telemetry & Cảnh báo Độ tin cậy thấp VS-10 (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Contains telemetry (speed, 3x3 zones) and low confidence events\", function () {",
-									"    var events = pm.response.json();",
-									"    pm.expect(events).to.be.an('array');",
-									"    var hasTelemetry = events.some(e => e.hittingArea3x3 !== null && e.landingArea3x3Proxy !== null);",
-									"    pm.expect(hasTelemetry).to.be.true;",
-									"    var hasLowConfidence = events.some(e => e.confidence < 0.60);",
-									"    pm.expect(hasLowConfidence, 'Phải có ít nhất 1 sự kiện confidence < 0.60 để kiểm thử cảnh báo VS-10').to.be.true;",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/events",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"analysis",
-								"events"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AI-EVT-03: Lấy danh sách cú đánh trận không tồn tại (404 Not Found)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 404 Not Found\", function () {",
-									"    pm.response.to.have.status(404);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/matches/99999/analysis/events",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"99999",
-								"analysis",
-								"events"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "07 - Rallies Navigation (VS-11)",
-			"item": [
-				{
-					"name": "TC-RALLY-LIST-01: Lấy danh sách các đợt cầu (Rallies) của trận đấu (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Returns array of Rallies with scores and sequence\", function () {",
-									"    var rallies = pm.response.json();",
-									"    pm.expect(rallies).to.be.an('array');",
-									"    pm.expect(rallies.length).to.be.above(0);",
-									"    var first = rallies[0];",
-									"    pm.expect(first).to.have.property('rallyNumber');",
-									"    pm.expect(first).to.have.property('startTime');",
-									"    pm.expect(first).to.have.property('endTime');",
-									"    pm.expect(first).to.have.property('duration');",
-									"    pm.expect(first).to.have.property('winnerSide');",
-									"    pm.expect(first).to.have.property('winReason');",
-									"    pm.expect(first).to.have.property('scoreText');",
-									"    pm.expect(first).to.have.property('strokeSequence');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/rallies",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"analysis",
-								"rallies"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-RALLY-LIST-02: Lấy danh sách đợt cầu trận không tồn tại (404 Not Found)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 404 Not Found\", function () {",
-									"    pm.response.to.have.status(404);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/matches/99999/analysis/rallies",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"99999",
-								"analysis",
-								"rallies"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "08 - Statistics & Analytics",
-			"item": [
-				{
-					"name": "TC-STATS-01: Lấy thống kê chuyên sâu của trận đấu theo matchId (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Dữ liệu thống kê đầy đủ theo chuẩn VS-12 Gherkin\", function () {",
-									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('totalStrokes');",
-									"    pm.expect(jsonData).to.have.property('totalRallies');",
-									"    pm.expect(jsonData).to.have.property('avgStrokesPerRally');",
-									"    pm.expect(jsonData).to.have.property('strokeDistribution');",
-									"    pm.expect(jsonData).to.have.property('playerAStrokes');",
-									"    pm.expect(jsonData).to.have.property('playerBStrokes');",
-									"    pm.expect(jsonData).to.have.property('forehandCount');",
-									"    pm.expect(jsonData).to.have.property('backhandCount');",
-									"    pm.expect(jsonData.totalStrokes).to.be.at.least(40);",
-									"    pm.expect(jsonData.totalRallies).to.be.at.least(5);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/analysis/statistics",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"analysis",
-								"statistics"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-STATS-02: Lấy thống kê theo analysisId chuẩn OpenAPI (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Kiểm tra analysisId trùng khớp\", function () {",
-									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('analysisId');",
-									"    pm.expect(jsonData).to.have.property('avgStrokesPerRally');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/ai-analyses/{{analysisId}}/statistics",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"ai-analyses",
-								"{{analysisId}}",
-								"statistics"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-STATS-03: Lấy thống kê trận đấu không tồn tại (404 Not Found)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 404 Not Found\", function () {",
-									"    pm.response.to.have.status(404);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/matches/99999/analysis/statistics",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"99999",
-								"analysis",
-								"statistics"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "09 - AI Analysis Retry & Cancel (VS-13)",
-			"item": [
-				{
-					"name": "TC-AI-CANCEL-01: Hủy tiến trình phân tích AI đang chạy (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trạng thái chuyển sang CANCELLED\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.status).to.eql('CANCELLED');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/cancel",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"ai-analyses",
-								"{{analysisId}}",
-								"cancel"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AI-CANCEL-02: Bắt lỗi hủy khi phân tích không ở trạng thái QUEUED/PROCESSING (400 Bad Request)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 400 Bad Request\", function () {",
-									"    pm.response.to.have.status(400);",
-									"});",
-									"pm.test(\"Bắt đúng mã lỗi CANNOT_CANCEL\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.code).to.eql('CANNOT_CANCEL');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/cancel",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"ai-analyses",
-								"{{analysisId}}",
-								"cancel"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AI-RETRY-01: Thử lại phân tích bị thất bại (202 Accepted)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 202 Accepted\", function () {",
-									"    pm.response.to.have.status(202);",
-									"});",
-									"pm.test(\"Sinh phiên phân tích mới trạng thái QUEUED\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('analysisId');",
-									"    pm.expect(jsonData.status).to.eql('QUEUED');",
-									"    pm.collectionVariables.set('analysisId', jsonData.analysisId.toString());",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/retry",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"ai-analyses",
-								"{{analysisId}}",
-								"retry"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-AI-RETRY-02: Bắt lỗi retry khi phân tích không bị FAILED (400 Bad Request)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 400 Bad Request\", function () {",
-									"    pm.response.to.have.status(400);",
-									"});",
-									"pm.test(\"Bắt đúng mã lỗi CANNOT_RETRY\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.code).to.eql('CANNOT_RETRY');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/retry",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"matches",
-								"{{matchId}}",
-								"ai-analyses",
-								"{{analysisId}}",
-								"retry"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "10 - Public Match Library & Admin Curation (VS-14)",
-			"item": [
-				{
-					"name": "TC-PUB-01: Lấy danh sách trận đấu công khai (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về danh sách trận đấu công khai có thumbnail và video YouTube\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.be.an('array');",
-									"    pm.expect(jsonData.data.length).to.be.above(0);",
-									"    var match = jsonData.data[0];",
-									"    pm.expect(match.status).to.eql('PUBLISHED');",
-									"    pm.expect(match).to.have.property('thumbnailUrl');",
-									"    pm.expect(match).to.have.property('youtubeVideoId');",
-									"    pm.expect(match).to.have.property('totalStrokes');",
-									"    pm.expect(match).to.have.property('totalRallies');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/public-matches?page=0&size=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"public-matches"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-PUB-02: Tìm kiếm trận đấu công khai theo từ khóa Axelsen (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Kết quả tìm kiếm khớp với tên Viktor Axelsen\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.be.an('array');",
-									"    jsonData.data.forEach(function (m) {",
-									"        var text = (m.title + ' ' + m.playerAName + ' ' + m.playerBName).toLowerCase();",
-									"        pm.expect(text).to.include('axelsen');",
-									"    });",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/public-matches?search=Axelsen&page=0&size=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"public-matches"
-							],
-							"query": [
-								{
-									"key": "search",
-									"value": "Axelsen"
-								},
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-PUB-03: Xem chi tiết trận đấu công khai (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Thông tin trận đấu công khai đầy đủ\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.id).to.eql(11);",
-									"    pm.expect(jsonData.status).to.eql('PUBLISHED');",
-									"    pm.expect(jsonData.youtubeVideoId).to.not.be.empty;",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/public-matches/11",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"public-matches",
-								"11"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-PUB-04: Lấy thông tin video YouTube trận đấu công khai (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Nguồn video là YOUTUBE và có youtubeVideoId\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.videoSourceType).to.eql('YOUTUBE');",
-									"    pm.expect(jsonData.youtubeVideoId).to.eql('boQC4J4E1ZQ');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/public-matches/11/video",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"public-matches",
-								"11",
-								"video"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-PUB-05: Lấy danh sách AI Events / Cú đánh của trận đấu công khai (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về danh sách cú đánh với tọa độ sân và loại cú đánh\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.be.an('array');",
-									"    pm.expect(jsonData.length).to.be.above(0);",
-									"    var firstStroke = jsonData[0];",
-									"    pm.expect(firstStroke).to.have.property('stroke');",
-									"    pm.expect(firstStroke).to.have.property('playerSide');",
-									"    pm.expect(firstStroke).to.have.property('courtX');",
-									"    pm.expect(firstStroke).to.have.property('courtY');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/public-matches/11/events",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"public-matches",
-								"11",
-								"events"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-PUB-06: Lấy danh sách Rallies của trận đấu công khai (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về danh sách pha cầu với thời gian và số cú đánh\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.be.an('array');",
-									"    pm.expect(jsonData.length).to.be.above(0);",
-									"    var firstRally = jsonData[0];",
-									"    pm.expect(firstRally).to.have.property('rallyNumber');",
-									"    pm.expect(firstRally).to.have.property('strokeCount');",
-									"    pm.expect(firstRally).to.have.property('startTime');",
-									"    pm.expect(firstRally).to.have.property('endTime');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/public-matches/11/rallies",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"public-matches",
-								"11",
-								"rallies"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-PUB-07: Lấy Thống kê chi tiết trận đấu công khai (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Dữ liệu thống kê đầy đủ cả 2 người chơi và phân bố cú đánh\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('totalStrokes');",
-									"    pm.expect(jsonData).to.have.property('totalRallies');",
-									"    pm.expect(jsonData).to.have.property('strokeDistribution');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/public-matches/11/statistics",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"public-matches",
-								"11",
-								"statistics"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-PUB-01: Admin lấy toàn bộ danh sách trận đấu quản lý (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về danh sách trận đấu cho Admin\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.be.an('array');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/matches?page=0&size=20",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"matches"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "20"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-PUB-02: Admin xuất bản trận đấu vào Thư viện công khai (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trận đấu chuyển sang trạng thái PUBLISHED\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.status).to.eql('PUBLISHED');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/matches/11/publish",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"matches",
-								"11",
-								"publish"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-PUB-03: Admin hủy xuất bản trận đấu khỏi Thư viện (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trận đấu chuyển trạng thái ANALYZED (không còn PUBLISHED)\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.status).to.eql('ANALYZED');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/matches/11/unpublish",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"matches",
-								"11",
-								"unpublish"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "11. Admin Match Management: Delete & Restore (VS-16)",
-			"item": [
-				{
-					"name": "TC-ADM-MAT-01: Admin xem chi tiết trận đấu bất kỳ (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về đầy đủ thông tin trận đấu và ownerEmail\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('id');",
-									"    pm.expect(jsonData).to.have.property('ownerEmail');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/matches/11",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"matches",
-								"11"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-MAT-02: Admin xóa mềm trận đấu vi phạm (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về thông báo xóa mềm thành công\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.message).to.include('xóa mềm');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/matches/11",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"matches",
-								"11"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-MAT-03: Admin lọc danh sách trận đấu trong Thùng rác (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Danh sách thùng rác chứa trận đấu có deletedAt != null\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.be.an('array');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/matches?status=DELETED&includeDeleted=true&page=0&size=20",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"matches"
-							],
-							"query": [
-								{
-									"key": "status",
-									"value": "DELETED"
-								},
-								{
-									"key": "includeDeleted",
-									"value": "true"
-								},
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "20"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-MAT-04: Admin khôi phục trận đấu từ Thùng rác (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Khôi phục thành công, deletedAt trở về null\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.deletedAt).to.be.null;",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/matches/11/restore",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"matches",
-								"11",
-								"restore"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "12. Admin User Management: Lock & Unlock (VS-17)",
-			"item": [
-				{
-					"name": "TC-ADM-USR-01: Admin lấy danh sách toàn bộ người dùng (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về danh sách người dùng có phân trang\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.be.an('array');",
-									"    pm.expect(jsonData.pagination).to.have.property('totalElements');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/users?page=0&size=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"users"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-USR-02: Admin tìm kiếm người dùng theo từ khóa (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Kết quả chứa người dùng khớp từ khóa\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data.length).to.be.above(0);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/users?search=admin&page=0&size=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"users"
-							],
-							"query": [
-								{
-									"key": "search",
-									"value": "admin"
-								},
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-USR-03: Admin khóa tài khoản người dùng vi phạm (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trạng thái người dùng chuyển sang LOCKED\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.status).to.eql('LOCKED');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"status\": \"LOCKED\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/admin/users/2/status",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"users",
-								"2",
-								"status"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-USR-04: Admin mở khóa tài khoản người dùng (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trạng thái người dùng chuyển sang ACTIVE\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.status).to.eql('ACTIVE');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"status\": \"ACTIVE\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/admin/users/2/status",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"users",
-								"2",
-								"status"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "13. Admin AI Monitor & Emergency Retry (VS-18)",
-			"item": [
-				{
-					"name": "TC-ADM-AI-01: Admin lấy danh sách toàn bộ phiên phân tích AI (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về danh sách phiên AI và phân trang\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.be.an('array');",
-									"    pm.expect(jsonData.pagination).to.be.an('object');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/ai-analyses?page=0&size=20",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"ai-analyses"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "20"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-AI-02: Admin lọc riêng các phiên phân tích AI bị lỗi FAILED (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/ai-analyses?status=FAILED&page=0&size=20",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"ai-analyses"
-							],
-							"query": [
-								{
-									"key": "status",
-									"value": "FAILED"
-								},
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "20"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "TC-ADM-AI-03: Admin kích hoạt chạy lại khẩn cấp (Retry) phiên AI bị FAILED (202 Accepted)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 202 Accepted\", function () {",
-									"    pm.response.to.have.status(202);",
-									"});",
-									"pm.test(\"Phiên mới chuyển về trạng thái QUEUED\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.status).to.eql('QUEUED');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/ai-analyses/1/retry",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"ai-analyses",
-								"1",
-								"retry"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "14. Admin Dashboard Metrics (VS-19)",
-			"item": [
-				{
-					"name": "TC-ADM-DSH-01: Admin lấy bảng chỉ số quản trị tổng quan (200 OK)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200 OK\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"pm.test(\"Trả về đầy đủ 4 chỉ số tổng quan và phân bố trạng thái\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.totalUsers).to.be.a('number');",
-									"    pm.expect(jsonData.totalMatches).to.be.a('number');",
-									"    pm.expect(jsonData.publishedMatches).to.be.a('number');",
-									"    pm.expect(jsonData.aiSuccessRate).to.be.a('number');",
-									"    pm.expect(jsonData.matchStatusBreakdown).to.be.an('object');",
-									"    pm.expect(jsonData.aiStatusBreakdown).to.be.an('object');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/admin/dashboard",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"admin",
-								"dashboard"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		}
-	]
+  "info": {
+    "_postman_id": "badminton-pbl6-api-collection",
+    "name": "Badminton Platform API Tests (PBL6)",
+    "description": "Collection kiểm thử API cho nền tảng Badminton Match Analysis & Replay Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "matchId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "analysisId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "uploadUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "storagePath",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - [SLIDE 11 DEMO] Trọn Bộ 8 Test Case API (Chạy 1 Lần Toàn Bộ)",
+      "description": "Thư mục gom trọn bộ 8 Test Case API (API-01 đến API-08) báo cáo tại Slide 11. Đăng nhập Admin và chạy trọn vẹn Happy Path: API-03 trả về đúng 202 Accepted, API-04 trả về 200 OK CANCELLED.",
+      "item": [
+        {
+          "name": "00 - Setup: Đăng nhập Admin lấy AccessToken (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@badminton.vn\",\n  \"password\": \"Password123@\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Setup 00: Đăng nhập Admin thành công (200 OK)\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.accessToken) {",
+                  "    pm.collectionVariables.set(\"accessToken\", jsonData.accessToken);",
+                  "    console.log(\"Đã lưu accessToken của Admin vào Collection Variables!\");",
+                  "}",
+                  "// Trỏ matchId vào trận số 9 (trận mẫu có video READY để test upload & dispatch)",
+                  "pm.collectionVariables.set(\"matchId\", \"9\");"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "API-01: Xin cấp S3 Presigned URL để upload video (Happy Path - 200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"match_sample.mp4\",\n  \"fileSize\": 15728640\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/9/videos/upload-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "9",
+                "videos",
+                "upload-url"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API-01: Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"API-01: Trả về uploadUrl có chữ ký S3 và storagePath hợp lệ\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"uploadUrl\");",
+                  "    pm.expect(jsonData).to.have.property(\"storagePath\");",
+                  "    pm.collectionVariables.set(\"uploadUrl\", jsonData.uploadUrl);",
+                  "    pm.collectionVariables.set(\"storagePath\", jsonData.storagePath);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "API-02: Bắt lỗi dung lượng video vượt quá 500MB (Negative - Validation Error)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"huge_match.mp4\",\n  \"fileSize\": 629145600\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/9/videos/upload-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "9",
+                "videos",
+                "upload-url"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API-02: Bắt lỗi validation dung lượng (400 hoặc 413)\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 413]);",
+                  "});",
+                  "pm.test(\"API-02: Cấu trúc lỗi chuẩn ErrorResponse (VALIDATION)\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.errorType).to.eql(\"VALIDATION\");",
+                  "    pm.expect(jsonData.code).to.be.oneOf([\"ERR_VIDEO_TOO_LARGE\", \"ERR_PAYLOAD_TOO_LARGE\"]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "API-03: Kích hoạt phân tích AI bất đồng bộ qua RabbitMQ (NFR - 202 Accepted < 200ms)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API-03: Kích hoạt phân tích AI thành công (202 Accepted)\", function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "pm.test(\"API-03: Thời gian phản hồi đạt chuẩn NFR-PER-02 (< 200ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+                  "});",
+                  "pm.test(\"API-03: Response body chứa analysisId và status QUEUED\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"analysisId\");",
+                  "    pm.expect(jsonData.status).to.eql(\"QUEUED\");",
+                  "    pm.collectionVariables.set(\"analysisId\", jsonData.analysisId.toString());",
+                  "    console.log(\"Đã lưu analysisId mới:\", jsonData.analysisId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/10/analysis/dispatch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "10",
+                "analysis",
+                "dispatch"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "API-04: Hủy tiến trình phân tích AI khi đang chờ hoặc đang xử lý (Control Flow - 200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API-04: Hủy tiến trình phân tích AI thành công (200 OK)\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"API-04: Trạng thái phiên phân tích chuyển sang CANCELLED\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql(\"CANCELLED\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/10/ai-analyses/{{analysisId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "10",
+                "ai-analyses",
+                "{{analysisId}}",
+                "cancel"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "API-05: Truy xuất danh sách sự kiện cú đánh 2D Telemetry phục vụ Replay (Happy Path - 200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API-05: Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"API-05: Dữ liệu cú đánh có đầy đủ telemetry 2D và confidence\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.length).to.be.above(0);",
+                  "    var first = jsonData[0];",
+                  "    pm.expect(first).to.have.property(\"stroke\");",
+                  "    pm.expect(first).to.have.property(\"timeSeconds\");",
+                  "    pm.expect(first).to.have.property(\"playerPositionCourt\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/2/analysis/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "2",
+                "analysis",
+                "events"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "API-06: Truy xuất danh sách phân đoạn các pha cầu Rallies Navigation (Happy Path - 200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API-06: Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"API-06: Danh sách pha cầu Rallies hợp lệ\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.length).to.be.above(0);",
+                  "    var first = jsonData[0];",
+                  "    pm.expect(first).to.have.property(\"rallyNumber\");",
+                  "    pm.expect(first).to.have.property(\"duration\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/2/analysis/rallies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "2",
+                "analysis",
+                "rallies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "API-07: Truy xuất bảng thống kê chuyên sâu toàn diện của trận đấu (Happy Path - 200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API-07: Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"API-07: Dữ liệu thống kê đầy đủ theo chuẩn VS-12 Gherkin\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"totalStrokes\");",
+                  "    pm.expect(jsonData).to.have.property(\"totalRallies\");",
+                  "    pm.expect(jsonData).to.have.property(\"avgStrokesPerRally\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/2/analysis/statistics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "2",
+                "analysis",
+                "statistics"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "API-08: Bắt lỗi chặn truy cập khi gọi API mà không gửi JWT Token (Security - 401 Unauthorized)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API-08: Status code is 401 Unauthorized hoặc 403 Forbidden\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+                  "});",
+                  "pm.test(\"API-08: Chặn truy cập thành công - Không rò rỉ dữ liệu khi chưa xác thực\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/matches/2/analysis/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "2",
+                "analysis",
+                "events"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 - Authentication",
+      "item": [
+        {
+          "name": "TC-AUTH-REG-01: Đăng ký thành công (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"athlete_new@badminton.vn\",\n  \"password\": \"Password@123\",\n  \"fullName\": \"Nguyễn Văn A\",\n  \"badmintonLevel\": \"INTERMEDIATE\",\n  \"gender\": \"MALE\",\n  \"age\": 22\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-REG-02: Đăng ký trùng Email (409 Conflict)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"athlete_new@badminton.vn\",\n  \"password\": \"Password@123\",\n  \"fullName\": \"Nguyễn Văn B\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-REG-03: Email sai định dạng (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"invalid-email-format\",\n  \"password\": \"Password@123\",\n  \"fullName\": \"Nguyễn Văn C\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-REG-04: Mật khẩu quá ngắn (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"athlete_shortpass@badminton.vn\",\n  \"password\": \"123\",\n  \"fullName\": \"Nguyễn Văn D\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-LOG-01: Đăng nhập thành công (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"athlete@test.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.accessToken) {",
+                  "    pm.collectionVariables.set(\"accessToken\", jsonData.accessToken);",
+                  "    console.log(\"Auto-saved accessToken to collection variables!\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "TC-AUTH-LOG-02: Sai mật khẩu (401 Unauthorized)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"athlete@test.com\",\n  \"password\": \"wrong_password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-LOG-03: Email chưa đăng ký (401 Unauthorized)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"non_existent@badminton.vn\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-REF-01: Refresh Token thành công (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh-token"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-REF-02: Bắt lỗi Refresh Token sai / đã thu hồi (401 Unauthorized)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"invalid_or_revoked_token\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh-token"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-OUT-01: Đăng xuất thành công (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-FORGOT-01: Yêu cầu quên mật khẩu thành công (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"athlete@test.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-FORGOT-02: Email không tồn tại (404 Not Found)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not_exist_email@badminton.vn\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-RESET-01: Đặt lại mật khẩu thành công (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"NewPassword@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AUTH-RESET-02: Bắt lỗi Token không hợp lệ / đã dùng (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"already_used_or_invalid_token\",\n  \"newPassword\": \"NewPassword@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - User Profile",
+      "item": [
+        {
+          "name": "TC-USER-PRF-01: Lấy hồ sơ cá nhân (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-USER-PRF-03: Cập nhật thông tin profile (200 OK)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Lê Quang Liêm Pro\",\n  \"age\": 24,\n  \"gender\": \"MALE\",\n  \"badmintonLevel\": \"PRO\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-USER-AVA-01: Tải lên avatar lên MinIO (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "avatar",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me/avatar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "avatar"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Matches",
+      "item": [
+        {
+          "name": "TC-MATCH-CRE-01: Tạo trận đấu thành công (201 Created)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerAName\": \"Nguyễn Tiến Minh\",\n  \"playerBName\": \"Lee Chong Wei\",\n  \"upperPlayer\": \"PLAYER_A\",\n  \"lowerPlayer\": \"PLAYER_B\",\n  \"matchDate\": \"2026-10-09\",\n  \"title\": \"Chung kết Đơn Nam 2026\",\n  \"description\": \"Trận đấu 1 set 21 điểm có AI analysis\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set(\"matchId\", jsonData.id.toString());",
+                  "    console.log(\"Auto-saved matchId to collection variables:\", jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "TC-MATCH-CRE-02: Bắt lỗi vị trí sân trùng nhau (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerAName\": \"Player 1\",\n  \"playerBName\": \"Player 2\",\n  \"upperPlayer\": \"PLAYER_A\",\n  \"lowerPlayer\": \"PLAYER_A\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-MATCH-GET-01: Xem chi tiết trận đấu (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-MATCH-UPD-01: Chỉnh sửa trận đấu (200 OK)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Chung kết Đơn Nam 2026 - Bản Cập Nhật\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-MATCH-GET-02: Trận đấu không tồn tại (404 Not Found)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/9999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "9999"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-MATCH-LIST-01: Lấy danh sách trận đấu của tôi (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-MATCH-DEL-01: Xóa mềm trận đấu thành công (200 OK)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-MATCH-DEL-02: Xóa trận đấu không tồn tại hoặc đã xóa (404 Not Found)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/9999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "9999"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Videos (VS-06)",
+      "item": [
+        {
+          "name": "TC-VID-URL-01: Lấy S3 Presigned Upload URL thành công (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"match_sample.mp4\",\n  \"fileSize\": 15728640\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "videos",
+                "upload-url"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.uploadUrl) {",
+                  "    pm.collectionVariables.set(\"uploadUrl\", jsonData.uploadUrl);",
+                  "    pm.collectionVariables.set(\"storagePath\", jsonData.storagePath);",
+                  "    console.log(\"Auto-saved uploadUrl & storagePath!\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "TC-VID-PUT-01: Upload binary video thực tế lên MinIO (200 OK)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "video/mp4"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "url": {
+              "raw": "{{uploadUrl}}",
+              "host": [
+                "{{uploadUrl}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "TC-VID-URL-02: Video vượt quá giới hạn 500MB (413 Payload Too Large)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"huge_match.mp4\",\n  \"fileSize\": 629145600\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "videos",
+                "upload-url"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-VID-URL-03: Định dạng file không hợp lệ (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"malicious.exe\",\n  \"fileSize\": 10485760\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/videos/upload-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "videos",
+                "upload-url"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-VID-COM-01: Xác nhận upload hoàn tất (200 OK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storagePath\": \"{{storagePath}}\",\n  \"fileName\": \"match_sample.mp4\",\n  \"fileSize\": 15728640,\n  \"durationSeconds\": 120.5,\n  \"resolution\": \"1080p\",\n  \"fps\": 30.0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/videos/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "videos",
+                "complete"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-VID-COM-02: Xác nhận file không tồn tại (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storagePath\": \"matches/1/non_existent.mp4\",\n  \"fileName\": \"non_existent.mp4\",\n  \"fileSize\": 1024\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/videos/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "videos",
+                "complete"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-VID-GET-01: Lấy thông tin video trận đấu (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/video",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "video"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - AI Analysis & Dispatch (VS-08)",
+      "item": [
+        {
+          "name": "TC-AI-DISP-01: Yêu cầu phân tích AI thành công (202 Accepted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 202 Accepted\", function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "pm.test(\"Contains analysisId and status is QUEUED/PROCESSING\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('analysisId');",
+                  "    pm.expect(jsonData.status).to.be.oneOf(['QUEUED', 'PROCESSING']);",
+                  "    pm.collectionVariables.set('analysisId', jsonData.analysisId.toString());",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/analysis/dispatch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "analysis",
+                "dispatch"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AI-DISP-02: Bắt lỗi phân tích trận đấu không tồn tại (404 Not Found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/99999/analysis/dispatch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "99999",
+                "analysis",
+                "dispatch"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AI-STAT-01: Polling trạng thái tiến trình phân tích AI (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has status, progressPercent, currentStage\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('progressPercent');",
+                  "    pm.expect(jsonData.progressPercent).to.be.at.least(0);",
+                  "    pm.expect(jsonData.progressPercent).to.be.at.most(100);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/analysis/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "analysis",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Replay & AI Events Telemetry (VS-09 & VS-10)",
+      "item": [
+        {
+          "name": "TC-AI-EVT-01: Lấy danh sách sự kiện cú đánh kèm tọa độ 2D phục vụ Replay (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns list of AiEvents with 2D court coordinates\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "    pm.expect(jsonData.length).to.be.above(0);",
+                  "    var first = jsonData[0];",
+                  "    pm.expect(first).to.have.property('stroke');",
+                  "    pm.expect(first).to.have.property('strokeSide');",
+                  "    pm.expect(first).to.have.property('timeSeconds');",
+                  "    pm.expect(first).to.have.property('playerPositionCourt');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/analysis/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "analysis",
+                "events"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AI-EVT-02: Kiểm tra dữ liệu Telemetry & Cảnh báo Độ tin cậy thấp VS-10 (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Contains telemetry (speed, 3x3 zones) and low confidence events\", function () {",
+                  "    var events = pm.response.json();",
+                  "    pm.expect(events).to.be.an('array');",
+                  "    var hasTelemetry = events.some(e => e.hittingArea3x3 !== null && e.landingArea3x3Proxy !== null);",
+                  "    pm.expect(hasTelemetry).to.be.true;",
+                  "    var hasLowConfidence = events.some(e => e.confidence < 0.60);",
+                  "    pm.expect(hasLowConfidence, 'Phải có ít nhất 1 sự kiện confidence < 0.60 để kiểm thử cảnh báo VS-10').to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/analysis/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "analysis",
+                "events"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AI-EVT-03: Lấy danh sách cú đánh trận không tồn tại (404 Not Found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/99999/analysis/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "99999",
+                "analysis",
+                "events"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07 - Rallies Navigation (VS-11)",
+      "item": [
+        {
+          "name": "TC-RALLY-LIST-01: Lấy danh sách các đợt cầu (Rallies) của trận đấu (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns array of Rallies with scores and sequence\", function () {",
+                  "    var rallies = pm.response.json();",
+                  "    pm.expect(rallies).to.be.an('array');",
+                  "    pm.expect(rallies.length).to.be.above(0);",
+                  "    var first = rallies[0];",
+                  "    pm.expect(first).to.have.property('rallyNumber');",
+                  "    pm.expect(first).to.have.property('startTime');",
+                  "    pm.expect(first).to.have.property('endTime');",
+                  "    pm.expect(first).to.have.property('duration');",
+                  "    pm.expect(first).to.have.property('winnerSide');",
+                  "    pm.expect(first).to.have.property('winReason');",
+                  "    pm.expect(first).to.have.property('scoreText');",
+                  "    pm.expect(first).to.have.property('strokeSequence');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/analysis/rallies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "analysis",
+                "rallies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-RALLY-LIST-02: Lấy danh sách đợt cầu trận không tồn tại (404 Not Found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/99999/analysis/rallies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "99999",
+                "analysis",
+                "rallies"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "08 - Statistics & Analytics",
+      "item": [
+        {
+          "name": "TC-STATS-01: Lấy thống kê chuyên sâu của trận đấu theo matchId (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Dữ liệu thống kê đầy đủ theo chuẩn VS-12 Gherkin\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('totalStrokes');",
+                  "    pm.expect(jsonData).to.have.property('totalRallies');",
+                  "    pm.expect(jsonData).to.have.property('avgStrokesPerRally');",
+                  "    pm.expect(jsonData).to.have.property('strokeDistribution');",
+                  "    pm.expect(jsonData).to.have.property('playerAStrokes');",
+                  "    pm.expect(jsonData).to.have.property('playerBStrokes');",
+                  "    pm.expect(jsonData).to.have.property('forehandCount');",
+                  "    pm.expect(jsonData).to.have.property('backhandCount');",
+                  "    pm.expect(jsonData.totalStrokes).to.be.at.least(40);",
+                  "    pm.expect(jsonData.totalRallies).to.be.at.least(5);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/analysis/statistics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "analysis",
+                "statistics"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-STATS-02: Lấy thống kê theo analysisId chuẩn OpenAPI (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Kiểm tra analysisId trùng khớp\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('analysisId');",
+                  "    pm.expect(jsonData).to.have.property('avgStrokesPerRally');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ai-analyses/{{analysisId}}/statistics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ai-analyses",
+                "{{analysisId}}",
+                "statistics"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-STATS-03: Lấy thống kê trận đấu không tồn tại (404 Not Found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/99999/analysis/statistics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "99999",
+                "analysis",
+                "statistics"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "09 - AI Analysis Retry & Cancel (VS-13)",
+      "item": [
+        {
+          "name": "TC-AI-CANCEL-01: Hủy tiến trình phân tích AI đang chạy (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trạng thái chuyển sang CANCELLED\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('CANCELLED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "ai-analyses",
+                "{{analysisId}}",
+                "cancel"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AI-CANCEL-02: Bắt lỗi hủy khi phân tích không ở trạng thái QUEUED/PROCESSING (400 Bad Request)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Bắt đúng mã lỗi CANNOT_CANCEL\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql('CANNOT_CANCEL');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "ai-analyses",
+                "{{analysisId}}",
+                "cancel"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AI-RETRY-01: Thử lại phân tích bị thất bại (202 Accepted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 202 Accepted\", function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "pm.test(\"Sinh phiên phân tích mới trạng thái QUEUED\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('analysisId');",
+                  "    pm.expect(jsonData.status).to.eql('QUEUED');",
+                  "    pm.collectionVariables.set('analysisId', jsonData.analysisId.toString());",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/retry",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "ai-analyses",
+                "{{analysisId}}",
+                "retry"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-AI-RETRY-02: Bắt lỗi retry khi phân tích không bị FAILED (400 Bad Request)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Bắt đúng mã lỗi CANNOT_RETRY\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql('CANNOT_RETRY');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/{{matchId}}/ai-analyses/{{analysisId}}/retry",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "ai-analyses",
+                "{{analysisId}}",
+                "retry"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10 - Public Match Library & Admin Curation (VS-14)",
+      "item": [
+        {
+          "name": "TC-PUB-01: Lấy danh sách trận đấu công khai (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về danh sách trận đấu công khai có thumbnail và video YouTube\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "    pm.expect(jsonData.data.length).to.be.above(0);",
+                  "    var match = jsonData.data[0];",
+                  "    pm.expect(match.status).to.eql('PUBLISHED');",
+                  "    pm.expect(match).to.have.property('thumbnailUrl');",
+                  "    pm.expect(match).to.have.property('youtubeVideoId');",
+                  "    pm.expect(match).to.have.property('totalStrokes');",
+                  "    pm.expect(match).to.have.property('totalRallies');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public-matches?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public-matches"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-PUB-02: Tìm kiếm trận đấu công khai theo từ khóa Axelsen (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Kết quả tìm kiếm khớp với tên Viktor Axelsen\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "    jsonData.data.forEach(function (m) {",
+                  "        var text = (m.title + ' ' + m.playerAName + ' ' + m.playerBName).toLowerCase();",
+                  "        pm.expect(text).to.include('axelsen');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public-matches?search=Axelsen&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public-matches"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Axelsen"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-PUB-03: Xem chi tiết trận đấu công khai (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Thông tin trận đấu công khai đầy đủ\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.eql(11);",
+                  "    pm.expect(jsonData.status).to.eql('PUBLISHED');",
+                  "    pm.expect(jsonData.youtubeVideoId).to.not.be.empty;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public-matches/11",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public-matches",
+                "11"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-PUB-04: Lấy thông tin video YouTube trận đấu công khai (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Nguồn video là YOUTUBE và có youtubeVideoId\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.videoSourceType).to.eql('YOUTUBE');",
+                  "    pm.expect(jsonData.youtubeVideoId).to.eql('boQC4J4E1ZQ');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public-matches/11/video",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public-matches",
+                "11",
+                "video"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-PUB-05: Lấy danh sách AI Events / Cú đánh của trận đấu công khai (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về danh sách cú đánh với tọa độ sân và loại cú đánh\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "    pm.expect(jsonData.length).to.be.above(0);",
+                  "    var firstStroke = jsonData[0];",
+                  "    pm.expect(firstStroke).to.have.property('stroke');",
+                  "    pm.expect(firstStroke).to.have.property('playerSide');",
+                  "    pm.expect(firstStroke).to.have.property('courtX');",
+                  "    pm.expect(firstStroke).to.have.property('courtY');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public-matches/11/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public-matches",
+                "11",
+                "events"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-PUB-06: Lấy danh sách Rallies của trận đấu công khai (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về danh sách pha cầu với thời gian và số cú đánh\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "    pm.expect(jsonData.length).to.be.above(0);",
+                  "    var firstRally = jsonData[0];",
+                  "    pm.expect(firstRally).to.have.property('rallyNumber');",
+                  "    pm.expect(firstRally).to.have.property('strokeCount');",
+                  "    pm.expect(firstRally).to.have.property('startTime');",
+                  "    pm.expect(firstRally).to.have.property('endTime');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public-matches/11/rallies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public-matches",
+                "11",
+                "rallies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-PUB-07: Lấy Thống kê chi tiết trận đấu công khai (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Dữ liệu thống kê đầy đủ cả 2 người chơi và phân bố cú đánh\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('totalStrokes');",
+                  "    pm.expect(jsonData).to.have.property('totalRallies');",
+                  "    pm.expect(jsonData).to.have.property('strokeDistribution');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public-matches/11/statistics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public-matches",
+                "11",
+                "statistics"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-PUB-01: Admin lấy toàn bộ danh sách trận đấu quản lý (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về danh sách trận đấu cho Admin\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/matches?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "matches"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-PUB-02: Admin xuất bản trận đấu vào Thư viện công khai (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trận đấu chuyển sang trạng thái PUBLISHED\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('PUBLISHED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/matches/11/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "matches",
+                "11",
+                "publish"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-PUB-03: Admin hủy xuất bản trận đấu khỏi Thư viện (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trận đấu chuyển trạng thái ANALYZED (không còn PUBLISHED)\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('ANALYZED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/matches/11/unpublish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "matches",
+                "11",
+                "unpublish"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "11. Admin Match Management: Delete & Restore (VS-16)",
+      "item": [
+        {
+          "name": "TC-ADM-MAT-01: Admin xem chi tiết trận đấu bất kỳ (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về đầy đủ thông tin trận đấu và ownerEmail\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('ownerEmail');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/matches/11",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "matches",
+                "11"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-MAT-02: Admin xóa mềm trận đấu vi phạm (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về thông báo xóa mềm thành công\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include('xóa mềm');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/matches/11",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "matches",
+                "11"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-MAT-03: Admin lọc danh sách trận đấu trong Thùng rác (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Danh sách thùng rác chứa trận đấu có deletedAt != null\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/matches?status=DELETED&includeDeleted=true&page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "matches"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "DELETED"
+                },
+                {
+                  "key": "includeDeleted",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-MAT-04: Admin khôi phục trận đấu từ Thùng rác (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Khôi phục thành công, deletedAt trở về null\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.deletedAt).to.be.null;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/matches/11/restore",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "matches",
+                "11",
+                "restore"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "12. Admin User Management: Lock & Unlock (VS-17)",
+      "item": [
+        {
+          "name": "TC-ADM-USR-01: Admin lấy danh sách toàn bộ người dùng (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về danh sách người dùng có phân trang\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "    pm.expect(jsonData.pagination).to.have.property('totalElements');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-USR-02: Admin tìm kiếm người dùng theo từ khóa (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Kết quả chứa người dùng khớp từ khóa\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.length).to.be.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?search=admin&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "admin"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-USR-03: Admin khóa tài khoản người dùng vi phạm (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trạng thái người dùng chuyển sang LOCKED\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('LOCKED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"LOCKED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/2/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "2",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-USR-04: Admin mở khóa tài khoản người dùng (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trạng thái người dùng chuyển sang ACTIVE\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('ACTIVE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/2/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "2",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "13. Admin AI Monitor & Emergency Retry (VS-18)",
+      "item": [
+        {
+          "name": "TC-ADM-AI-01: Admin lấy danh sách toàn bộ phiên phân tích AI (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về danh sách phiên AI và phân trang\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "    pm.expect(jsonData.pagination).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/ai-analyses?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "ai-analyses"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-AI-02: Admin lọc riêng các phiên phân tích AI bị lỗi FAILED (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/ai-analyses?status=FAILED&page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "ai-analyses"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "FAILED"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TC-ADM-AI-03: Admin kích hoạt chạy lại khẩn cấp (Retry) phiên AI bị FAILED (202 Accepted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 202 Accepted\", function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "pm.test(\"Phiên mới chuyển về trạng thái QUEUED\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('QUEUED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/ai-analyses/1/retry",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "ai-analyses",
+                "1",
+                "retry"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "14. Admin Dashboard Metrics (VS-19)",
+      "item": [
+        {
+          "name": "TC-ADM-DSH-01: Admin lấy bảng chỉ số quản trị tổng quan (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Trả về đầy đủ 4 chỉ số tổng quan và phân bố trạng thái\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.totalUsers).to.be.a('number');",
+                  "    pm.expect(jsonData.totalMatches).to.be.a('number');",
+                  "    pm.expect(jsonData.publishedMatches).to.be.a('number');",
+                  "    pm.expect(jsonData.aiSuccessRate).to.be.a('number');",
+                  "    pm.expect(jsonData.matchStatusBreakdown).to.be.an('object');",
+                  "    pm.expect(jsonData.aiStatusBreakdown).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
 }
-

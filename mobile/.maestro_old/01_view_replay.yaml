@@ -1,0 +1,36 @@
+appId: host.exp.exponent
+---
+# ==============================================================================
+# FLOW 1: MT-01, MT-02, MT-03 - Xem Phát Lại Trận Đấu, Timeline & Rallies (Function G)
+# ==============================================================================
+
+# 1. Khởi động và kiểm tra màn hình Khám phá trận đấu
+- assertVisible: ".*Khám phá.*|.*Explore.*|.*vs.*"
+
+# 2. MT-01: Mở trận đấu S3 Cloud đầu tiên trên danh sách (Trận Chung kết - ID 9)
+- tapOn: "Chung kết"
+
+# 3. MT-01: Chờ màn hình Replay nạp xong giao diện (xác thực Tab Cú đánh xuất hiện)
+- extendedWaitUntil:
+    visible:
+      id: "tab-events"
+    timeout: 30000
+
+# 4. MT-02: Kiểm tra Tab Sân 2D Radar
+- tapOn:
+    id: "tab-court"
+    optional: true
+
+# 5. MT-03: Kiểm tra Tab Pha cầu (Rallies)
+- tapOn:
+    id: "tab-rallies"
+    optional: true
+
+# 6. Trở lại Tab Cú đánh
+- tapOn:
+    id: "tab-events"
+    optional: true
+
+# 7. Bấm nút Quay lại trên thanh điều hướng để về màn hình chính
+- tapOn:
+    id: "btn-back-replay"

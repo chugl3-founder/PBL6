@@ -4,11 +4,24 @@ import Constants from 'expo-constants';
 /**
  * Cấu hình kết nối Backend Spring Boot & MinIO cho Mobile App.
  *
- * Tự động lấy địa chỉ IP máy tính từ Expo Go (Constants.expoConfig?.hostUri),
- * giúp bạn đổi mạng Wi-Fi (ở nhà, ở trường, phát 4G) mà không bị lỗi timeout hay phải sửa IP thủ công.
+ * Tự động nhận diện môi trường:
+ * - Android Emulator: Tự động dùng 10.0.2.2 để kết nối trực tiếp vào máy chủ máy tính mà không bị chặn bởi Windows Firewall.
+ * - Thiết bị thật (Physical Device): Tự động lấy IP Wi-Fi từ Expo Go (hostUri).
  */
 const getAutoDetectedHost = (): string => {
-  // 1. Tự động lấy IP từ hostUri mà Expo Go kết nối tới (dạng "172.31.99.36:8081")
+  // 1. Kiểm tra nếu là máy ảo Android (Emulator)
+  const isAndroidEmulator =
+    Platform.OS === 'android' &&
+    ((Platform.constants as any)?.Brand === 'google' ||
+      (Platform.constants as any)?.Model?.toLowerCase().includes('sdk') ||
+      (Platform.constants as any)?.Fingerprint?.toLowerCase().includes('generic') ||
+      (Platform.constants as any)?.Manufacturer?.toLowerCase().includes('google'));
+
+  if (isAndroidEmulator) {
+    return '10.0.2.2';
+  }
+
+  // 2. Tự động lấy IP từ hostUri mà Expo Go kết nối tới (dành cho máy thật)
   const hostUri =
     Constants.expoConfig?.hostUri ||
     (Constants as any).manifest2?.extra?.expoClient?.hostUri ||
@@ -19,11 +32,6 @@ const getAutoDetectedHost = (): string => {
     if (detectedIp && detectedIp !== 'localhost' && detectedIp !== '127.0.0.1') {
       return detectedIp;
     }
-  }
-
-  // 2. Nếu là Android Emulator và không có hostUri
-  if (Platform.OS === 'android') {
-    return '10.0.2.2';
   }
 
   // 3. Fallback IP Wi-Fi hiện tại của máy tính

@@ -1,0 +1,7 @@
+appId: host.exp.exponent
+---
+# Chạy tuần tự trong 1 test (DỪNG ở flow FAIL đầu tiên).
+# Muốn chạy hết và có bảng tổng kết: maestro test .maestro/
+- runFlow: 01_replay_timeline_rallies.yaml
+- runFlow: 02_search_matches.yaml
+- runFlow: 03_statistics.yaml
