@@ -192,6 +192,104 @@ def get_scouting_report(opponent_name: str) -> Dict[str, Any]:
     except Exception as e:
         return {"error": f"Lỗi lấy báo cáo trinh sát: {str(e)}"}
 
+def compare_match_performances(match_id_1: int, match_id_2: int) -> Dict[str, Any]:
+    """
+    So sánh toàn diện phong độ, nhịp độ và các chỉ số kỹ thuật/chiến thuật giữa 2 trận đấu cầu lông:
+    - match_id_1: ID trận đấu thứ nhất (ví dụ trận 1)
+    - match_id_2: ID trận đấu thứ hai (ví dụ trận 2)
+    Trả về số liệu so sánh song song: tổng cú đánh, thời lượng rally, tỷ lệ thuận/trái tay, pha cầu bền, các loại điểm ghi/mất.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        def fetch_single_match(mid: int):
+            cur.execute("""
+                SELECT id, title, player_a_name, player_b_name, status, start_score_a, start_score_b
+                FROM matches WHERE id = %s;
+            """, (mid,))
+            m_row = cur.fetchone()
+            if not m_row:
+                return None
+                
+            cur.execute("""
+                SELECT total_strokes, total_rallies, avg_strokes_per_rally, avg_rally_duration,
+                       player_a_strokes, player_b_strokes, forehand_count, backhand_count, avg_confidence
+                FROM match_statistics WHERE match_id = %s;
+            """, (mid,))
+            s_row = cur.fetchone()
+            
+            cur.execute("""
+                SELECT win_reason, count(*) 
+                FROM rallies 
+                WHERE match_id = %s AND win_reason IS NOT NULL 
+                GROUP BY win_reason;
+            """, (mid,))
+            win_reasons = dict(cur.fetchall())
+            
+            cur.execute("""
+                SELECT count(*), COALESCE(MAX(duration), 0), COALESCE(MAX(total_strokes), 0)
+                FROM rallies WHERE match_id = %s AND total_strokes >= 15;
+            """, (mid,))
+            long_rally_row = cur.fetchone()
+            long_rallies = long_rally_row[0] if long_rally_row else 0
+            max_duration = float(long_rally_row[1]) if long_rally_row else 0.0
+            max_strokes = long_rally_row[2] if long_rally_row else 0
+            
+            total_strokes = s_row[0] if s_row and s_row[0] else 0
+            fh = s_row[6] if s_row and s_row[6] else 0
+            bh = s_row[7] if s_row and s_row[7] else 0
+            fh_pct = round((fh / total_strokes * 100), 1) if total_strokes > 0 else 0.0
+            bh_pct = round((bh / total_strokes * 100), 1) if total_strokes > 0 else 0.0
+            
+            return {
+                "match_id": m_row[0],
+                "title": m_row[1],
+                "player_a": m_row[2],
+                "player_b": m_row[3],
+                "status": m_row[4],
+                "score": f"{m_row[5]}-{m_row[6]}",
+                "total_strokes": total_strokes,
+                "total_rallies": s_row[1] if s_row else 0,
+                "avg_strokes_per_rally": float(s_row[2]) if s_row and s_row[2] else 0.0,
+                "avg_rally_duration_seconds": float(s_row[3]) if s_row and s_row[3] else 0.0,
+                "player_a_strokes": s_row[4] if s_row else 0,
+                "player_b_strokes": s_row[5] if s_row else 0,
+                "forehand_count": fh,
+                "backhand_count": bh,
+                "forehand_percentage": fh_pct,
+                "backhand_percentage": bh_pct,
+                "long_rallies_count": long_rallies,
+                "max_rally_duration_seconds": round(max_duration, 1),
+                "max_strokes_in_single_rally": max_strokes,
+                "win_reasons_breakdown": win_reasons
+            }
+
+        m1_data = fetch_single_match(match_id_1)
+        m2_data = fetch_single_match(match_id_2)
+        
+        cur.close()
+        conn.close()
+        
+        if not m1_data:
+            return {"error": f"Không tìm thấy dữ liệu cho trận đấu #{match_id_1}"}
+        if not m2_data:
+            return {"error": f"Không tìm thấy dữ liệu cho trận đấu #{match_id_2}"}
+            
+        return {
+            "match_1": m1_data,
+            "match_2": m2_data,
+            "comparison_summary": {
+                "strokes_diff": m2_data["total_strokes"] - m1_data["total_strokes"],
+                "rally_duration_diff_sec": round(m2_data["avg_rally_duration_seconds"] - m1_data["avg_rally_duration_seconds"], 2),
+                "avg_strokes_diff": round(m2_data["avg_strokes_per_rally"] - m1_data["avg_strokes_per_rally"], 2),
+                "forehand_ratio_diff_pct": round(m2_data["forehand_percentage"] - m1_data["forehand_percentage"], 1),
+                "long_rallies_diff": m2_data["long_rallies_count"] - m1_data["long_rallies_count"]
+            }
+        }
+    except Exception as e:
+        return {"error": f"Lỗi so sánh phong độ 2 trận: {str(e)}"}
+
 # ==========================================
 # 🤖 BADMINTON AI AGENT ENGINE
 # ==========================================
@@ -203,7 +301,15 @@ NHIỆM VỤ CỦA BẠN:
 1. Giải đáp các thắc mắc về Luật thi đấu chính thức BWF, kỹ thuật động tác (cầm vợt, phát lực cổ tay, smash, drop, phông cầu, di chuyển bộ chân 4 góc) và cẩm nang phòng tránh chấn thương khớp gối/vai bằng công cụ `search_badminton_knowledge`.
 2. Phân tích chi tiết số liệu trận đấu, tỷ lệ thuận/trái tay, tốc độ và các pha mất điểm khi người dùng hỏi về một trận đấu cụ thể bằng công cụ `get_match_statistics` và `get_match_rallies_and_point_losses`.
 3. Khi đề cập đến một pha cầu cụ thể trong trận đấu, bạn BẮT BUỘC phải viết mốc thời gian theo định dạng: `[Pha cầu #X - mm:ss]` (ví dụ: `[Pha cầu #3 - 01:25]`) để người dùng có thể click tua thẳng video đến đó.
-4. Giữ phong thái chuyên nghiệp, khách quan của một huấn luyện viên đẳng cấp quốc tế, ngôn từ tiếng Việt chuẩn xác, súc tích và khích lệ người chơi.
+4. SO SÁNH PHONG ĐỘ 2 TRẬN ĐẤU (`compare_match_performances`): Khi người dùng yêu cầu so sánh 2 trận đấu:
+   - Bạn BẮT BUỘC lập BẢNG SO SÁNH TRỰC QUAN (Markdown Table) đặt song song 2 trận:
+     | Chỉ số phân tích | Trận #{m1_id} ({m1_title}) | Trận #{m2_id} ({m2_title}) | Chênh lệch / Đánh giá |
+   - Phân tích sâu 3 khía cạnh cốt lõi:
+     a. Thể lực & Nhịp độ (Pace & Endurance): Khả năng duy trì các pha cầu bền (long rallies), thời lượng trung bình pha cầu.
+     b. Kỹ thuật & Quyền chủ động (Control & Aggression): Tỷ lệ đánh thuận tay ép đối thủ so với phòng thủ trái tay.
+     c. Hiệu quả ghi điểm & Kiểm soát lỗi (Finishing & Error Management): Khả năng dứt điểm bằng smash/drop và các pha ép đối thủ tự hỏng.
+   - Kết luận phong độ: Đưa ra nhận xét đúc kết tay vợt tiến bộ hay sa sút ở mặt nào, cùng lời khuyên huấn luyện viên cụ thể cho các trận sau.
+5. Giữ phong thái chuyên nghiệp, khách quan của một huấn luyện viên đẳng cấp quốc tế, ngôn từ tiếng Việt chuẩn xác, súc tích và khích lệ người chơi.
 """
 
 def extract_citations(text: str) -> List[Dict[str, Any]]:
@@ -228,24 +334,40 @@ def ask_coach_stream(message: str, match_id: Optional[int] = None) -> Generator[
     if match_id:
         context_message = f"[Ngữ cảnh: Người dùng đang xem trận đấu match_id={match_id}]\nCâu hỏi: {message}"
         
-    chat = client.chats.create(
-        model='gemini-3.5-flash-lite',
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            tools=[
-                search_badminton_knowledge,
-                get_match_statistics,
-                get_match_rallies_and_point_losses,
-                get_scouting_report
-            ],
-            temperature=0.3
-        )
-    )
-    
-    stream_response = chat.send_message_stream(context_message)
-    for chunk in stream_response:
-        if chunk.text:
-            yield chunk.text
+    tools = [
+        search_badminton_knowledge,
+        get_match_statistics,
+        get_match_rallies_and_point_losses,
+        get_scouting_report,
+        compare_match_performances
+    ]
+
+    models = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']
+    last_err = None
+
+    for m in models:
+        try:
+            chat = client.chats.create(
+                model=m,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    tools=tools,
+                    temperature=0.3
+                )
+            )
+            resp = chat.send_message(context_message)
+            full_text = resp.text or ""
+            if full_text:
+                words = full_text.split(" ")
+                for i, w in enumerate(words):
+                    yield w + (" " if i < len(words) - 1 else "")
+                return
+        except Exception as e:
+            last_err = e
+            continue
+
+    if last_err:
+        yield f"⚠️ Lỗi kết nối AI: {str(last_err)}"
 
 def ask_coach(message: str, match_id: Optional[int] = None) -> Dict[str, Any]:
     """Hàm xử lý câu hỏi dạng sync thông thường."""

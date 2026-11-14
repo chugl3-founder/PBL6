@@ -218,6 +218,36 @@ def list_chat_sessions(user_id: Optional[int] = None, match_id: Optional[int] = 
         })
     return {"sessions": sessions}
 
+@app.get("/api/matches/list")
+def list_available_matches():
+    """Lấy danh sách các trận đấu có dữ liệu thống kê để phục vụ tính năng So sánh phong độ."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT DISTINCT ON (m.id) 
+               m.id, m.title, m.player_a_name, m.player_b_name, 
+               m.start_score_a, m.start_score_b, COALESCE(s.total_strokes, 0)
+        FROM matches m
+        JOIN match_statistics s ON m.id = s.match_id
+        ORDER BY m.id DESC
+        LIMIT 25;
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    matches = []
+    for r in rows:
+        matches.append({
+            "id": r[0],
+            "title": r[1],
+            "player_a": r[2],
+            "player_b": r[3],
+            "score": f"{r[4]}-{r[5]}",
+            "total_strokes": r[6]
+        })
+    return {"matches": matches}
+
 if __name__ == "__main__":
     import uvicorn
     print("Khởi động BadmintonAI Coach Service trên port 8000...")
