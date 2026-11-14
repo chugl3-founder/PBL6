@@ -125,9 +125,9 @@
    Be Vietnam Pro (drawn for Vietnamese diacritics), scoreboard numerals in Barlow Condensed.
    Applied to <body> by MainLayout on those routes only, so the other pages keep their theme. */
 body.theme-court {
-  background-color: #EEF1EE;
-  background-image: none;
-  color: #16201B;
+  background-color: #EEF1EE !important;
+  background-image: none !important;
+  color: #16201B !important;
   font-family: 'Be Vietnam Pro', system-ui, sans-serif;
 }
 body.theme-court h1,
