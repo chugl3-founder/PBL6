@@ -344,6 +344,116 @@ def compare_match_performances(match_id_1: int, match_id_2: int) -> Dict[str, An
     except Exception as e:
         return {"error": f"Lỗi so sánh phong độ 2 trận: {str(e)}"}
 
+def recommend_matches(play_style: Optional[str] = "", preferred_shots: Optional[str] = "", pace: Optional[str] = "", limit: int = 3) -> List[Dict[str, Any]]:
+    """
+    Gợi ý các trận đấu cầu lông tiêu biểu phù hợp nhất với phong cách thi đấu, kỹ thuật mong muốn và nhịp độ ưa thích của người dùng:
+    - play_style: Phong cách chơi (ví dụ: 'tấn công áp đảo, smash', 'phòng thủ phản công, kiểm soát', 'tốc độ cao, bắt lưới', 'tinh quái, điều cầu')
+    - preferred_shots: Kỹ thuật muốn học/chiêm ngưỡng (ví dụ: 'jump smash cắm sàn', 'drop siết lưới', 'net kill', 'bộ chân di chuyển')
+    - pace: Nhịp độ trận đấu (ví dụ: 'marathon giằng co nghẹt thở', 'nhanh gọn kết thúc dứt khoát', 'chung kết giải lớn')
+    Trả về danh sách trận đấu phù hợp, số liệu thống kê tiêu biểu và lý do tại sao trận đấu này phù hợp.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        user_id, user_role = get_auth_context()
+        if user_role == "ROLE_ADMIN":
+            sql = """
+                SELECT m.id, m.title, m.player_a_name, m.player_b_name, m.description,
+                       s.total_strokes, s.total_rallies, s.avg_strokes_per_rally, s.avg_rally_duration,
+                       s.forehand_count, s.backhand_count
+                FROM matches m
+                LEFT JOIN match_statistics s ON m.id = s.match_id
+                WHERE m.deleted_at IS NULL;
+            """
+            cur.execute(sql)
+        elif user_id:
+            sql = """
+                SELECT m.id, m.title, m.player_a_name, m.player_b_name, m.description,
+                       s.total_strokes, s.total_rallies, s.avg_strokes_per_rally, s.avg_rally_duration,
+                       s.forehand_count, s.backhand_count
+                FROM matches m
+                LEFT JOIN match_statistics s ON m.id = s.match_id
+                WHERE m.deleted_at IS NULL AND (m.status = 'PUBLISHED' OR m.owner_id = %s);
+            """
+            cur.execute(sql, (user_id,))
+        else:
+            sql = """
+                SELECT m.id, m.title, m.player_a_name, m.player_b_name, m.description,
+                       s.total_strokes, s.total_rallies, s.avg_strokes_per_rally, s.avg_rally_duration,
+                       s.forehand_count, s.backhand_count
+                FROM matches m
+                LEFT JOIN match_statistics s ON m.id = s.match_id
+                WHERE m.deleted_at IS NULL AND m.status = 'PUBLISHED';
+            """
+            cur.execute(sql)
+            
+        rows = cur.fetchall()
+        scored_matches = []
+        
+        style_lower = (play_style or "").lower()
+        shots_lower = (preferred_shots or "").lower()
+        pace_lower = (pace or "").lower()
+        
+        for r in rows:
+            mid, title, pA, pB, desc, strokes, rallies, avg_strokes, avg_dur, fh, bh = r
+            score = 0
+            reasons = []
+            text_corpus = f"{title or ''} {pA or ''} {pB or ''} {desc or ''}".lower()
+            
+            # Tấn công / Smash
+            if any(k in style_lower or k in shots_lower for k in ['tấn công', 'smash', 'áp đảo', 'uy lực', 'power']):
+                if any(p in text_corpus for p in ['axelsen', 'lee zii jia', 'shi yuqi', 'ginting']):
+                    score += 6
+                    reasons.append("Sở hữu những tay đập cầu sấm sét hàng đầu thế giới (Viktor Axelsen / Lee Zii Jia / Shi Yuqi).")
+                if fh and strokes and (fh / strokes) > 0.55:
+                    score += 3
+                    reasons.append(f"Tỷ lệ cú thuận tay tấn công áp đảo chiếm {round(fh/strokes*100, 1)}% tổng cú đánh.")
+                    
+            # Phòng thủ / Kiểm soát / Bền bỉ
+            if any(k in style_lower or k in shots_lower for k in ['phòng thủ', 'kiểm soát', 'bền bỉ', 'bộ chân', 'thủ cầu']):
+                if any(p in text_corpus for p in ['momota', 'chou tien chen', 'kunlavut']):
+                    score += 6
+                    reasons.append("Lối chơi bậc thầy về điều cầu chiến thuật và phòng thủ phản công của Kento Momota / Chou Tien Chen.")
+                if avg_strokes and float(avg_strokes) >= 15:
+                    score += 4
+                    reasons.append(f"Thời lượng pha cầu cực kỳ bền bỉ (trung bình {round(float(avg_strokes), 1)} cú đánh/pha).")
+                    
+            # Tốc độ / Lưới / Gài lưới
+            if any(k in style_lower or k in shots_lower for k in ['tốc độ', 'lưới', 'nhanh', 'gài lưới', 'net kill', 'drop']):
+                if any(p in text_corpus for p in ['ginting', 'lee zii jia']):
+                    score += 5
+                    reasons.append("Tốc độ bắt lưới chớp nhoáng và kỹ thuật siết lưới thần tốc của Anthony Ginting.")
+                    
+            # Nhịp độ Marathon / Giằng co
+            if any(k in pace_lower for k in ['marathon', 'giằng co', 'dài', 'nghẹt thở']):
+                if strokes and strokes >= 700:
+                    score += 4
+                    reasons.append(f"Trận đấu có khối lượng vận động khổng lồ ({strokes} cú đánh kịch tính).")
+                    
+            # Chung kết giải lớn
+            if any(k in pace_lower for k in ['chung kết', 'giải lớn', 'finals', 'all england', 'world tour']):
+                if any(kw in text_corpus for kw in ['finals', 'chung kết', 'all england', 'world tour']):
+                    score += 4
+                    reasons.append("Không khí kịch tính của trận đấu đỉnh cao tại đấu trường Super Series / Finals.")
+
+            scored_matches.append({
+                "match_id": mid,
+                "title": title,
+                "players": f"{pA} vs {pB}",
+                "total_strokes": strokes or 0,
+                "avg_strokes_per_rally": float(avg_strokes) if avg_strokes else 0.0,
+                "match_reasons": reasons or ["Trận đấu kinh điển hội tụ đầy đủ kỹ năng đỉnh cao đáng học hỏi."],
+                "relevance_score": score
+            })
+            
+        scored_matches.sort(key=lambda x: x["relevance_score"], reverse=True)
+        cur.close()
+        conn.close()
+        return scored_matches[:limit]
+    except Exception as e:
+        return [{"error": f"Lỗi gợi ý trận đấu: {str(e)}"}]
+
 # ==========================================
 # 🤖 BADMINTON AI AGENT ENGINE
 # ==========================================
@@ -363,7 +473,16 @@ NHIỆM VỤ CỦA BẠN:
      b. Kỹ thuật & Quyền chủ động (Control & Aggression): Tỷ lệ đánh thuận tay ép đối thủ so với phòng thủ trái tay.
      c. Hiệu quả ghi điểm & Kiểm soát lỗi (Finishing & Error Management): Khả năng dứt điểm bằng smash/drop và các pha ép đối thủ tự hỏng.
    - Kết luận phong độ: Đưa ra nhận xét đúc kết tay vợt tiến bộ hay sa sút ở mặt nào, cùng lời khuyên huấn luyện viên cụ thể cho các trận sau.
-5. Giữ phong thái chuyên nghiệp, khách quan của một huấn luyện viên đẳng cấp quốc tế, ngôn từ tiếng Việt chuẩn xác, súc tích và khích lệ người chơi.
+5. GỢI Ý TRẬN ĐẤU (`recommend_matches`):
+   - Khi người dùng muốn tìm kiếm hoặc nhờ bạn gợi ý trận đấu:
+     + Nếu người dùng đã cung cấp sở thích (hoặc vừa hoàn thành khảo sát sở thích): Hãy gọi ngay công cụ `recommend_matches` để chọn ra các trận đấu tối ưu nhất.
+     + Trình bày mỗi trận đấu được gợi ý thật hấp dẫn:
+       * Tên trận đấu & 2 tay vợt tranh tài.
+       * Phân tích lý do vì sao trận này phù hợp với sở thích/mục tiêu của người dùng.
+       * Cú pháp thẻ xem trận đấu BẮT BUỘC: `[Xem trận đấu #X]` (ví dụ: `[Xem trận đấu #4]`).
+       * Mốc pha cầu tiêu biểu nếu có: `[Pha cầu #X - mm:ss]` để người dùng click tua video xem ngay.
+     + Nếu người dùng chỉ nói chung chung "gợi ý trận đấu cho tôi" mà chưa có sở thích: Hãy nhiệt tình chào đón, gợi ý ngắn gọn và nhắc người dùng có thể tick chọn nhanh vào Bảng khảo sát sở thích (Questionnaire) để nhận gợi ý chuẩn xác nhất.
+6. Giữ phong thái chuyên nghiệp, khách quan của một huấn luyện viên đẳng cấp quốc tế, ngôn từ tiếng Việt chuẩn xác, súc tích và khích lệ người chơi.
 """
 
 def extract_citations(text: str) -> List[Dict[str, Any]]:
@@ -400,7 +519,8 @@ def ask_coach_stream(
             get_match_statistics,
             get_match_rallies_and_point_losses,
             get_scouting_report,
-            compare_match_performances
+            compare_match_performances,
+            recommend_matches
         ]
 
         models = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']

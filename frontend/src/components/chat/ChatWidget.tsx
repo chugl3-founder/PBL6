@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 
   Send, Bot, Play, Minimize2, History, Plus, ChevronLeft, 
-  Mic, MicOff, Volume2, VolumeX, Scale, Loader2 
+  Mic, MicOff, Volume2, VolumeX, Scale, Loader2,
+  Sparkles, CheckCircle2, Target, Shield, Zap
 } from 'lucide-react';
 
 interface Citation {
@@ -41,22 +42,43 @@ const COACH_API_URL = 'http://localhost:8000';
 const WELCOME_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: 'Xin chào! Tôi là **BadmintonAI Coach** — Huấn luyện viên ảo & Chuyên gia trinh sát chiến thuật của bạn.\n\nTôi có thể giải đáp **Luật BWF**, tư vấn **chiến thuật & kỹ thuật**, **so sánh phong độ giữa 2 trận đấu**, hoặc **phân tích số liệu và các pha cầu**.',
+  content: 'Xin chào! Tôi là **BadmintonAI Coach** — Huấn luyện viên ảo & Chuyên gia trinh sát chiến thuật của bạn.\n\nTôi có thể giải đáp **Luật BWF**, tư vấn **chiến thuật & kỹ thuật**, **so sánh phong độ giữa 2 trận đấu**, hoặc **gợi ý trận đấu phù hợp theo sở thích & phong cách của bạn**.',
   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 };
+
+// Các tùy chọn cho Khảo sát sở thích gợi ý trận đấu
+const STYLE_OPTIONS = [
+  { id: 'attack', label: '⚔️ Tấn công áp đảo, đập cầu uy lực', desc: 'Thích xem những pha smash cháy sân như Viktor Axelsen, Lee Zii Jia' },
+  { id: 'defense', label: '🛡️ Phòng thủ phản công, kiểm soát bền bỉ', desc: 'Kiểm soát nhịp độ, điều cầu 4 góc mẫu mực như Kento Momota' },
+  { id: 'speed', label: '⚡ Tốc độ cao, bắt lưới & phản tạt nhanh', desc: 'Di chuyển thần tốc, gài lưới chớp nhoáng như Anthony Ginting' },
+  { id: 'tactical', label: '🧠 Tinh quái, điều cầu biến hóa', desc: 'Đánh lừa hướng cầu, kỹ thuật tinh tế như Chou Tien Chen, Shi Yuqi' },
+];
+
+const SHOT_OPTIONS = [
+  { id: 'smash', label: '💥 Jump smash cắm sàn / Đập chéo sân' },
+  { id: 'drop', label: '🪶 Drop shot siết lưới / Cắt cầu rơi sát mép' },
+  { id: 'net', label: '🏸 Gài lưới đổi hướng & Chụp lưới phản xạ' },
+  { id: 'footwork', label: '🏃 Bộ chân di chuyển 4 góc & Thủ cầu búng góc' },
+];
+
+const PACE_OPTIONS = [
+  { id: 'finals', label: '🏆 Đỉnh cao chung kết giải lớn (World Tour / All England)' },
+  { id: 'marathon', label: '⏳ Siêu marathon giằng co nghẹt thở (> 20 cú đánh/pha)' },
+  { id: 'fast', label: '⚡ Tiết tấu nhanh gọn, kết thúc dứt khoát' },
+];
 
 export const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
+  const [showRecommendModal, setShowRecommendModal] = useState(false);
   const [sessionsList, setSessionsList] = useState<ChatSessionItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Browser key: UUID cố định lưu trong localStorage, dùng để xác thực quyền sở hữu lịch sử chat
-  // Mỗi trình duyệt/thiết bị có một browser_key riêng → không ai có thể xem lịch sử chat của người khác
+  // Browser key: UUID cố định lưu trong localStorage, dùng để phân tách lịch sử chat riêng từng thiết bị
   const [browserKey] = useState<string>(() => {
     const STORAGE_KEY = 'badminton_coach_browser_key';
     let key = localStorage.getItem(STORAGE_KEY);
@@ -78,6 +100,11 @@ export const ChatWidget: React.FC = () => {
   const [selectedMatchA, setSelectedMatchA] = useState<number | ''>('');
   const [selectedMatchB, setSelectedMatchB] = useState<number | ''>('');
   const [loadingMatches, setLoadingMatches] = useState(false);
+
+  // Tính năng Mới: Khảo sát sở thích để Gợi ý trận đấu
+  const [selectedStyle, setSelectedStyle] = useState<string>(STYLE_OPTIONS[0].label);
+  const [selectedShot, setSelectedShot] = useState<string>(SHOT_OPTIONS[0].label);
+  const [selectedPace, setSelectedPace] = useState<string>(PACE_OPTIONS[0].label);
 
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -111,7 +138,6 @@ export const ChatWidget: React.FC = () => {
       if (data && data.matches) {
         setAvailableMatches(data.matches);
         if (data.matches.length >= 2) {
-          // Gợi ý trận mốc A là trận hiện tại (nếu có), trận B là trận khác
           const defaultA = currentMatchId && data.matches.some((m: MatchOption) => m.id === currentMatchId)
             ? currentMatchId
             : data.matches[0].id;
@@ -195,9 +221,9 @@ export const ChatWidget: React.FC = () => {
     }
 
     window.speechSynthesis.cancel();
-    // Loại bỏ các cú pháp markdown trước khi đọc
     const cleanText = text
       .replace(/\[Pha cầu #\d+\s*-\s*\d+:\d+\]/g, '')
+      .replace(/\[Xem trận(?:\s*đấu)?\s*#\d+\]/g, '')
       .replace(/[*#_`|>-]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -326,12 +352,12 @@ export const ChatWidget: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isOpen && !showHistory && !showCompareModal) {
+    if (isOpen && !showHistory && !showCompareModal && !showRecommendModal) {
       scrollToBottom();
     }
-  }, [messages, isOpen, showHistory, showCompareModal]);
+  }, [messages, isOpen, showHistory, showCompareModal, showRecommendModal]);
 
-  // Hàm điều hướng video player trên trang đến giây cụ thể
+  // Điều hướng video player trên trang đến giây cụ thể
   const handleSeekVideo = (seconds: number) => {
     const video = document.querySelector('video') as HTMLVideoElement | null;
     if (video) {
@@ -347,6 +373,7 @@ export const ChatWidget: React.FC = () => {
     setMessages([WELCOME_MESSAGE]);
     setShowHistory(false);
     setShowCompareModal(false);
+    setShowRecommendModal(false);
     if (isListening && recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
@@ -387,6 +414,7 @@ export const ChatWidget: React.FC = () => {
     if (!textToSend) setInput('');
     setLoading(true);
     setShowCompareModal(false);
+    setShowRecommendModal(false);
 
     try {
       const token = localStorage.getItem('access_token');
@@ -491,21 +519,31 @@ export const ChatWidget: React.FC = () => {
     handleSendMessage(prompt);
   };
 
+  // Kích hoạt khảo sát sở thích & Gợi ý trận đấu từ Questionnaire Modal
+  const handleExecuteRecommendation = () => {
+    const prompt = `Hãy gợi ý cho tôi các trận đấu cầu lông phù hợp nhất với sở thích của tôi:
+- Phong cách chơi ưa thích: ${selectedStyle}
+- Kỹ thuật / Cú đánh muốn học hỏi: ${selectedShot}
+- Nhịp độ và tính chất trận đấu: ${selectedPace}
+Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tôi và kèm thẻ xem trận đấu!`;
+    handleSendMessage(prompt);
+  };
+
   const quickPrompts = currentMatchId
     ? [
         `Phân tích trận đấu số ${currentMatchId} cho tôi?`,
+        '🎯 Gợi ý trận đấu phù hợp theo sở thích',
         'So sánh phong độ trận này với trận #287',
-        'Các pha cầu giằng co dài nhất trận này?',
-        'Tỷ lệ thuận tay và trái tay của 2 tay vợt?'
+        'Các pha cầu giằng co dài nhất trận này?'
       ]
     : [
+        '🎯 Gợi ý trận đấu phù hợp theo sở thích',
         'So sánh phong độ giữa trận 294 và trận 287',
         'Luật giao cầu BWF mới nhất cao tối đa bao nhiêu?',
-        'Chiến thuật khắc chế đối thủ hay đập cầu?',
-        'Cách phòng ngừa chấn thương khớp gối trong cầu lông?'
+        'Chiến thuật khắc chế đối thủ hay đập cầu?'
       ];
 
-  // Định dạng nội dung tin nhắn, hỗ trợ Headings, Lists, Bold, Clickable Citations và Markdown Tables
+  // Định dạng nội dung tin nhắn, hỗ trợ Headings, Lists, Bold, Clickable Citations, Match Links và Markdown Tables
   const formatContent = (content: string) => {
     const rawLines = content.split('\n');
     const elements: React.ReactNode[] = [];
@@ -585,13 +623,16 @@ export const ChatWidget: React.FC = () => {
   };
 
   const renderBoldAndCitations = (text: string) => {
-    const regex = /(\*\*.*?\*\*|\[Pha cầu #\d+\s*-\s*\d+:\d+\])/g;
+    // Regex nhận diện in đậm, mốc video [Pha cầu #X - mm:ss], và nút xem trận [Xem trận đấu #X]
+    const regex = /(\*\*.*?\*\*|\[Pha cầu #\d+\s*-\s*\d+:\d+\]|\[Xem trận(?:\s*đấu)?\s*#\d+\])/g;
     const parts = text.split(regex);
 
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={i} className="font-semibold text-slate-900">{part.slice(2, -2)}</strong>;
       }
+      
+      // Mốc xem video pha cầu cụ thể
       const citeMatch = part.match(/\[Pha cầu #(\d+)\s*-\s*(\d+):(\d+)\]/);
       if (citeMatch) {
         const rallyNum = parseInt(citeMatch[1], 10);
@@ -608,6 +649,26 @@ export const ChatWidget: React.FC = () => {
           </button>
         );
       }
+
+      // Thẻ liên kết mở xem trận đấu được gợi ý
+      const matchLink = part.match(/\[Xem trận(?:\s*đấu)?\s*#(\d+)\]/);
+      if (matchLink) {
+        const matchId = matchLink[1];
+        return (
+          <a
+            key={i}
+            href={`/public-matches/${matchId}/replay`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Bấm để xem video trận đấu #${matchId}`}
+            className="inline-flex items-center gap-1.5 mx-1 my-0.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-transform hover:scale-105"
+          >
+            <Play className="w-3 h-3 fill-current" />
+            Xem trận #{matchId} ngay
+          </a>
+        );
+      }
+
       return part;
     });
   };
@@ -628,15 +689,16 @@ export const ChatWidget: React.FC = () => {
 
       {/* CỬA SỔ CHAT POPUP (GIAO DIỆN SÁNG - LIGHT THEME) */}
       {isOpen && (
-        <div className="flex flex-col w-[380px] sm:w-[460px] h-[600px] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex flex-col w-[380px] sm:w-[480px] h-[610px] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden">
           {/* HEADER TRẮNG SÁNG */}
           <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200/90">
             <div className="flex items-center gap-2.5">
-              {showHistory || showCompareModal ? (
+              {showHistory || showCompareModal || showRecommendModal ? (
                 <button
                   onClick={() => {
                     setShowHistory(false);
                     setShowCompareModal(false);
+                    setShowRecommendModal(false);
                   }}
                   className="p-1 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors"
                   title="Quay lại khung chat"
@@ -651,13 +713,15 @@ export const ChatWidget: React.FC = () => {
               <div>
                 <div className="flex items-center gap-1.5">
                   <h3 className="font-semibold text-sm text-slate-900">
-                    {showCompareModal
+                    {showRecommendModal
+                      ? 'Khảo sát gợi ý trận đấu'
+                      : showCompareModal
                       ? 'So sánh phong độ 2 trận'
                       : showHistory
                       ? 'Lịch sử trò chuyện'
                       : 'BadmintonAI Coach'}
                   </h3>
-                  {!showHistory && !showCompareModal && (
+                  {!showHistory && !showCompareModal && !showRecommendModal && (
                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium border border-emerald-300/50">
                       Trợ lý AI
                     </span>
@@ -665,7 +729,9 @@ export const ChatWidget: React.FC = () => {
                 </div>
                 <p className="text-[11px] text-slate-500 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                  {showCompareModal
+                  {showRecommendModal
+                    ? 'Chọn sở thích để AI gợi ý trận đấu'
+                    : showCompareModal
                     ? 'Chọn 2 trận để AI đối chiếu chỉ số'
                     : showHistory
                     ? `${sessionsList.length} cuộc hội thoại đã lưu`
@@ -677,11 +743,30 @@ export const ChatWidget: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-1">
-              {/* NÚT TÍNH NĂNG 3: SO SÁNH PHONG ĐỘ 2 TRẬN */}
+              {/* NÚT MỚI: GỢI Ý TRẬN ĐẤU THEO SỞ THÍCH */}
+              <button
+                onClick={() => {
+                  setShowRecommendModal(!showRecommendModal);
+                  setShowCompareModal(false);
+                  setShowHistory(false);
+                }}
+                title="Khảo sát sở thích & Gợi ý trận đấu"
+                className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium ${
+                  showRecommendModal
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-amber-500 hover:text-amber-600" />
+                <span className="hidden sm:inline">Gợi ý trận</span>
+              </button>
+
+              {/* NÚT: SO SÁNH PHONG ĐỘ 2 TRẬN */}
               <button
                 onClick={() => {
                   fetchAvailableMatches();
                   setShowCompareModal(!showCompareModal);
+                  setShowRecommendModal(false);
                   setShowHistory(false);
                 }}
                 title="So sánh phong độ giữa 2 trận đấu"
@@ -701,6 +786,7 @@ export const ChatWidget: React.FC = () => {
                   fetchSessions();
                   setShowHistory(!showHistory);
                   setShowCompareModal(false);
+                  setShowRecommendModal(false);
                 }}
                 title={showHistory ? 'Xem khung chat hiện tại' : 'Xem lịch sử hội thoại'}
                 className={`p-1.5 rounded-lg transition-colors ${
@@ -730,8 +816,131 @@ export const ChatWidget: React.FC = () => {
             </div>
           </div>
 
-          {/* CHẾ ĐỘ 1: PANEL SO SÁNH PHONG ĐỘ 2 TRẬN ĐẤU */}
-          {showCompareModal ? (
+          {/* CHẾ ĐỘ 1: PANEL KHẢO SÁT SỞ THÍCH GỢI Ý TRẬN ĐẤU */}
+          {showRecommendModal ? (
+            <div className="flex-1 p-4 overflow-y-auto bg-slate-50 flex flex-col justify-between space-y-4">
+              <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 text-xs text-amber-900 leading-relaxed">
+                  <p className="font-semibold mb-1 flex items-center gap-1.5 text-amber-800">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    Hệ thống gợi ý trận đấu thông minh (Match Recommender):
+                  </p>
+                  Hãy chọn các tiêu chí bạn quan tâm nhất. AI Coach sẽ đối chiếu dữ liệu thống kê của các trận đấu để gợi ý những màn so tài đỉnh cao phù hợp nhất với bạn!
+                </div>
+
+                {/* CÂU HỎI 1: PHONG CÁCH CHƠI */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5 text-emerald-600" />
+                    1. Bạn yêu thích phong cách thi đấu nào nhất?
+                  </label>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {STYLE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setSelectedStyle(opt.label)}
+                        className={`w-full text-left p-2.5 rounded-xl border text-xs transition-all flex items-start gap-2.5 ${
+                          selectedStyle === opt.label
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-medium shadow-2xs ring-1 ring-emerald-400'
+                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <CheckCircle2
+                          className={`w-4 h-4 mt-0.5 shrink-0 ${
+                            selectedStyle === opt.label ? 'text-emerald-600 fill-emerald-100' : 'text-slate-300'
+                          }`}
+                        />
+                        <div>
+                          <div className="font-semibold">{opt.label}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* CÂU HỎI 2: CÚ ĐÁNH / KỸ THUẬT MUỐN HỌC */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    2. Cú đánh hoặc kỹ thuật bạn muốn học hỏi?
+                  </label>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {SHOT_OPTIONS.map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setSelectedShot(opt.label)}
+                        className={`w-full text-left p-2 rounded-xl border text-xs transition-all flex items-center gap-2 ${
+                          selectedShot === opt.label
+                            ? 'bg-amber-50 border-amber-500 text-amber-950 font-medium shadow-2xs ring-1 ring-amber-400'
+                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <CheckCircle2
+                          className={`w-4 h-4 shrink-0 ${
+                            selectedShot === opt.label ? 'text-amber-600 fill-amber-100' : 'text-slate-300'
+                          }`}
+                        />
+                        <span>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* CÂU HỎI 3: NHỊP ĐỘ & TÍNH CHẤT TRẬN ĐẤU */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-blue-500" />
+                    3. Nhịp độ và tính chất trận đấu mong muốn?
+                  </label>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {PACE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setSelectedPace(opt.label)}
+                        className={`w-full text-left p-2 rounded-xl border text-xs transition-all flex items-center gap-2 ${
+                          selectedPace === opt.label
+                            ? 'bg-blue-50 border-blue-500 text-blue-950 font-medium shadow-2xs ring-1 ring-blue-400'
+                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <CheckCircle2
+                          className={`w-4 h-4 shrink-0 ${
+                            selectedPace === opt.label ? 'text-blue-600 fill-blue-100' : 'text-slate-300'
+                          }`}
+                        />
+                        <span>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* NÚT XÁC NHẬN HOÀN THÀNH */}
+              <div className="pt-3 border-t border-slate-200 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRecommendModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteRecommendation}
+                  disabled={loading}
+                  className="flex-[2] py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 disabled:opacity-50 text-white text-xs font-semibold transition-all shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4 fill-current" />
+                  Xác nhận & Gợi ý ngay
+                </button>
+              </div>
+            </div>
+          ) : showCompareModal ? (
+            /* CHẾ ĐỘ 2: PANEL SO SÁNH PHONG ĐỘ 2 TRẬN ĐẤU */
             <div className="flex-1 p-4 overflow-y-auto bg-slate-50 flex flex-col justify-between">
               <div className="space-y-4">
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 leading-relaxed">
@@ -794,12 +1003,14 @@ export const ChatWidget: React.FC = () => {
 
               <div className="pt-4 border-t border-slate-200 flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => setShowCompareModal(false)}
                   className="flex-1 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium transition-colors"
                 >
                   Hủy
                 </button>
                 <button
+                  type="button"
                   onClick={handleExecuteComparison}
                   disabled={!selectedMatchA || !selectedMatchB || selectedMatchA === selectedMatchB || loading}
                   className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5"
@@ -810,7 +1021,7 @@ export const ChatWidget: React.FC = () => {
               </div>
             </div>
           ) : showHistory ? (
-            /* CHẾ ĐỘ 2: LỊCH SỬ HỘI THOẠI */
+            /* CHẾ ĐỘ 3: LỊCH SỬ HỘI THOẠI */
             <div className="flex-1 p-3 overflow-y-auto bg-slate-50 divide-y divide-slate-200/80">
               <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Các phiên trò chuyện</span>
@@ -852,7 +1063,7 @@ export const ChatWidget: React.FC = () => {
               )}
             </div>
           ) : (
-            /* CHẾ ĐỘ 3: KHUNG CHAT TIN NHẮN (NỀN TRẮNG SÁNG) */
+            /* CHẾ ĐỘ 4: KHUNG CHAT TIN NHẮN (NỀN TRẮNG SÁNG) */
             <>
               <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-slate-50/60">
                 {messages.map(msg => (
@@ -939,8 +1150,18 @@ export const ChatWidget: React.FC = () => {
                   {quickPrompts.map((p, i) => (
                     <button
                       key={i}
-                      onClick={() => handleSendMessage(p)}
-                      className="shrink-0 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200/80 hover:border-emerald-200 text-xs transition-colors"
+                      onClick={() => {
+                        if (p.includes('Gợi ý trận đấu')) {
+                          setShowRecommendModal(true);
+                        } else {
+                          handleSendMessage(p);
+                        }
+                      }}
+                      className={`shrink-0 px-2.5 py-1 rounded-full text-xs transition-colors border ${
+                        p.includes('Gợi ý trận đấu')
+                          ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 font-medium'
+                          : 'bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border-slate-200/80 hover:border-emerald-200'
+                      }`}
                     >
                       {p}
                     </button>
@@ -982,7 +1203,7 @@ export const ChatWidget: React.FC = () => {
                         ? 'Đang nhận diện giọng nói...'
                         : currentMatchId
                         ? `Hỏi Coach về trận #${currentMatchId} hoặc so sánh phong độ...`
-                        : 'Hỏi về luật BWF, so sánh 2 trận, chiến thuật...'
+                        : 'Hỏi về luật BWF, gợi ý trận đấu, chiến thuật...'
                     }
                     className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition-colors"
                     disabled={loading}
