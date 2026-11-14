@@ -43,7 +43,7 @@ const Card: React.FC<{ icon: React.FC<{ className?: string }>; title: string; su
       </span>
       <div>
         <h2 className="text-base font-bold text-ink leading-tight">{title}</h2>
-        {subtitle && <p className="text-xs text-ink/55 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-ink/70 mt-0.5">{subtitle}</p>}
       </div>
     </header>
     {children}
@@ -154,7 +154,7 @@ export const ScoutingReportPage: React.FC = () => {
     <div className="max-w-5xl mx-auto space-y-5 pb-16 font-vn print:max-w-none print:pb-0">
       {isOwner && (
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <Link to="/scouting" className="inline-flex items-center gap-1.5 text-sm text-ink/60 hover:text-ink">
+          <Link to="/scouting" className="inline-flex items-center gap-1.5 text-sm text-ink/70 hover:text-ink">
             <ArrowLeft className="w-4 h-4" /> Báo cáo trinh sát
           </Link>
           <div className="flex flex-wrap gap-2">
@@ -176,7 +176,7 @@ export const ScoutingReportPage: React.FC = () => {
                 {busy === 'share' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />} Chia sẻ
               </button>
             )}
-            <button type="button" disabled={busy != null} onClick={remove} className={`${btn} text-ink/50 hover:text-loss hover:bg-loss/5`} aria-label="Xoá báo cáo">
+            <button type="button" disabled={busy != null} onClick={remove} className={`${btn} text-ink/65 hover:text-loss hover:bg-loss/5`} aria-label="Xoá báo cáo">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
@@ -209,7 +209,7 @@ export const ScoutingReportPage: React.FC = () => {
             <Link to={playerPath(opp.name)} className="flex items-center gap-3 min-w-0 group">
               <PlayerMonogram name={opp.name} size="md" className="!bg-[#C9701F] shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">Đối thủ</p>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Đối thủ</p>
                 <p className="font-score text-xl sm:text-2xl font-bold uppercase leading-tight truncate group-hover:underline">{opp.name}</p>
                 <p className="text-xs text-white/55">
                   {opp.analyzedMatchCount} trận phân tích · thắng {oppRate ?? '–'}% điểm
@@ -220,7 +220,7 @@ export const ScoutingReportPage: React.FC = () => {
             {own ? (
               <Link to={playerPath(own.name)} className="flex flex-row-reverse sm:flex-row items-center gap-3 min-w-0 justify-end sm:text-right group">
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">Bên ta</p>
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Bên ta</p>
                   <p className="font-score text-xl sm:text-2xl font-bold uppercase leading-tight truncate group-hover:underline">{own.name}</p>
                   <p className="text-xs text-white/55">{own.analyzedMatchCount} trận phân tích</p>
                 </div>
@@ -251,7 +251,7 @@ export const ScoutingReportPage: React.FC = () => {
       {/* ---------------- GAME PLAN ---------------- */}
       <Card icon={Crosshair} title="Kế hoạch thi đấu" subtitle="Mỗi điểm đều có số liệu và video minh chứng bên dưới">
         {plan.keys.length === 0 ? (
-          <p className="text-sm text-ink/55 py-6 text-center">Chưa đủ dữ liệu để rút ra kế hoạch. Phân tích thêm trận của {opp.name}.</p>
+          <p className="text-sm text-ink/70 py-6 text-center">Chưa đủ dữ liệu để rút ra kế hoạch. Phân tích thêm trận của {opp.name}.</p>
         ) : (
           <ol className="space-y-3">
             {plan.keys.map((k, i) => {
@@ -264,7 +264,7 @@ export const ScoutingReportPage: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${cat.tone}`}>
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${cat.tone}`}>
                           <Icon className="w-3 h-3" /> {cat.label}
                         </span>
                         <h3 className="text-base font-bold text-ink mt-1.5 first-letter:uppercase">{k.title}</h3>
@@ -309,7 +309,7 @@ export const ScoutingReportPage: React.FC = () => {
                   ]}
                 />
               </div>
-              <div className="flex flex-wrap justify-center gap-4 text-xs text-ink/60">
+              <div className="flex flex-wrap justify-center gap-4 text-xs text-ink/70">
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: OPP }} /> {opp.name}{opp.playstyle && ` · ${playstyleLabel(opp.playstyle)}`}</span>
                 {own && hasRadar(own.radar) && (
                   <span className="flex items-center gap-1.5"><span className="w-3 border-t-2 border-dashed" style={{ borderColor: OWN }} /> {own.name}</span>
@@ -317,13 +317,13 @@ export const ScoutingReportPage: React.FC = () => {
               </div>
             </>
           ) : (
-            <p className="text-sm text-ink/55 py-8 text-center">Đối thủ chưa có chỉ số lối chơi.</p>
+            <p className="text-sm text-ink/70 py-8 text-center">Đối thủ chưa có chỉ số lối chơi.</p>
           )}
         </Card>
 
         <div className="space-y-5">
           <Card icon={Swords} title="Vũ khí ghi điểm của đối thủ">
-            {plan.threats.length === 0 ? <p className="text-sm text-ink/55">Chưa có dữ liệu.</p> : (
+            {plan.threats.length === 0 ? <p className="text-sm text-ink/70">Chưa có dữ liệu.</p> : (
               <ul className="space-y-2">
                 {plan.threats.slice(0, 5).map(t => (
                   <li key={t.stroke} className="text-sm">
@@ -337,7 +337,7 @@ export const ScoutingReportPage: React.FC = () => {
             )}
           </Card>
           <Card icon={Wand2} title="Đối thủ hay mất điểm sau cú">
-            {plan.weaknesses.length === 0 ? <p className="text-sm text-ink/55">Chưa có dữ liệu.</p> : (
+            {plan.weaknesses.length === 0 ? <p className="text-sm text-ink/70">Chưa có dữ liệu.</p> : (
               <ul className="space-y-2">
                 {plan.weaknesses.slice(0, 5).map(t => (
                   <li key={t.stroke} className="text-sm">
@@ -362,14 +362,14 @@ export const ScoutingReportPage: React.FC = () => {
             return (
               <div key={b} className="rounded-lg border border-ink/10 p-3 text-center">
                 <p className="text-sm font-semibold text-ink">{RALLY_BUCKETS[b].label}</p>
-                <p className="text-[11px] text-ink/45">{RALLY_BUCKETS[b].range}</p>
+                <p className="text-[11px] text-ink/65">{RALLY_BUCKETS[b].range}</p>
                 <p className={`font-score text-3xl font-bold mt-1 ${r == null ? 'text-ink/25' : r >= 50 ? 'text-loss' : 'text-pitch-deep'}`}>{r == null ? '–' : `${r}%`}</p>
-                <p className="text-[11px] text-ink/45 tabular-nums">{row.won}–{row.lost}</p>
+                <p className="text-[11px] text-ink/65 tabular-nums">{row.won}–{row.lost}</p>
               </div>
             );
           })}
         </div>
-        <p className="text-[11px] text-ink/45 mt-3">Màu đỏ: đối thủ mạnh ở loại pha này; màu xanh: cơ hội cho bạn.</p>
+        <p className="text-[11px] text-ink/65 mt-3">Màu đỏ: đối thủ mạnh ở loại pha này; màu xanh: cơ hội cho bạn.</p>
       </Card>
 
       {/* ---------------- NOTES ---------------- */}
@@ -384,10 +384,10 @@ export const ScoutingReportPage: React.FC = () => {
                 maxLength={5000}
                 rows={5}
                 placeholder="Bổ sung nhận định riêng, bài tập chuẩn bị, phương án dự phòng…"
-                className="w-full rounded-lg border border-ink/15 bg-ground/40 p-3 text-sm text-ink placeholder-ink/40 focus:outline-none focus:border-pitch print:hidden"
+                className="w-full rounded-lg border border-ink/15 bg-ground/40 p-3 text-sm text-ink placeholder-ink/55 focus:outline-none focus:border-pitch print:hidden"
               />
               <p className="hidden print:block whitespace-pre-wrap text-sm text-ink/80">{notes || '—'}</p>
-              <p className="text-[11px] text-ink/45 mt-1 print:hidden">
+              <p className="text-[11px] text-ink/65 mt-1 print:hidden">
                 {notesState === 'saving' ? 'Đang lưu…' : notesState === 'saved' ? 'Đã lưu' : 'Tự lưu khi bạn bấm ra ngoài ô ghi chú.'}
               </p>
             </>
@@ -402,7 +402,7 @@ export const ScoutingReportPage: React.FC = () => {
           <ul className="divide-y divide-ink/[0.06]">
             {plan.headToHead.list.map(m => (
               <li key={m.matchId} className="flex items-center gap-3 py-2 text-sm">
-                <span className="tabular-nums text-ink/60 w-24">{formatDate(m.matchDate)}</span>
+                <span className="tabular-nums text-ink/70 w-24">{formatDate(m.matchDate)}</span>
                 <span className="font-score text-lg font-bold tabular-nums">
                   <span className="text-pitch-deep">{m.ownWon}</span>–<span className="text-loss">{m.ownLost}</span>
                 </span>
@@ -417,7 +417,7 @@ export const ScoutingReportPage: React.FC = () => {
         </Card>
       )}
 
-      <p className="text-center text-[11px] text-ink/40">
+      <p className="text-center text-[11px] text-ink/65">
         Báo cáo do BadmintonAI lập tự động từ dữ liệu phân tích video. Các nhận định là xu hướng thống kê, không phải kết luận chắc chắn.
       </p>
     </div>

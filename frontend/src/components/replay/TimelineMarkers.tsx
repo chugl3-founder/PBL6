@@ -126,10 +126,10 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
         />
       </div>
 
-      <div className="flex justify-between text-[11px] text-ink/50 tabular-nums">
+      <div className="flex justify-between text-[11px] text-ink/65 tabular-nums">
         <span>0:00</span>
         {pendingGaps.length > 0 && (
-          <span className="text-ink/60">Phần sọc: AI chưa phân tích tới</span>
+          <span className="text-ink/70">Phần sọc: AI chưa phân tích tới</span>
         )}
         <span>{clock(durationSeconds)}</span>
       </div>

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, ArrowUpDown, AlertCircle, Video } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, AlertCircle } from 'lucide-react';
+import { CameraCourt } from '../components/court/CameraCourt';
+import { StepIndicator } from '../components/match/StepIndicator';
 import apiClient from '../api/client';
 
 const inputClass =
-  'w-full h-11 px-3 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/35 focus:outline-none focus:border-pitch';
+  'w-full h-11 px-3 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder:text-ink/55 focus:outline-none focus:border-pitch focus:ring-2 focus:ring-pitch/20';
 
 export const CreateMatchPage: React.FC = () => {
   const navigate = useNavigate();
@@ -55,153 +57,142 @@ export const CreateMatchPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto pb-16 pt-2 font-vn space-y-6">
+    <div className="max-w-6xl mx-auto pb-16 pt-2 font-vn space-y-6">
       <header className="space-y-3">
-        <Link to="/my-matches" className="inline-flex items-center gap-1.5 text-sm text-ink/60 hover:text-ink">
-          <ArrowLeft className="w-4 h-4" />
+        <Link to="/my-matches" className="inline-flex items-center gap-1.5 text-sm text-ink/70 hover:text-ink">
+          <ArrowLeft className="w-4 h-4" aria-hidden />
           Trận của tôi
         </Link>
-        <h1 className="text-2xl sm:text-3xl font-bold text-ink">Trận mới</h1>
-        <ol className="flex flex-wrap items-center gap-2 text-xs text-ink/55" aria-label="Các bước">
-          {['Thông tin trận', 'Tải video', 'AI phân tích'].map((label, index) => (
-            <li key={label} className="flex items-center gap-2" aria-current={index === 0 ? 'step' : undefined}>
-              {index > 0 && <span className="w-6 h-px bg-ink/15" />}
-              <span
-                className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${
-                  index === 0 ? 'bg-ink text-white' : 'bg-ink/10 text-ink/50'
-                }`}
-              >
-                {index + 1}
-              </span>
-              <span className={index === 0 ? 'text-ink font-medium' : ''}>{label}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-ink">Trận mới</h1>
+          <StepIndicator current={1} />
+        </div>
       </header>
 
       {error && (
         <div className="flex items-center gap-2 px-4 py-3 rounded-md bg-loss/10 text-loss text-sm" role="alert">
-          <AlertCircle className="h-4 w-4 shrink-0" />
+          <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
           <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="rounded-lg bg-sheet border border-ink/10 p-5 sm:p-6 space-y-6">
-        <fieldset className="space-y-3">
-          <legend className="font-semibold text-ink">Hai vận động viên</legend>
-          <p className="text-sm text-ink/60">
-            Nhìn vào video: ai đứng ở nửa sân xa camera thì nhập vào ô trên. AI dựa vào đó để biết cú nào của ai.
-          </p>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+        <form onSubmit={handleSubmit} className="rounded-lg bg-sheet border border-ink/10 p-6 space-y-6">
+          <fieldset className="space-y-4">
+            <legend className="text-lg font-semibold text-ink">Hai vận động viên</legend>
+            <p className="text-sm text-ink/70 -mt-2">Nhập theo vị trí trong video. Sân bên cạnh cập nhật ngay khi bạn gõ.</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
-            <div className="space-y-3">
-              <label className="flex items-stretch gap-3">
-                <span className="w-1 rounded-full bg-pa shrink-0" aria-hidden />
-                <span className="flex-1 space-y-1">
-                  <span className="block text-sm text-ink/70">Sân trên, xa camera</span>
-                  <input
-                    type="text"
-                    required
-                    value={upperName}
-                    onChange={(e) => setUpperName(e.target.value)}
-                    placeholder="VD: Nguyễn Tiến Minh"
-                    className={inputClass}
-                  />
-                </span>
+            <div className="space-y-1.5">
+              <label htmlFor="upper-name" className="flex items-center gap-2 text-sm font-medium text-ink">
+                <span className="w-2.5 h-2.5 rounded-full bg-pa" aria-hidden />
+                Nửa sân trên, xa camera
               </label>
-              <label className="flex items-stretch gap-3">
-                <span className="w-1 rounded-full bg-pb shrink-0" aria-hidden />
-                <span className="flex-1 space-y-1">
-                  <span className="block text-sm text-ink/70">Sân dưới, gần camera</span>
-                  <input
-                    type="text"
-                    required
-                    value={lowerName}
-                    onChange={(e) => setLowerName(e.target.value)}
-                    placeholder="VD: Lee Chong Wei"
-                    className={inputClass}
-                  />
-                </span>
-              </label>
+              <input
+                id="upper-name"
+                name="upperName"
+                autoComplete="off"
+                type="text"
+                required
+                value={upperName}
+                onChange={(e) => setUpperName(e.target.value)}
+                placeholder="VD: Nguyễn Tiến Minh"
+                className={inputClass}
+              />
             </div>
 
-            {/* Small court seen from the camera, so "upper / lower" is unambiguous */}
-            <div className="hidden sm:flex flex-col items-center gap-1.5 pl-3">
-              <div className="relative w-24 h-36 rounded-sm bg-pitch border-2 border-white/80 outline outline-1 outline-ink/10 flex flex-col">
-                <div className="flex-1 flex items-center justify-center px-1">
-                  <span className="text-[10px] font-semibold text-white text-center leading-tight line-clamp-2">
-                    {upperName || 'Sân trên'}
-                  </span>
-                </div>
-                <div className="h-0.5 bg-white" aria-hidden />
-                <div className="flex-1 flex items-center justify-center px-1">
-                  <span className="text-[10px] font-semibold text-white text-center leading-tight line-clamp-2">
-                    {lowerName || 'Sân dưới'}
-                  </span>
-                </div>
-              </div>
-              <span className="flex items-center gap-1 text-[11px] text-ink/50">
-                <Video className="w-3.5 h-3.5" aria-hidden />
-                Camera
-              </span>
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-ink/10" aria-hidden />
+              <button
+                type="button"
+                onClick={swapSides}
+                className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 bg-sheet px-3 h-8 text-sm font-medium text-ink hover:border-pitch hover:text-pitch-deep transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pitch/40"
+              >
+                <ArrowUpDown className="w-4 h-4" aria-hidden />
+                Đổi sân hai người
+              </button>
+              <span className="h-px flex-1 bg-ink/10" aria-hidden />
             </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="lower-name" className="flex items-center gap-2 text-sm font-medium text-ink">
+                <span className="w-2.5 h-2.5 rounded-full bg-pb" aria-hidden />
+                Nửa sân dưới, gần camera
+              </label>
+              <input
+                id="lower-name"
+                name="lowerName"
+                autoComplete="off"
+                type="text"
+                required
+                value={lowerName}
+                onChange={(e) => setLowerName(e.target.value)}
+                placeholder="VD: Lee Chong Wei"
+                className={inputClass}
+              />
+            </div>
+          </fieldset>
+
+          <fieldset className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 border-t border-ink/10">
+            <legend className="sr-only">Thông tin trận</legend>
+            <div className="space-y-1.5">
+              <label htmlFor="match-date" className="block text-sm font-medium text-ink">Ngày thi đấu</label>
+              <input id="match-date" name="matchDate" type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} className={inputClass} />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="match-title" className="block text-sm font-medium text-ink">
+                Tên trận <span className="font-normal text-ink/65">(không bắt buộc)</span>
+              </label>
+              <input
+                id="match-title"
+                name="title"
+                autoComplete="off"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={upperName.trim() && lowerName.trim() ? upperName.trim() + ' gặp ' + lowerName.trim() : 'VD: Chung kết giao hữu 2026'}
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label htmlFor="match-note" className="block text-sm font-medium text-ink">
+                Ghi chú <span className="font-normal text-ink/65">(không bắt buộc)</span>
+              </label>
+              <textarea
+                id="match-note"
+                name="description"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="VD: Trận 1 set 21 điểm, quay từ phía sau sân"
+                className="w-full px-3 py-2.5 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder:text-ink/55 focus:outline-none focus:border-pitch focus:ring-2 focus:ring-pitch/20 resize-none"
+              />
+            </div>
+          </fieldset>
+
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-ink/10">
+            <Link to="/my-matches" className="px-4 h-11 inline-flex items-center text-sm font-medium text-ink/70 hover:text-ink">
+              Hủy
+            </Link>
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-md bg-pitch hover:bg-pitch-deep disabled:opacity-60 px-5 h-11 text-sm font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pitch/50 focus-visible:ring-offset-2"
+            >
+              {loading && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden />}
+              {loading ? 'Đang tạo trận…' : 'Tiếp tục: tải video'}
+            </button>
           </div>
+        </form>
 
-          <button
-            type="button"
-            onClick={swapSides}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-pitch hover:text-pitch-deep"
-          >
-            <ArrowUpDown className="w-4 h-4" />
-            Đổi sân hai người
-          </button>
-        </fieldset>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-5 border-t border-ink/10">
-          <label className="space-y-1">
-            <span className="block text-sm text-ink/70">Ngày thi đấu</span>
-            <input type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} className={inputClass} />
-          </label>
-          <label className="space-y-1">
-            <span className="block text-sm text-ink/70">
-              Tên trận <span className="text-ink/45">(không bắt buộc)</span>
-            </span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="VD: Chung kết giao hữu 2026"
-              className={inputClass}
-            />
-          </label>
-          <label className="space-y-1 sm:col-span-2">
-            <span className="block text-sm text-ink/70">
-              Ghi chú <span className="text-ink/45">(không bắt buộc)</span>
-            </span>
-            <textarea
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="VD: Trận 1 set 21 điểm, quay từ phía sau sân"
-              className="w-full px-3 py-2.5 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/35 focus:outline-none focus:border-pitch resize-none"
-            />
-          </label>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-5 border-t border-ink/10">
-          <Link to="/my-matches" className="px-4 h-10 inline-flex items-center text-sm font-medium text-ink/60 hover:text-ink">
-            Hủy
-          </Link>
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-md bg-pitch hover:bg-pitch-deep disabled:opacity-60 px-5 h-10 text-sm font-semibold text-white transition-colors"
-          >
-            {loading && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-            Tiếp tục: tải video
-          </button>
-        </div>
-      </form>
+        {/* The court as the camera sees it, so "upper / lower" needs no explaining */}
+        <aside className="lg:sticky lg:top-16 rounded-lg bg-sheet border border-ink/10 p-5 space-y-4" aria-label="Sân nhìn từ camera">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">Như trong video</h2>
+            <p className="text-sm text-ink/70 mt-1">AI dựa vào vị trí này để biết cú nào của ai.</p>
+          </div>
+          <CameraCourt upperName={upperName} lowerName={lowerName} />
+        </aside>
+      </div>
     </div>
   );
 };

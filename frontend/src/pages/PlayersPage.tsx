@@ -25,7 +25,7 @@ const PlayerCard: React.FC<{ player: PlayerSummary }> = ({ player }) => {
               {playstyleLabel(player.playstyle)}
             </span>
           ) : (
-            <span className="inline-block mt-1 text-[11px] text-ink/45">
+            <span className="inline-block mt-1 text-[11px] text-ink/65">
               {analyzed ? 'Chưa có chỉ số lối chơi' : 'Chưa có trận phân tích xong'}
             </span>
           )}
@@ -42,22 +42,22 @@ const PlayerCard: React.FC<{ player: PlayerSummary }> = ({ player }) => {
       </div>
 
       <dl className="grid grid-cols-3 border-t border-ink/10 divide-x divide-ink/10 mt-auto">
-        <div className="px-3 py-2.5 text-center">
-          <dt className="text-[10px] uppercase tracking-wide text-ink/45">Trận</dt>
+        <div className="px-2 py-2.5 text-center">
+          <dt className="text-[11px] uppercase tracking-wide text-ink/65 whitespace-nowrap">Trận</dt>
           <dd className="font-score text-xl font-bold tabular-nums text-ink">{player.matchCount}</dd>
         </div>
-        <div className="px-3 py-2.5 text-center">
-          <dt className="text-[10px] uppercase tracking-wide text-ink/45">Thắng điểm</dt>
+        <div className="px-2 py-2.5 text-center">
+          <dt className="text-[11px] uppercase tracking-wide text-ink/65 whitespace-nowrap">Thắng điểm</dt>
           <dd className={`font-score text-xl font-bold tabular-nums ${rate == null ? 'text-ink/30' : rate >= 50 ? 'text-pitch-deep' : 'text-loss'}`}>
             {rate == null ? '–' : `${rate}%`}
           </dd>
         </div>
-        <div className="px-3 py-2.5 text-center">
-          <dt className="text-[10px] uppercase tracking-wide text-ink/45">Cú đánh</dt>
+        <div className="px-2 py-2.5 text-center">
+          <dt className="text-[11px] uppercase tracking-wide text-ink/65 whitespace-nowrap">Cú đánh</dt>
           <dd className="font-score text-xl font-bold tabular-nums text-ink">{player.totalShots.toLocaleString('vi-VN')}</dd>
         </div>
       </dl>
-      <p className="px-4 py-2 text-[11px] text-ink/45 bg-ground/60 border-t border-ink/[0.06]">
+      <p className="px-4 py-2 text-[11px] text-ink/65 bg-ground/60 border-t border-ink/[0.06]">
         Trận gần nhất {formatDate(player.lastMatchDate)}
       </p>
     </Link>
@@ -103,7 +103,7 @@ export const PlayersPage: React.FC = () => {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-ink">Vận động viên</h1>
-          <p className="text-sm text-ink/60 mt-1">
+          <p className="text-sm text-ink/70 mt-1">
             Hồ sơ gộp từ mọi trận {isLoggedIn ? 'công khai và trận của bạn' : 'công khai'}: lối chơi, cú ghi điểm, vùng sân và phong độ.
           </p>
         </div>
@@ -115,7 +115,7 @@ export const PlayersPage: React.FC = () => {
             onChange={e => setSearch(e.target.value)}
             placeholder="Tìm vận động viên"
             aria-label="Tìm vận động viên"
-            className="w-full h-10 pl-9 pr-9 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/40 focus:outline-none focus:border-pitch"
+            className="w-full h-10 pl-9 pr-9 rounded-md bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/55 focus:outline-none focus:border-pitch"
           />
           {search && (
             <button
@@ -137,7 +137,7 @@ export const PlayersPage: React.FC = () => {
           ))}
         </div>
       ) : failed ? (
-        <div className="rounded-lg bg-sheet border border-ink/10 px-6 py-14 text-center text-sm text-ink/60">
+        <div className="rounded-lg bg-sheet border border-ink/10 px-6 py-14 text-center text-sm text-ink/70">
           Không tải được danh sách vận động viên. Thử tải lại trang.
         </div>
       ) : players.length === 0 ? (
@@ -153,7 +153,7 @@ export const PlayersPage: React.FC = () => {
         </div>
       ) : (
         <>
-          <p className="text-sm text-ink/55">{players.length} vận động viên</p>
+          <p className="text-sm text-ink/70">{players.length} vận động viên</p>
           <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
             {players.map(player => (
               <PlayerCard key={player.name} player={player} />

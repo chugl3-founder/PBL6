@@ -695,13 +695,13 @@ export const AdminDashboardPage: React.FC = () => {
                             ))}
                           </svg>
                           <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
                               Đang hoạt động
                             </span>
                             <span className="text-2xl font-black text-white">
                               {dashboardMetrics.totalMatches}
                             </span>
-                            <span className="text-[10px] text-emerald-400 font-bold">
+                            <span className="text-[11px] text-emerald-400 font-bold">
                               +{dashboardMetrics.deletedMatches} thùng rác
                             </span>
                           </div>
@@ -727,7 +727,7 @@ export const AdminDashboardPage: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-1.5 font-mono shrink-0 ml-2">
                                   <span className="font-bold text-white">{it.count}</span>
-                                  <span className="text-[10px] text-slate-400">({pct}%)</span>
+                                  <span className="text-[11px] text-slate-400">({pct}%)</span>
                                 </div>
                               </div>
                             );
@@ -805,7 +805,7 @@ export const AdminDashboardPage: React.FC = () => {
                               <span className="text-xl font-black text-white">
                                 {successRateVal}%
                               </span>
-                              <span className="text-[10px] text-purple-300 font-semibold uppercase">
+                              <span className="text-[11px] text-purple-300 font-semibold uppercase">
                                 Thành công
                               </span>
                             </div>
@@ -1112,7 +1112,7 @@ export const AdminDashboardPage: React.FC = () => {
             {matchesLoading && (
               <div className="py-16 flex flex-col items-center justify-center space-y-3">
                 <Loader2 className="w-7 h-7 text-sky-400 animate-spin" />
-                <span className="text-xs text-slate-400">Đang tải danh sách trận đấu...</span>
+                <span className="text-xs text-slate-400">Đang tải danh sách trận đấu…</span>
               </div>
             )}
 
@@ -1326,7 +1326,7 @@ export const AdminDashboardPage: React.FC = () => {
                     type="text"
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
-                    placeholder="Tìm theo email hoặc họ tên..."
+                    placeholder="Tìm theo email hoặc họ tên…"
                     className="w-full pl-10 pr-8 py-2 bg-[#14233c] border border-white/15 rounded-full text-xs text-white placeholder-white/40 focus:outline-none focus:border-brand transition"
                   />
                   {userSearch && (
@@ -1368,7 +1368,7 @@ export const AdminDashboardPage: React.FC = () => {
             {usersLoading && (
               <div className="py-16 flex flex-col items-center justify-center space-y-3">
                 <Loader2 className="w-7 h-7 text-sky-400 animate-spin" />
-                <span className="text-xs text-slate-400">Đang tải danh sách người dùng...</span>
+                <span className="text-xs text-slate-400">Đang tải danh sách người dùng…</span>
               </div>
             )}
 
@@ -1417,7 +1417,7 @@ export const AdminDashboardPage: React.FC = () => {
                                 <div className="font-bold text-white text-sm flex items-center gap-1.5">
                                   <span>{u.fullName || 'Chưa cập nhật tên'}</span>
                                   {isSelf && (
-                                    <span className="px-2 py-0.2 rounded-full bg-brand/20 border border-brand/40 text-[10px] text-sky-300 font-semibold">
+                                    <span className="px-2 py-0.2 rounded-full bg-brand/20 border border-brand/40 text-[11px] text-sky-300 font-semibold">
                                       Bạn
                                     </span>
                                   )}
@@ -1623,11 +1623,11 @@ export const AdminDashboardPage: React.FC = () => {
                             <div className="font-bold text-white text-sm flex items-center gap-2">
                               <span>Phiên #{a.id}</span>
                               {a.isCurrent ? (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[10px] text-emerald-300 font-semibold">
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[11px] text-emerald-300 font-semibold">
                                   Phiên hiện tại
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] text-slate-400">
+                                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-400">
                                   Lịch sử cũ
                                 </span>
                               )}
@@ -1660,7 +1660,7 @@ export const AdminDashboardPage: React.FC = () => {
                                     style={{ width: `${a.progressPercent || 10}%` }}
                                   />
                                 </div>
-                                <div className="text-[10px] text-sky-300 truncate">
+                                <div className="text-[11px] text-sky-300 truncate">
                                   {a.progressPercent || 0}% •{' '}
                                   {a.currentStage || 'Đang khởi tạo...'}
                                 </div>

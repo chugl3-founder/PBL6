@@ -54,6 +54,14 @@ def update_analysis_status(
     return True
 
 
+def fetch_analysis_status(analysis_id: int) -> str | None:
+    """The analysis status, None when the row does not exist. Raises when the database is unreachable."""
+    with get_connection() as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT status FROM ai_analyses WHERE id = %s", (analysis_id,))
+        row = cursor.fetchone()
+    return row[0] if row else None
+
+
 def fetch_court_player_names(match_id: int) -> tuple[str, str]:
     """Return (upper, lower) player names so AI insights name real players."""
     try:

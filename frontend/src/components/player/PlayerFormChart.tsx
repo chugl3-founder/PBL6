@@ -18,7 +18,7 @@ export const PlayerFormChart: React.FC<{ matches: PlayerMatchEntry[] }> = ({ mat
     .map(m => ({ match: m, rate: winRate(m.ralliesWon, m.ralliesLost) ?? 0 }));
 
   if (points.length === 0) {
-    return <p className="text-sm text-ink/55 py-8 text-center">Chưa có trận nào xác định được người thắng từng pha cầu.</p>;
+    return <p className="text-sm text-ink/70 py-8 text-center">Chưa có trận nào xác định được người thắng từng pha cầu.</p>;
   }
 
   const innerW = W - PAD.left - PAD.right;

@@ -4,6 +4,7 @@ import com.badminton.dto.video.VideoCompleteRequest;
 import com.badminton.dto.video.VideoResponse;
 import com.badminton.dto.video.VideoUploadUrlRequest;
 import com.badminton.dto.video.VideoUploadUrlResponse;
+import com.badminton.dto.video.YoutubeVideoRequest;
 import com.badminton.service.VideoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,15 @@ public class VideoController {
     ) {
         VideoResponse response = videoService.uploadVideoDirectly(id, file, email);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/videos/youtube")
+    public ResponseEntity<VideoResponse> attachYoutubeVideo(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email,
+            @Valid @RequestBody YoutubeVideoRequest request
+    ) {
+        return ResponseEntity.ok(videoService.attachYoutubeVideo(id, request, email));
     }
 
     @GetMapping("/video")

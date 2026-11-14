@@ -54,10 +54,10 @@ export const PublicMatchCard: React.FC<{ match: PublicMatchItem }> = ({ match })
       </div>
       <div className="p-4 space-y-1">
         <h3 className="font-semibold text-ink leading-snug group-hover:text-pitch-deep transition-colors line-clamp-2">
-          {match.playerAName} <span className="font-normal text-ink/45">gặp</span> {match.playerBName}
+          {match.playerAName} <span className="font-normal text-ink/65">gặp</span> {match.playerBName}
         </h3>
-        {event && <p className="text-sm text-ink/60 truncate">{event}</p>}
-        <p className="text-xs text-ink/50 pt-1">
+        {event && <p className="text-sm text-ink/70 truncate">{event}</p>}
+        <p className="text-xs text-ink/65 pt-1">
           {match.totalRallies || 0} pha cầu · {match.totalStrokes || 0} cú đánh
         </p>
       </div>

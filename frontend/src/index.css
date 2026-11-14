@@ -171,6 +171,8 @@ body.theme-court :focus-visible {
 }
 @media (prefers-reduced-motion: reduce) {
   .marker-arrive, .frontier-glow { animation: none; }
+  /* Decorative motion stops; spinners keep turning since they signal work in progress. */
+  .animate-fade-in, .animate-pulse, .animate-ping, .animate-bounce { animation: none; }
 }
 
 /* Video seek bar: played part in court green, white thumb. */

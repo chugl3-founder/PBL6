@@ -37,7 +37,10 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ErrorResponse>) => {
-    if (error.response?.status === 401) {
+    // A 401 from login/register/password endpoints means wrong credentials, not an expired
+    // session: let the page show the message instead of reloading /login and losing it.
+    const isAuthRequest = (error.config?.url ?? '').startsWith('/auth/');
+    if (error.response?.status === 401 && !isAuthRequest) {
       // Token hết hạn hoặc chưa đăng nhập
       const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
       const refreshToken = localStorage.getItem('refresh_token');

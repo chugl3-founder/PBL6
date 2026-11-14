@@ -135,7 +135,7 @@ export const Navbar: React.FC = () => {
                     className="absolute right-0 mt-1.5 w-48 rounded-md bg-sheet border border-ink/10 shadow-lg py-1 text-sm text-ink"
                   >
                     <Link to="/profile" role="menuitem" className="flex items-center gap-2 px-3 py-2 hover:bg-ink/5">
-                      <User className="h-4 w-4 text-ink/60" />
+                      <User className="h-4 w-4 text-ink/70" />
                       Hồ sơ cá nhân
                     </Link>
                     <button

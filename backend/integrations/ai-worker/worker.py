@@ -16,6 +16,7 @@ Architecture:
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -31,11 +32,12 @@ from psycopg2.extras import Json, execute_values
 
 from app.config import settings
 from app.infrastructure.database import (
+    fetch_analysis_status,
     fetch_court_player_names,
     get_connection,
     update_analysis_status,
 )
-from app.infrastructure.object_storage import download_video
+from app.infrastructure.object_storage import download_video, download_youtube_video
 
 # Configure paths to import AI_Classifier modules
 AI_CLASSIFIER_ROOT = settings.ai_classifier_root
@@ -689,13 +691,26 @@ def process_job(payload: Dict[str, Any]):
     if not analysis_id or not match_id or not storage_path:
         raise ValueError(f"Invalid message payload: {payload}")
 
+    # A message is redelivered when the broker lost the connection before the ack, even after a finished job.
+    current = fetch_analysis_status(analysis_id)
+    # QUEUED is a new job and PROCESSING one whose worker died mid-run; anything else is already settled
+    # (a retry creates a new analysis row, so a FAILED one is never run again).
+    if current not in ("QUEUED", "PROCESSING"):
+        logger.info(f"=== [SKIPPED JOB] Analysis {analysis_id} is {current or 'gone'}; nothing to do ===")
+        return
+
     logger.info(f"=== [STARTING JOB] Analysis ID: {analysis_id}, Match ID: {match_id}, Video: {storage_path} ===")
     if not update_analysis_status(analysis_id, "PROCESSING"):
         raise RuntimeError(f"Database unavailable, analysis {analysis_id} not started")
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-        temp_video_path = Path(tmpdir) / Path(storage_path).name
-        download_video(storage_path, temp_video_path)
+        youtube_url = payload.get("youtubeUrl")
+        if youtube_url:
+            temp_video_path = Path(tmpdir) / f"match_{match_id}_youtube.mp4"
+            download_youtube_video(youtube_url, temp_video_path)
+        else:
+            temp_video_path = Path(tmpdir) / Path(storage_path).name
+            download_video(storage_path, temp_video_path)
 
         # Fall back to skeleton mode when AI_Classifier is not available (e.g. a CPU-only container).
         try:
@@ -738,13 +753,47 @@ def process_job(payload: Dict[str, Any]):
 DB_RETRY_SECONDS = 30
 
 
-def callback(ch, method, properties, body):
+def _settle(connection, channel, delivery_tag: int, ack: bool, requeue: bool = False) -> None:
+    """Acks or nacks from the job thread: pika channels may only be used on the connection's own thread."""
+
+    def settle() -> None:
+        if not channel.is_open:
+            logger.warning("Channel closed before the job was settled; the broker will redeliver it.")
+            return
+        if ack:
+            channel.basic_ack(delivery_tag=delivery_tag)
+            logger.info("<== [ACKNOWLEDGED] Message processed cleanly.")
+        else:
+            channel.basic_nack(delivery_tag=delivery_tag, requeue=requeue)
+
+    try:
+        connection.add_callback_threadsafe(settle)
+    except Exception as e:
+        # The connection dropped during the job. The message comes back on reconnect and process_job skips it
+        # if the analysis already finished.
+        logger.warning(f"Could not settle message ({e!r}); the broker will redeliver it.")
+
+
+# Analyses running in this process. After a reconnect the broker redelivers the in-flight message while its
+# first run is still going; the copy waits for that run instead of analysing the match a second time.
+_running: Dict[Any, threading.Event] = {}
+_running_lock = threading.Lock()
+
+
+def _run_job(connection, channel, delivery_tag: int, body: bytes) -> None:
+    finished = None
     try:
         payload = json.loads(body.decode("utf-8"))
         logger.info(f"==> [AMQP MESSAGE RECEIVED] {payload}")
+        analysis_id = payload.get("analysisId")
+        with _running_lock:
+            earlier = _running.get(analysis_id)
+            if earlier is None:
+                finished = _running[analysis_id] = threading.Event()
+        if earlier is not None:
+            logger.info(f"Analysis {analysis_id} is already running here; waiting for it before settling the copy.")
+            earlier.wait()
         process_job(payload)
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-        logger.info(f"<== [ACKNOWLEDGED] Message processed cleanly.")
     except Exception as e:
         logger.error(f"Error executing AI job: {e}", exc_info=True)
         recorded = True
@@ -758,12 +807,34 @@ def callback(ch, method, properties, body):
             # The failure could not be saved, so dropping the message would leave the row QUEUED forever.
             logger.warning(f"Database unavailable. Requeueing job in {DB_RETRY_SECONDS} seconds.")
             time.sleep(DB_RETRY_SECONDS)
-        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=not recorded)
+        _settle(connection, channel, delivery_tag, ack=False, requeue=not recorded)
+        return
+    finally:
+        if finished is not None:
+            with _running_lock:
+                _running.pop(analysis_id, None)
+            finished.set()
+    _settle(connection, channel, delivery_tag, ack=True)
+
+
+def callback(ch, method, properties, body):
+    """
+    Starts the job on its own thread and returns at once. A job takes longer than the 10-minute heartbeat, and
+    BlockingConnection only answers heartbeats while this thread is back in its loop; blocking here made
+    CloudAMQP drop the connection, so a finished analysis failed on the ack. prefetch_count=1 still keeps
+    one job at a time.
+    """
+    threading.Thread(
+        target=_run_job,
+        args=(ch.connection, ch, method.delivery_tag, body),
+        name=f"job-{method.delivery_tag}",
+        daemon=True,
+    ).start()
 
 
 def connect_to_rabbitmq():
     parameters = pika.URLParameters(AMQP_URL)
-    parameters.heartbeat = 600
+    parameters.heartbeat = int(os.getenv("AMQP_HEARTBEAT_SECONDS", "600"))
     parameters.blocked_connection_timeout = 300
 
     while True:
@@ -795,7 +866,7 @@ def main():
             channel.stop_consuming()
             connection.close()
             return
-        except pika.exceptions.AMQPConnectionError as e:
+        except Exception as e:
             logger.warning(f"Lost connection to CloudAMQP ({e!r}). Reconnecting in 5 seconds...")
             time.sleep(5)
 

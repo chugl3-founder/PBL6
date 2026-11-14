@@ -62,7 +62,7 @@ export const PlayerPicker: React.FC<PlayerPickerProps> = ({ value, onChange, pla
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="p-1.5 rounded-md text-ink/50 hover:text-ink hover:bg-ink/[0.06]"
+          className="p-1.5 rounded-md text-ink/65 hover:text-ink hover:bg-ink/[0.06]"
           aria-label={`Bỏ chọn ${value}`}
         >
           <X className="w-4 h-4" />
@@ -100,12 +100,12 @@ export const PlayerPicker: React.FC<PlayerPickerProps> = ({ value, onChange, pla
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
-        className="w-full h-12 pl-9 pr-3 rounded-lg bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/40 focus:outline-none focus:border-pitch"
+        className="w-full h-12 pl-9 pr-3 rounded-lg bg-sheet border border-ink/15 text-sm text-ink placeholder-ink/55 focus:outline-none focus:border-pitch"
       />
       {open && (
         <ul className="absolute z-20 mt-1 w-full max-h-80 overflow-auto rounded-lg bg-sheet border border-ink/15 shadow-lg py-1" role="listbox">
           {results.length === 0 ? (
-            <li className="px-3 py-3 text-sm text-ink/50">Không có vận động viên phù hợp</li>
+            <li className="px-3 py-3 text-sm text-ink/65">Không có vận động viên phù hợp</li>
           ) : (
             results.map((p, i) => {
               const rate = winRate(p.ralliesWon, p.ralliesLost);
@@ -124,12 +124,12 @@ export const PlayerPicker: React.FC<PlayerPickerProps> = ({ value, onChange, pla
                   <PlayerMonogram name={p.name} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-ink truncate">{p.name}</p>
-                    <p className="text-xs text-ink/50">
+                    <p className="text-xs text-ink/65">
                       {p.analyzedMatchCount}/{p.matchCount} trận đã phân tích
                       {p.playstyle && ` · ${playstyleLabel(p.playstyle)}`}
                     </p>
                   </div>
-                  {rate != null && <span className="text-xs tabular-nums text-ink/60">{rate}% điểm</span>}
+                  {rate != null && <span className="text-xs tabular-nums text-ink/70">{rate}% điểm</span>}
                 </li>
               );
             })

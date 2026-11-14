@@ -83,7 +83,7 @@ export const HomePage: React.FC = () => {
             <li key={step.title} className="rounded-lg bg-sheet border border-ink/10 p-5 space-y-2">
               <span className="font-score text-3xl font-semibold text-pitch leading-none">{index + 1}</span>
               <h3 className="font-semibold text-ink">{step.title}</h3>
-              <p className="text-sm text-ink/60 leading-relaxed">{step.text}</p>
+              <p className="text-sm text-ink/70 leading-relaxed">{step.text}</p>
             </li>
           ))}
         </ol>
@@ -94,7 +94,7 @@ export const HomePage: React.FC = () => {
         <div className="flex items-end justify-between gap-4">
           <div>
             <h2 id="sample-title" className="text-2xl font-bold text-ink">Trận mẫu đã phân tích</h2>
-            <p className="text-sm text-ink/60 mt-1">Trận giải quốc tế, xem thử không cần tài khoản.</p>
+            <p className="text-sm text-ink/70 mt-1">Trận giải quốc tế, xem thử không cần tài khoản.</p>
           </div>
           <Link
             to="/public-matches"
@@ -112,7 +112,7 @@ export const HomePage: React.FC = () => {
             ))}
           </div>
         ) : featuredMatches.length === 0 ? (
-          <p className="text-sm text-ink/55">Chưa có trận mẫu nào.</p>
+          <p className="text-sm text-ink/70">Chưa có trận mẫu nào.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {featuredMatches.map((item) => (
