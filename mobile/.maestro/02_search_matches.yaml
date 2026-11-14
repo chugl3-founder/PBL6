@@ -1,0 +1,44 @@
+appId: host.exp.exponent
+name: "MT-04 Search & filter"
+tags: [functionG]
+---
+- runFlow: subflows/go_home.yaml
+- extendedWaitUntil:
+    visible: "Danh Sách Trận Đấu \\(5\\)"
+    timeout: 20000
+
+# Positive: lọc theo tên tuyển thủ
+- tapOn:
+    id: "search-match-input"
+- inputText: "Axelsen"
+- extendedWaitUntil:
+    visible: "Danh Sách Trận Đấu \\(3\\)"     # API trả đúng 3 trận có Axelsen
+    timeout: 10000
+- assertNotVisible: ".*Chou Tien Chen.*"
+- assertNotVisible: ".*Ginting.*"
+
+# Clear bằng testID (không dùng toạ độ)
+- tapOn:
+    id: "btn-clear-search"
+- extendedWaitUntil:
+    visible: "Danh Sách Trận Đấu \\(5\\)"
+    timeout: 10000
+- assertNotVisible:
+    id: "btn-clear-search"
+
+# Negative: từ khoá không tồn tại
+- tapOn:
+    id: "search-match-input"
+- inputText: "zzzkhongtontai"
+- extendedWaitUntil:
+    visible: "Danh Sách Trận Đấu \\(0\\)"
+    timeout: 10000
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "Không tìm thấy trận đấu nào"
+    timeout: 10000
+- tapOn:
+    id: "btn-clear-search"
+- extendedWaitUntil:
+    visible: "Danh Sách Trận Đấu \\(5\\)"
+    timeout: 10000

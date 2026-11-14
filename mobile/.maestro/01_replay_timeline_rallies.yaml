@@ -1,0 +1,57 @@
+appId: host.exp.exponent
+name: "MT-01..03 Replay, Timeline seek, Rallies"
+tags: [functionG]
+---
+- runFlow: subflows/go_home.yaml
+# Tiền điều kiện: app đang ở màn Khám phá, chưa đăng nhập, backend có 5 trận đấu công khai
+- extendedWaitUntil:
+    visible: "Danh Sách Trận Đấu \\(5\\)"
+    timeout: 20000
+
+# ---------- MT-01: mở Replay ----------
+- tapOn: "Chung kết"
+- extendedWaitUntil:
+    visible:
+      id: "tab-events"
+    timeout: 30000
+- assertVisible:
+    id: "btn-back-replay"
+- assertVisible: "Cú đánh \\(99\\)"          # khớp totalStrokes của trận Chung kết (ID 13)
+- assertVisible: "Pha cầu \\(7\\)"           # khớp totalRallies của trận Chung kết (ID 13)
+- assertVisible:
+    id: "tab-court"
+- assertVisible: "0:00"                        # video chưa phát, ở đầu
+
+# ---------- MT-02: chạm cú đánh -> video seek đúng giây ----------
+- tapOn:
+    text: "NET_SHOT"
+    index: 0                                   # cú NET_SHOT đầu tiên ở 35.3s
+- extendedWaitUntil:
+    visible: "0:3[4-6]"
+    timeout: 5000
+- assertNotVisible: "0:00"
+
+# ---------- Tab Sân 2D ----------
+- tapOn:
+    id: "tab-court"
+- assertVisible: ".*\\(Sân trên\\)"
+- assertVisible: ".*\\(Sân dưới\\)"
+
+# ---------- MT-03: chọn Pha cầu #3 -> seek tới startTime 116.4s (1:56) ----------
+- tapOn:
+    id: "tab-rallies"
+- scrollUntilVisible:
+    element: "Pha cầu #3"
+    direction: DOWN
+- tapOn:
+    text: "Pha cầu #3"
+    index: 0
+- extendedWaitUntil:
+    visible: "1:5[5-7]"
+    timeout: 5000
+- assertVisible: ".*15 - 17.*"                  # tỷ số sau pha #3 theo API
+
+# ---------- quay lại ----------
+- tapOn:
+    id: "btn-back-replay"
+- assertVisible: "Danh Sách Trận Đấu \\(5\\)"

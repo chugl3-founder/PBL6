@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
+import { ChatWidget } from '../chat/ChatWidget';
 
 // Pages in the light "court" identity: every client page (landing, library, players, scouting,
 // the coach's matches, create, detail, replay, account and profile pages).
@@ -33,6 +34,7 @@ export const MainLayout: React.FC = () => {
       </main>
       {/* Only the landing page needs an ending; work pages stop where the work stops. */}
       {location.pathname === '/' && <Footer />}
+      <ChatWidget />
     </div>
   );
 };

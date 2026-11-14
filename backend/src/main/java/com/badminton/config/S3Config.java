@@ -33,8 +33,11 @@ public class S3Config {
 
     @Bean
     public S3Presigner s3Presigner() {
+        String presignerEndpoint = (properties.publicUrl() != null && !properties.publicUrl().isBlank())
+                ? properties.publicUrl()
+                : properties.endpoint();
         return S3Presigner.builder()
-                .endpointOverride(URI.create(properties.endpoint()))
+                .endpointOverride(URI.create(presignerEndpoint))
                 .region(Region.of(properties.region()))
                 .credentialsProvider(StaticCredentialsProvider.create(credentials()))
                 .serviceConfiguration(serviceConfiguration())

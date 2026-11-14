@@ -1,0 +1,40 @@
+appId: host.exp.exponent
+name: "Guest preview 5 min limit"
+tags: [functionG, security]
+---
+- runFlow: subflows/go_home.yaml
+# Tiền điều kiện: CHƯA đăng nhập (banner Khách vãng lai hiển thị)
+- extendedWaitUntil:
+    visible: "Danh Sách Trận Đấu \\(5\\)"
+    timeout: 20000
+- assertVisible: "Chế độ Khách vãng lai.*"
+
+# Trận Fuzhou Open 2019 dài 83 phút; pha cầu #1 bắt đầu tại 383s (> 300s)
+- scrollUntilVisible:
+    element: "Fuzhou Open 2019.*"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Fuzhou Open 2019.*"
+- extendedWaitUntil:
+    visible:
+      id: "tab-rallies"
+    timeout: 30000
+- tapOn:
+    id: "tab-rallies"
+- tapOn:
+    text: "Pha cầu #1"
+    index: 0
+- extendedWaitUntil:
+    visible: "Thời gian xem thử kết thúc"
+    timeout: 5000
+- assertVisible: "Đăng nhập ngay"
+- tapOn:
+    id: "btn-close-guest-modal"
+- assertNotVisible: "Thời gian xem thử kết thúc"
+- tapOn:
+    id: "btn-back-replay"
+- scrollUntilVisible:
+    element:
+      id: "search-match-input"
+    direction: UP
+    timeout: 20000

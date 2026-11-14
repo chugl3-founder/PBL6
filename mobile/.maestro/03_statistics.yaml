@@ -1,0 +1,60 @@
+appId: host.exp.exponent
+name: "MT-05..07 Statistics dashboard"
+tags: [functionH]
+---
+- runFlow: subflows/go_home.yaml
+- extendedWaitUntil:
+    visible: "Danh Sách Trận Đấu \\(5\\)"
+    timeout: 20000
+- tapOn:
+    text: "Thống kê"
+    index: 0
+
+# ---------- MT-05: Tổng quan ----------
+- extendedWaitUntil:
+    visible:
+      id: "btn-back-stats"
+    timeout: 15000
+- assertVisible: "Kento Momota vs Viktor Axelsen"
+- assertVisible: "Tổng cú đánh"
+- assertVisible: "99"
+- assertVisible: "Tổng pha cầu"
+- assertVisible: "Chạm / Pha TB"
+- assertVisible: "Thời lượng TB"
+- assertVisible: "45 cú \\(45%\\)"
+- assertVisible: "54 cú \\(55%\\)"
+- scrollUntilVisible:
+    element: "Thuận tay \\(Forehand\\)"
+- assertVisible: "Vòng qua đầu.*"
+# Kiểm tra logic: không được hiển thị 0 nhưng 100%
+- assertNotVisible: "0 \\(100%\\)"
+
+# ---------- MT-06: Biểu đồ cú đánh ----------
+- swipe:
+    direction: DOWN
+    duration: 400
+- swipe:
+    direction: DOWN
+    duration: 400
+- tapOn: "Biểu đồ cú đánh"
+- assertVisible: "Biểu Đồ Tròn Phân Bố Cú Đánh"
+- assertVisible: "Kéo lưới \\(Net Shot\\)"
+- assertVisible: "Đập cầu \\(Smash\\)"
+- scrollUntilVisible:
+    element: "Biểu Đồ Cột Tần Suất Kỹ Thuật"
+
+# ---------- MT-07: Chiến thuật AI ----------
+- swipe:
+    direction: DOWN
+    duration: 400
+- swipe:
+    direction: DOWN
+    duration: 400
+- tapOn: "Chiến thuật AI"
+- assertVisible: "Biểu Đồ Radar.*"
+- assertVisible: "TRỤC KỸ NĂNG"
+- scrollUntilVisible:
+    element: "2-Gram"
+
+- tapOn:
+    id: "btn-back-stats"

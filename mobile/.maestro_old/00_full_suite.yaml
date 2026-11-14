@@ -1,0 +1,18 @@
+appId: host.exp.exponent
+---
+# ==============================================================================
+# MASTER FLOW: Bộ Kiểm Thử E2E Toàn Diện Ứng Dụng Di Động Theo Chuẩn Báo Cáo
+# Khớp 100% danh sách 7 Test Cases trong Test Report.xlsx:
+#   - Nhóm Function G: MT-01, MT-02, MT-03 (Phát lại Replay, Timeline & Rallies)
+#   - Nhóm Function G: MT-04 (Tìm kiếm & Lọc danh sách trận đấu)
+#   - Nhóm Function H: MT-05, MT-06, MT-07 (Dashboard Thống kê, Biểu đồ & Radar AI)
+# ==============================================================================
+
+# 1. Chạy Flow 1: Kiểm thử màn hình Replay, Timeline & Pha cầu (MT-01, MT-02, MT-03)
+- runFlow: 01_view_replay.yaml
+
+# 2. Chạy Flow 2: Kiểm thử Tìm kiếm & Lọc trận đấu (MT-04)
+- runFlow: 02_search_matches.yaml
+
+# 3. Chạy Flow 3: Kiểm thử Dashboard Thống Kê, Biểu Đồ SVG & Radar 5 Trục (MT-05, MT-06, MT-07)
+- runFlow: 03_view_statistics.yaml
