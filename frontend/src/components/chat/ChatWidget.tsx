@@ -55,6 +55,18 @@ export const ChatWidget: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
+  // Browser key: UUID cố định lưu trong localStorage, dùng để xác thực quyền sở hữu lịch sử chat
+  // Mỗi trình duyệt/thiết bị có một browser_key riêng → không ai có thể xem lịch sử chat của người khác
+  const [browserKey] = useState<string>(() => {
+    const STORAGE_KEY = 'badminton_coach_browser_key';
+    let key = localStorage.getItem(STORAGE_KEY);
+    if (!key) {
+      key = crypto.randomUUID();
+      localStorage.setItem(STORAGE_KEY, key);
+    }
+    return key;
+  });
+
   // Tính năng 1: Voice Mic (Speech-to-Text) & Text-to-Speech (TTS)
   const [isListening, setIsListening] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
@@ -85,12 +97,16 @@ export const ChatWidget: React.FC = () => {
     }
   }, []);
 
-  // Tải danh sách các trận đấu có số liệu thống kê để phục vụ So sánh phong độ
+  // Tải danh sách các trận đấu có số liệu thống kê để phục vụ So sánh phong độ (có truyền JWT xác thực)
   const fetchAvailableMatches = useCallback(async () => {
     if (availableMatches.length > 0) return;
     setLoadingMatches(true);
     try {
-      const res = await fetch(`${COACH_API_URL}/api/matches/list`);
+      const token = localStorage.getItem('access_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${COACH_API_URL}/api/matches/list`, { headers });
       const data = await res.json();
       if (data && data.matches) {
         setAvailableMatches(data.matches);
@@ -198,10 +214,23 @@ export const ChatWidget: React.FC = () => {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Tải chi tiết tin nhắn của một Session cụ thể
+  // Tải chi tiết tin nhắn của một Session cụ thể (bảo vệ quyền riêng tư qua browserKey và JWT)
   const loadSessionMessages = useCallback(async (sid: string) => {
     try {
-      const res = await fetch(`${COACH_API_URL}/api/chat/history/${sid}`);
+      const token = localStorage.getItem('access_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${COACH_API_URL}/api/chat/history/${sid}?browser_key=${browserKey}`, { headers });
+      if (!res.ok) {
+        if (res.status === 403 || res.status === 401) {
+          console.warn('Không có quyền truy cập session này.');
+          localStorage.removeItem(storageKey);
+          setSessionId(null);
+          setMessages([WELCOME_MESSAGE]);
+        }
+        return;
+      }
       const data = await res.json();
       if (data && data.messages && data.messages.length > 0) {
         const loaded: Message[] = data.messages.map((m: any) => ({
@@ -218,12 +247,21 @@ export const ChatWidget: React.FC = () => {
     } catch (err) {
       console.warn('Lỗi tải tin nhắn session:', err);
     }
-  }, [storageKey]);
+  }, [storageKey, browserKey]);
 
-  // Tải danh sách tất cả các phiên chat từ Database
+  // Tải danh sách tất cả các phiên chat của riêng người dùng từ Database
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch(`${COACH_API_URL}/api/chat/sessions${currentMatchId ? `?match_id=${currentMatchId}` : ''}`);
+      const token = localStorage.getItem('access_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const queryParams = new URLSearchParams({
+        browser_key: browserKey,
+        ...(currentMatchId ? { match_id: currentMatchId.toString() } : {})
+      });
+
+      const res = await fetch(`${COACH_API_URL}/api/chat/sessions?${queryParams.toString()}`, { headers });
       const data = await res.json();
       if (data && data.sessions) {
         setSessionsList(data.sessions);
@@ -233,7 +271,7 @@ export const ChatWidget: React.FC = () => {
       console.warn('Lỗi lấy danh sách session:', err);
     }
     return [];
-  }, [currentMatchId]);
+  }, [currentMatchId, browserKey]);
 
   // 1. Tự động khôi phục lịch sử chat từ Database Supabase khi load trang
   useEffect(() => {
@@ -351,13 +389,18 @@ export const ChatWidget: React.FC = () => {
     setShowCompareModal(false);
 
     try {
+      const token = localStorage.getItem('access_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(`${COACH_API_URL}/api/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           message: query,
           match_id: currentMatchId,
-          session_id: sessionId || undefined
+          session_id: sessionId || undefined,
+          browser_key: browserKey
         })
       });
 

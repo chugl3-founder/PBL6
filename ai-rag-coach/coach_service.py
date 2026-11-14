@@ -1,10 +1,14 @@
 import os
 import re
 import json
+import contextvars
 import psycopg2
 from typing import Optional, List, Dict, Any, Generator
 from google import genai
 from google.genai import types
+
+# Biến ngữ cảnh an toàn cho thread/async lưu user_id và role của người gọi
+current_user_context = contextvars.ContextVar('current_user_context', default={'user_id': None, 'role': None})
 
 def load_env(filepath):
     env_vars = {}
@@ -72,23 +76,59 @@ def search_badminton_knowledge(query: str, category: Optional[str] = None) -> Li
     except Exception as e:
         return [{"error": f"Lỗi tìm kiếm tri thức: {str(e)}"}]
 
+def check_match_access(cur, match_id: int) -> tuple[bool, Optional[str], Optional[tuple]]:
+    """
+    KIỂM TRA BẢO MẬT PHÂN QUYỀN TRẬN ĐẤU:
+    1. Trận có status = 'PUBLISHED' và deleted_at IS NULL: Công khai, cho phép mọi người (kể cả Guest).
+    2. Người dùng có role = 'ROLE_ADMIN': Cho phép truy cập.
+    3. Người dùng đăng nhập có user_id trùng với owner_id: Cho phép chủ sở hữu trận đấu truy cập.
+    4. Các trường hợp khác: TỪ CHỐI TRUY CẬP để bảo vệ video/trận đấu riêng tư của người dùng.
+    """
+    cur.execute("""
+        SELECT id, title, player_a_name, player_b_name, status, start_score_a, start_score_b, owner_id
+        FROM matches 
+        WHERE id = %s AND deleted_at IS NULL;
+    """, (match_id,))
+    m_row = cur.fetchone()
+    if not m_row:
+        return False, f"Không tìm thấy trận đấu với ID {match_id} (hoặc trận đấu đã bị xóa).", None
+
+    status = m_row[4]
+    owner_id = m_row[7]
+
+    ctx = current_user_context.get()
+    user_id = ctx.get('user_id')
+    user_role = ctx.get('role')
+
+    # Trận công khai
+    if status == 'PUBLISHED':
+        return True, None, m_row
+
+    # Quản trị viên
+    if user_role == 'ROLE_ADMIN':
+        return True, None, m_row
+
+    # Chủ sở hữu
+    if user_id is not None and owner_id == user_id:
+        return True, None, m_row
+
+    # Bị từ chối
+    return False, f"QUYỀN RIÊNG TƯ: Trận đấu #{match_id} là trận đấu riêng tư của người dùng khác. Bạn không có quyền xem hoặc phân tích số liệu trận này.", None
+
 def get_match_statistics(match_id: int) -> Dict[str, Any]:
     """
     Lấy dữ liệu thống kê tổng thể của một trận đấu cầu lông theo match_id: Tên người chơi, tỷ số, tổng số cú đánh, tỉ lệ thuận/trái tay, thời lượng trung bình một pha cầu.
+    Được bảo vệ bằng phân quyền: Chỉ cho phép xem nếu trận đấu là PUBLISHED hoặc thuộc sở hữu của người dùng.
     """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("""
-            SELECT id, title, player_a_name, player_b_name, status, start_score_a, start_score_b
-            FROM matches WHERE id = %s;
-        """, (match_id,))
-        m_row = cur.fetchone()
-        if not m_row:
+        allowed, err_msg, m_row = check_match_access(cur, match_id)
+        if not allowed or not m_row:
             cur.close()
             conn.close()
-            return {"error": f"Không tìm thấy trận đấu với ID {match_id}"}
+            return {"error": err_msg}
             
         cur.execute("""
             SELECT total_strokes, total_rallies, avg_strokes_per_rally, avg_rally_duration,
@@ -127,11 +167,18 @@ def get_match_statistics(match_id: int) -> Dict[str, Any]:
 def get_match_rallies_and_point_losses(match_id: int, limit: int = 15) -> List[Dict[str, Any]]:
     """
     Lấy danh sách các pha cầu (rallies) tiêu biểu của trận đấu: số thứ tự pha cầu, thời gian bắt đầu (giây), thời gian kết thúc, bên thắng, lý do thắng/thua, diễn biến tỷ số.
+    Được bảo vệ bằng phân quyền: Chỉ cho phép xem nếu trận đấu là PUBLISHED hoặc thuộc sở hữu của người dùng.
     """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
+        allowed, err_msg, _ = check_match_access(cur, match_id)
+        if not allowed:
+            cur.close()
+            conn.close()
+            return [{"error": err_msg}]
+
         cur.execute("""
             SELECT rally_number, start_time, end_time, duration, total_strokes,
                    winner_side, win_reason, score_text
@@ -158,6 +205,7 @@ def get_match_rallies_and_point_losses(match_id: int, limit: int = 15) -> List[D
             })
         return results
     except Exception as e:
+        return [{"error": f"Lỗi lấy danh sách pha cầu: {str(e)}"}]
         return [{"error": f"Lỗi lấy danh sách pha cầu: {str(e)}"}]
 
 def get_scouting_report(opponent_name: str) -> Dict[str, Any]:
@@ -194,23 +242,20 @@ def get_scouting_report(opponent_name: str) -> Dict[str, Any]:
 
 def compare_match_performances(match_id_1: int, match_id_2: int) -> Dict[str, Any]:
     """
-    So sánh toàn diện phong độ, nhịp độ và các chỉ số kỹ thuật/chiến thuật giữa 2 trận đấu cầu lông:
-    - match_id_1: ID trận đấu thứ nhất (ví dụ trận 1)
-    - match_id_2: ID trận đấu thứ hai (ví dụ trận 2)
-    Trả về số liệu so sánh song song: tổng cú đánh, thời lượng rally, tỷ lệ thuận/trái tay, pha cầu bền, các loại điểm ghi/mất.
+    So sánh toàn diện phong độ, nhịp độ và các chỉ số kỹ thuật/chiến thuật giữa 2 trận đấu cầu lông.
+    - match_id_1: ID trận đấu thứ nhất
+    - match_id_2: ID trận đấu thứ hai
+    Được bảo vệ bằng phân quyền: Chỉ so sánh được nếu trận đấu là PUBLISHED (công khai), hoặc là trận do chính người dùng sở hữu / quyền Admin.
     """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
         def fetch_single_match(mid: int):
-            cur.execute("""
-                SELECT id, title, player_a_name, player_b_name, status, start_score_a, start_score_b
-                FROM matches WHERE id = %s;
-            """, (mid,))
-            m_row = cur.fetchone()
-            if not m_row:
-                return None
+            # BẢO MẬT: Kiểm tra quyền xem trận qua check_match_access
+            allowed, err_msg, m_row = check_match_access(cur, mid)
+            if not allowed or not m_row:
+                return None, err_msg
                 
             cur.execute("""
                 SELECT total_strokes, total_rallies, avg_strokes_per_rally, avg_rally_duration,
@@ -263,18 +308,18 @@ def compare_match_performances(match_id_1: int, match_id_2: int) -> Dict[str, An
                 "max_rally_duration_seconds": round(max_duration, 1),
                 "max_strokes_in_single_rally": max_strokes,
                 "win_reasons_breakdown": win_reasons
-            }
+            }, None
 
-        m1_data = fetch_single_match(match_id_1)
-        m2_data = fetch_single_match(match_id_2)
+        m1_data, err1 = fetch_single_match(match_id_1)
+        m2_data, err2 = fetch_single_match(match_id_2)
         
         cur.close()
         conn.close()
         
         if not m1_data:
-            return {"error": f"Không tìm thấy dữ liệu cho trận đấu #{match_id_1}"}
+            return {"error": err1 or f"Không tìm thấy dữ liệu cho trận đấu #{match_id_1}"}
         if not m2_data:
-            return {"error": f"Không tìm thấy dữ liệu cho trận đấu #{match_id_2}"}
+            return {"error": err2 or f"Không tìm thấy dữ liệu cho trận đấu #{match_id_2}"}
             
         return {
             "match_1": m1_data,
@@ -328,51 +373,66 @@ def extract_citations(text: str) -> List[Dict[str, Any]]:
         })
     return citations
 
-def ask_coach_stream(message: str, match_id: Optional[int] = None) -> Generator[str, None, None]:
-    """Hàm xử lý câu hỏi và stream từng từ (chunks) ra thời gian thực."""
-    context_message = message
-    if match_id:
-        context_message = f"[Ngữ cảnh: Người dùng đang xem trận đấu match_id={match_id}]\nCâu hỏi: {message}"
-        
-    tools = [
-        search_badminton_knowledge,
-        get_match_statistics,
-        get_match_rallies_and_point_losses,
-        get_scouting_report,
-        compare_match_performances
-    ]
+def ask_coach_stream(
+    message: str, 
+    match_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+    user_role: Optional[str] = None
+) -> Generator[str, None, None]:
+    """Hàm xử lý câu hỏi và stream từng từ (chunks) ra thời gian thực, có thiết lập ngữ cảnh quyền người dùng."""
+    # Thiết lập ngữ cảnh bảo mật cho các Tool bên trong
+    token = current_user_context.set({"user_id": user_id, "role": user_role})
+    try:
+        context_message = message
+        if match_id:
+            context_message = f"[Ngữ cảnh: Người dùng đang xem trận đấu match_id={match_id}]\nCâu hỏi: {message}"
+            
+        tools = [
+            search_badminton_knowledge,
+            get_match_statistics,
+            get_match_rallies_and_point_losses,
+            get_scouting_report,
+            compare_match_performances
+        ]
 
-    models = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']
-    last_err = None
+        models = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']
+        last_err = None
 
-    for m in models:
-        try:
-            chat = client.chats.create(
-                model=m,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    tools=tools,
-                    temperature=0.3
+        for m in models:
+            try:
+                chat = client.chats.create(
+                    model=m,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        tools=tools,
+                        temperature=0.3
+                    )
                 )
-            )
-            resp = chat.send_message(context_message)
-            full_text = resp.text or ""
-            if full_text:
-                words = full_text.split(" ")
-                for i, w in enumerate(words):
-                    yield w + (" " if i < len(words) - 1 else "")
-                return
-        except Exception as e:
-            last_err = e
-            continue
+                resp = chat.send_message(context_message)
+                full_text = resp.text or ""
+                if full_text:
+                    words = full_text.split(" ")
+                    for i, w in enumerate(words):
+                        yield w + (" " if i < len(words) - 1 else "")
+                    return
+            except Exception as e:
+                last_err = e
+                continue
 
-    if last_err:
-        yield f"⚠️ Lỗi kết nối AI: {str(last_err)}"
+        if last_err:
+            yield f"⚠️ Lỗi kết nối AI: {str(last_err)}"
+    finally:
+        current_user_context.reset(token)
 
-def ask_coach(message: str, match_id: Optional[int] = None) -> Dict[str, Any]:
-    """Hàm xử lý câu hỏi dạng sync thông thường."""
+def ask_coach(
+    message: str, 
+    match_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+    user_role: Optional[str] = None
+) -> Dict[str, Any]:
+    """Hàm xử lý câu hỏi dạng sync thông thường, có thiết lập ngữ cảnh quyền người dùng."""
     full_text = ""
-    for chunk in ask_coach_stream(message, match_id):
+    for chunk in ask_coach_stream(message, match_id, user_id, user_role):
         full_text += chunk
     return {
         "reply": full_text,
