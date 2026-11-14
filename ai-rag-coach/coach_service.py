@@ -1,14 +1,25 @@
 import os
 import re
 import json
-import contextvars
+import threading
 import psycopg2
 from typing import Optional, List, Dict, Any, Generator
 from google import genai
 from google.genai import types
 
-# Biến ngữ cảnh an toàn cho thread/async lưu user_id và role của người gọi
-current_user_context = contextvars.ContextVar('current_user_context', default={'user_id': None, 'role': None})
+# Biến ngữ cảnh ThreadLocal lưu user_id và role của người gọi an toàn qua generator
+_local_auth_context = threading.local()
+
+def set_auth_context(user_id: Optional[int], role: Optional[str]):
+    _local_auth_context.user_id = user_id
+    _local_auth_context.role = role
+
+def get_auth_context() -> tuple[Optional[int], Optional[str]]:
+    return getattr(_local_auth_context, 'user_id', None), getattr(_local_auth_context, 'role', None)
+
+def clear_auth_context():
+    _local_auth_context.user_id = None
+    _local_auth_context.role = None
 
 def load_env(filepath):
     env_vars = {}
@@ -96,9 +107,7 @@ def check_match_access(cur, match_id: int) -> tuple[bool, Optional[str], Optiona
     status = m_row[4]
     owner_id = m_row[7]
 
-    ctx = current_user_context.get()
-    user_id = ctx.get('user_id')
-    user_role = ctx.get('role')
+    user_id, user_role = get_auth_context()
 
     # Trận công khai
     if status == 'PUBLISHED':
@@ -379,9 +388,8 @@ def ask_coach_stream(
     user_id: Optional[int] = None,
     user_role: Optional[str] = None
 ) -> Generator[str, None, None]:
-    """Hàm xử lý câu hỏi và stream từng từ (chunks) ra thời gian thực, có thiết lập ngữ cảnh quyền người dùng."""
-    # Thiết lập ngữ cảnh bảo mật cho các Tool bên trong
-    token = current_user_context.set({"user_id": user_id, "role": user_role})
+    """Hàm xử lý câu hỏi và stream từng từ (chunks) ra thời gian thực, có thiết lập ngữ cảnh quyền người dùng an toàn."""
+    set_auth_context(user_id, user_role)
     try:
         context_message = message
         if match_id:
@@ -422,7 +430,7 @@ def ask_coach_stream(
         if last_err:
             yield f"⚠️ Lỗi kết nối AI: {str(last_err)}"
     finally:
-        current_user_context.reset(token)
+        clear_auth_context()
 
 def ask_coach(
     message: str, 
