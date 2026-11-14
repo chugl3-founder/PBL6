@@ -357,12 +357,40 @@ export const ChatWidget: React.FC = () => {
     }
   }, [messages, isOpen, showHistory, showCompareModal, showRecommendModal]);
 
-  // Điều hướng video player trên trang đến giây cụ thể
-  const handleSeekVideo = (seconds: number) => {
-    const video = document.querySelector('video') as HTMLVideoElement | null;
-    if (video) {
-      video.currentTime = seconds;
-      video.play().catch(() => {});
+  // Điều hướng video player trên trang đến giây cụ thể (hỗ trợ cả HTML5 Video, YouTube iframe & mở tab Replay nếu ở trang khác)
+  const handleSeekVideo = (seconds: number, targetMatchId?: string | number | null) => {
+    const currentPath = window.location.pathname;
+    const pathMatch = currentPath.match(/\/(?:public-matches|matches)\/(\d+)/);
+    const currentUrlMatchId = pathMatch ? pathMatch[1] : null;
+    const isOnReplayPage = currentPath.includes('/replay') || (Boolean(currentUrlMatchId) && !currentPath.includes('/edit'));
+
+    const effectiveTargetId = targetMatchId 
+      ? String(targetMatchId) 
+      : (currentUrlMatchId || (currentMatchId ? String(currentMatchId) : null));
+
+    // Nếu đang ở đúng trang replay của trận đó (hoặc đang ở trang replay và không có chỉ định id khác):
+    if (isOnReplayPage && (!effectiveTargetId || effectiveTargetId === currentUrlMatchId)) {
+      // 1. Phát CustomEvent cho MatchReplayPage (xử lý cả YouTube iframe lẫn HTML5 video)
+      window.dispatchEvent(new CustomEvent('badminton:seek-video', { detail: { seconds } }));
+
+      // 2. Tua trực tiếp thẻ HTML5 video nếu có
+      const video = document.querySelector('video') as HTMLVideoElement | null;
+      if (video) {
+        video.currentTime = seconds;
+        video.play().catch(() => {});
+      }
+    } else if (effectiveTargetId) {
+      // Nếu đang ở trang khác (trang chủ, danh sách) hoặc ở trận khác: Mở Replay của trận đó trong tab mới kèm tham số ?t=seconds
+      const targetUrl = `/public-matches/${effectiveTargetId}/replay?t=${seconds}`;
+      window.open(targetUrl, '_blank');
+    } else {
+      // Fallback
+      window.dispatchEvent(new CustomEvent('badminton:seek-video', { detail: { seconds } }));
+      const video = document.querySelector('video') as HTMLVideoElement | null;
+      if (video) {
+        video.currentTime = seconds;
+        video.play().catch(() => {});
+      }
     }
   };
 
@@ -549,7 +577,12 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
     const elements: React.ReactNode[] = [];
     let tableBuffer: string[] = [];
 
-    const flushTable = (tableKey: string) => {
+    // Tìm match_id bao quát trong cả nội dung tin nhắn nếu có
+    const globalMatchId = content.match(/\[Xem trận(?:\s*đấu)?\s*#(\d+)\]/)?.[1]
+      || content.match(/(?:Trận|trận)\s*#(\d+)/)?.[1]
+      || (currentMatchId ? String(currentMatchId) : null);
+
+    const flushTable = (tableKey: string, tableMatchId?: string | null) => {
       if (tableBuffer.length === 0) return;
       
       const rows = tableBuffer.map(r => 
@@ -567,7 +600,7 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
             <thead className="bg-slate-100 text-slate-900 font-semibold border-b border-slate-200">
               <tr>
                 {headers.map((h, i) => (
-                  <th key={i} className="px-2.5 py-1.5 whitespace-nowrap">{renderBoldAndCitations(h)}</th>
+                  <th key={i} className="px-2.5 py-1.5 whitespace-nowrap">{renderBoldAndCitations(h, tableMatchId)}</th>
                 ))}
               </tr>
             </thead>
@@ -576,7 +609,7 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
                 <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}>
                   {row.map((cell, cIdx) => (
                     <td key={cIdx} className="px-2.5 py-1.5 font-medium leading-snug">
-                      {renderBoldAndCitations(cell)}
+                      {renderBoldAndCitations(cell, tableMatchId)}
                     </td>
                   ))}
                 </tr>
@@ -587,12 +620,23 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
       );
     };
 
+    let currentSectionMatchId: string | null = globalMatchId;
+
     rawLines.forEach((line, idx) => {
+      // Nhận diện trận đấu cụ thể nếu dòng/tiêu đề đề cập đến một trận nhất định
+      const lineMatchId = line.match(/\[Xem trận(?:\s*đấu)?\s*#(\d+)\]/)?.[1]
+        || line.match(/(?:Trận|trận)\s*#(\d+)/)?.[1]
+        || currentSectionMatchId;
+
+      if (line.match(/(?:Trận|trận)\s*#(\d+)/)) {
+        currentSectionMatchId = line.match(/(?:Trận|trận)\s*#(\d+)/)![1];
+      }
+
       if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
         tableBuffer.push(line);
       } else {
         if (tableBuffer.length > 0) {
-          flushTable(`table-${idx}`);
+          flushTable(`table-${idx}`, currentSectionMatchId);
         }
         if (line.startsWith('### ')) {
           elements.push(<h4 key={idx} className="font-bold text-emerald-800 mt-2 mb-1 text-sm">{line.replace('### ', '')}</h4>);
@@ -602,7 +646,7 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
           const text = line.trim().replace(/^[\*\-]\s+/, '');
           elements.push(
             <li key={idx} className="ml-4 list-disc text-sm text-slate-700 my-0.5 leading-relaxed">
-              {renderBoldAndCitations(text)}
+              {renderBoldAndCitations(text, lineMatchId)}
             </li>
           );
         } else if (line.trim() === '---') {
@@ -610,19 +654,19 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
         } else if (!line.trim()) {
           elements.push(<div key={idx} className="h-1" />);
         } else {
-          elements.push(<p key={idx} className="text-sm text-slate-700 my-0.5 leading-relaxed">{renderBoldAndCitations(line)}</p>);
+          elements.push(<p key={idx} className="text-sm text-slate-700 my-0.5 leading-relaxed">{renderBoldAndCitations(line, lineMatchId)}</p>);
         }
       }
     });
 
     if (tableBuffer.length > 0) {
-      flushTable('table-end');
+      flushTable('table-end', currentSectionMatchId);
     }
 
     return elements;
   };
 
-  const renderBoldAndCitations = (text: string) => {
+  const renderBoldAndCitations = (text: string, targetMatchId?: string | null) => {
     // Regex nhận diện in đậm, mốc video [Pha cầu #X - mm:ss], và nút xem trận [Xem trận đấu #X]
     const regex = /(\*\*.*?\*\*|\[Pha cầu #\d+\s*-\s*\d+:\d+\]|\[Xem trận(?:\s*đấu)?\s*#\d+\])/g;
     const parts = text.split(regex);
@@ -640,9 +684,9 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
         return (
           <button
             key={i}
-            onClick={() => handleSeekVideo(sec)}
-            title={`Bấm để tua video tới pha cầu #${rallyNum} (${citeMatch[2]}:${citeMatch[3]})`}
-            className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-mono font-medium transition-all transform hover:scale-105 shadow-2xs"
+            onClick={() => handleSeekVideo(sec, targetMatchId)}
+            title={`Bấm để tua video tới pha cầu #${rallyNum} (${citeMatch[2]}:${citeMatch[3]})${targetMatchId ? ` - Trận #${targetMatchId}` : ''}`}
+            className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-mono font-medium transition-all transform hover:scale-105 shadow-2xs cursor-pointer"
           >
             <Play className="w-2.5 h-2.5 fill-current text-emerald-600" />
             {part}
