@@ -39,6 +39,10 @@ frontend/.npm/
 # AI Worker - Python
 backend/integrations/ai-worker/__pycache__/
 backend/integrations/ai-worker/**/__pycache__/
+ai-rag-coach/__pycache__/
+ai-rag-coach/**/__pycache__/
+**/__pycache__/
+*.pyc
 backend/integrations/ai-worker/*.pyc
 backend/integrations/ai-worker/**/*.pyc
 backend/integrations/ai-worker/.pytest_cache/

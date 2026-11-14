@@ -789,8 +789,14 @@ export const MatchReplayPage: React.FC = () => {
       try {
         if (isYouTube && ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
           ytPlayerRef.current.seekTo(deepLinkSeconds, true);
+          if (typeof ytPlayerRef.current.playVideo === 'function') {
+            ytPlayerRef.current.playVideo();
+          }
+          setIsPlaying(true);
         } else if (!isYouTube && videoRef.current && videoRef.current.readyState >= 1) {
           videoRef.current.currentTime = deepLinkSeconds;
+          videoRef.current.play().catch(() => {});
+          setIsPlaying(true);
         } else {
           if (tries > 60) window.clearInterval(timer);
           return;
@@ -807,6 +813,36 @@ export const MatchReplayPage: React.FC = () => {
     }, 250);
     return () => window.clearInterval(timer);
   }, [deepLinkSeconds, isYouTube, video]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lắng nghe sự kiện tua video từ BadmintonAI Chatbot hoặc widget bên ngoài
+  useEffect(() => {
+    const handleChatbotSeek = (e: Event) => {
+      const customEvent = e as CustomEvent<{ seconds: number }>;
+      const sec = customEvent.detail?.seconds;
+      if (typeof sec === 'number' && Number.isFinite(sec)) {
+        if (isYouTube && ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+          ytPlayerRef.current.seekTo(sec, true);
+          if (typeof ytPlayerRef.current.playVideo === 'function') {
+            ytPlayerRef.current.playVideo();
+          }
+          setIsPlaying(true);
+        } else if (videoRef.current) {
+          videoRef.current.currentTime = sec;
+          videoRef.current.play().catch(() => {});
+          setIsPlaying(true);
+        }
+        setCurrentTime(sec);
+        syncEventWithTime(sec);
+        showOsd(`Tua tới pha cầu (${formatClock(sec)})`);
+        playerContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+
+    window.addEventListener('badminton:seek-video', handleChatbotSeek as EventListener);
+    return () => {
+      window.removeEventListener('badminton:seek-video', handleChatbotSeek as EventListener);
+    };
+  }, [isYouTube, video]);
 
   // Phát lại chậm 0.5x cho cú đánh được chọn
   const handlePlaySlow = (timeSeconds: number) => {
