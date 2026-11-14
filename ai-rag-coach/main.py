@@ -88,16 +88,15 @@ def handle_chat_stream(
         
         sess_user_id, sess_browser_key = row[0], row[1]
         is_owner = False
-        if auth_user_id and sess_user_id and auth_user_id == sess_user_id:
+        # Bảo mật riêng tư: Chỉ người tạo phiên chat (auth_user_id) hoặc đúng trình duyệt khách (browser_key) mới được truy cập
+        if auth_user_id and sess_user_id and str(auth_user_id) == str(sess_user_id):
             is_owner = True
-        elif req.browser_key and sess_browser_key and req.browser_key == sess_browser_key:
-            is_owner = True
-        elif auth_role == "ROLE_ADMIN":
+        elif not sess_user_id and req.browser_key and sess_browser_key and req.browser_key == sess_browser_key:
             is_owner = True
 
         if not is_owner:
             cur.close(); conn.close()
-            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập phiên trò chuyện này")
+            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập phiên trò chuyện riêng tư này")
 
     cur.execute("""
         INSERT INTO chat_messages (session_id, sender_role, content)
@@ -184,16 +183,15 @@ def handle_chat(
         
         sess_user_id, sess_browser_key = row[0], row[1]
         is_owner = False
-        if auth_user_id and sess_user_id and auth_user_id == sess_user_id:
+        # Bảo mật riêng tư: Chỉ người tạo phiên chat (auth_user_id) hoặc đúng trình duyệt khách (browser_key) mới được truy cập
+        if auth_user_id and sess_user_id and str(auth_user_id) == str(sess_user_id):
             is_owner = True
-        elif req.browser_key and sess_browser_key and req.browser_key == sess_browser_key:
-            is_owner = True
-        elif auth_role == "ROLE_ADMIN":
+        elif not sess_user_id and req.browser_key and sess_browser_key and req.browser_key == sess_browser_key:
             is_owner = True
 
         if not is_owner:
             cur.close(); conn.close()
-            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập phiên trò chuyện này")
+            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập phiên trò chuyện riêng tư này")
 
     cur.execute("""
         INSERT INTO chat_messages (session_id, sender_role, content)
@@ -258,16 +256,15 @@ def get_chat_history(
         
     sess_user_id, sess_browser_key = row[0], row[1]
     is_owner = False
-    if auth_user_id and sess_user_id and auth_user_id == sess_user_id:
+    # Bảo mật riêng tư: Chỉ người tạo phiên chat (auth_user_id) hoặc đúng trình duyệt khách (browser_key) mới được xem lịch sử
+    if auth_user_id and sess_user_id and str(auth_user_id) == str(sess_user_id):
         is_owner = True
-    elif browser_key and sess_browser_key and browser_key == sess_browser_key:
-        is_owner = True
-    elif auth_role == "ROLE_ADMIN":
+    elif not sess_user_id and browser_key and sess_browser_key and browser_key == sess_browser_key:
         is_owner = True
 
     if not is_owner:
         cur.close(); conn.close()
-        raise HTTPException(status_code=403, detail="Bạn không có quyền xem lịch sử trò chuyện này.")
+        raise HTTPException(status_code=403, detail="Bạn không có quyền xem lịch sử trò chuyện riêng tư này.")
 
     cur.execute("""
         SELECT id, sender_role, content, video_citations, created_at

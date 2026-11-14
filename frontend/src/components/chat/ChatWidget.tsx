@@ -114,7 +114,21 @@ export const ChatWidget: React.FC = () => {
   const matchMatch = location.pathname.match(/\/(?:matches|public-matches)\/(\d+)/);
   const currentMatchId = matchMatch ? parseInt(matchMatch[1], 10) : undefined;
 
-  const storageKey = `badminton_chat_session_${currentMatchId || 'global'}`;
+  // Cô lập phiên chat theo từng Người dùng / Khách để ngăn ngừa rò rỉ tin nhắn giữa các tài khoản
+  const userJson = localStorage.getItem('user_info');
+  let currentUserId: string = 'guest';
+  try {
+    const parsedUser = userJson ? JSON.parse(userJson) : null;
+    if (parsedUser?.id) {
+      currentUserId = `u_${parsedUser.id}`;
+    } else if (browserKey) {
+      currentUserId = `guest_${browserKey.slice(0, 8)}`;
+    }
+  } catch {
+    currentUserId = 'guest';
+  }
+
+  const storageKey = `badminton_chat_session_${currentUserId}_${currentMatchId || 'global'}`;
 
   // Kiểm tra hỗ trợ Web Speech API trên trình duyệt
   useEffect(() => {

@@ -46,6 +46,12 @@ export const Navbar: React.FC = () => {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user_info');
+      // Xóa toàn bộ session chat lưu tạm trong localStorage để đảm bảo tuyệt đối bảo mật riêng tư giữa các tài khoản
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('badminton_chat_session_')) {
+          localStorage.removeItem(key);
+        }
+      });
       navigate('/login');
     }
   };
