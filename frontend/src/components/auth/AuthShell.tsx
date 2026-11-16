@@ -2,46 +2,9 @@ import React, { useState } from 'react';
 import { AlertCircle, CheckCircle2, Eye, EyeOff, type LucideIcon } from 'lucide-react';
 
 /**
- * Account pages (login, register, password recovery): the white form card over the arena photo, where the
- * player's smash is traced from the racket to where the shuttle lands, the way the AI follows it in a match.
+ * Account pages (login, register, password recovery): one white card on the light page, the form on the left
+ * and the arena photo filling the right half, marked the way the AI reads a match.
  */
-
-/** Size of /images/court-bg.jpg; the overlay shares its coordinates so the trace stays on the racket. */
-const PHOTO_W = 2070;
-const PHOTO_H = 1380;
-const RACKET = { x: 1404, y: 292 };
-/** The shuttle leaves the racket forward, over the player's head, before it dives; a straight line would cut through him. */
-const BEND = { x: 1130, y: 170 };
-const LANDING = { x: 820, y: 1180 };
-
-const SmashTrace: React.FC = () => (
-  <svg
-    viewBox={`0 0 ${PHOTO_W} ${PHOTO_H}`}
-    preserveAspectRatio="xMidYMid slice"
-    className="absolute inset-0 h-full w-full pointer-events-none"
-    aria-hidden
-  >
-    <path
-      d={`M${RACKET.x} ${RACKET.y}Q${BEND.x} ${BEND.y} ${LANDING.x} ${LANDING.y}`}
-      pathLength={1}
-      fill="none"
-      stroke="#6FCF97"
-      strokeWidth={6}
-      strokeLinecap="round"
-      strokeDasharray="1"
-      className="motion-safe:animate-trace"
-      style={{ animationDelay: '500ms', animationDuration: '700ms' }}
-    />
-    <g
-      className="motion-safe:animate-pop"
-      style={{ animationDelay: '1150ms', transformBox: 'fill-box', transformOrigin: 'center' }}
-    >
-      <ellipse cx={LANDING.x} cy={LANDING.y} rx={46} ry={16} fill="none" stroke="#6FCF97" strokeWidth={5} />
-      <circle cx={LANDING.x} cy={LANDING.y} r={8} fill="#6FCF97" />
-    </g>
-  </svg>
-);
-
 export const AuthShell: React.FC<{
   title: string;
   subtitle: string;
@@ -49,35 +12,74 @@ export const AuthShell: React.FC<{
   footer?: React.ReactNode;
   children: React.ReactNode;
 }> = ({ title, subtitle, top, footer, children }) => (
-  <div className="font-vn relative overflow-hidden rounded-lg bg-[#0B1310] min-h-[calc(100vh-7.5rem)] flex items-center">
-    <img
-      src="/images/court-bg.jpg"
-      alt=""
-      width={PHOTO_W}
-      height={PHOTO_H}
-      className="absolute inset-0 h-full w-full object-cover"
-    />
-    <SmashTrace />
-
-    <div className="relative z-10 w-full px-4 py-8 sm:px-10 lg:px-16">
-      <div className="w-full max-w-[420px] rounded-lg bg-sheet p-7 text-ink shadow-[0_24px_60px_-24px_rgba(0,0,0,0.65)] sm:p-9">
-        {top}
-        <h1 className="font-score text-[2.6rem] leading-none font-semibold">{title}</h1>
-        <p className="mt-3 mb-7 text-[15px] leading-relaxed text-ink/65">{subtitle}</p>
-        {children}
-        {footer && <div className="mt-7 border-t border-ink/10 pt-5 text-sm text-ink/65">{footer}</div>}
+  <div className="font-vn mx-auto max-w-5xl py-2 lg:py-6">
+    <div className="grid overflow-hidden rounded-lg border border-ink/10 bg-sheet shadow-[0_12px_40px_-24px_rgba(22,32,27,0.35)] lg:grid-cols-2 lg:min-h-[600px]">
+      <div className="flex flex-col justify-center px-6 py-10 sm:px-12">
+        <div className="w-full max-w-[400px] mx-auto lg:mx-0">
+          {top}
+          <h1 className="font-score text-[2.6rem] leading-none font-semibold text-ink">{title}</h1>
+          <p className="mt-3 mb-7 text-[15px] leading-relaxed text-ink/65">{subtitle}</p>
+          {children}
+          {footer && <div className="mt-7 border-t border-ink/10 pt-5 text-sm text-ink/65">{footer}</div>}
+        </div>
       </div>
-    </div>
-
-    {/* On the dark curtain above the player, clear of the chat button in the bottom corner. */}
-    <div className="absolute top-9 right-10 z-10 hidden max-w-[22rem] text-right text-white min-[1380px]:block">
-      <p className="font-score text-[1.9rem] leading-tight font-semibold">Từng cú đánh, đúng chỗ cầu rơi.</p>
-      <p className="mt-1.5 text-sm leading-relaxed text-white/70">
-        AI tách từng pha cầu trong video, gọi tên từng cú và chỉ ra pha mất điểm bắt đầu từ đâu.
-      </p>
+      <figure className="relative hidden lg:block">
+        <img
+          src="/images/auth-player.jpg"
+          alt="Vận động viên bật nhảy đập cầu, được khung lại và gắn nhãn cú đánh như trên màn hình phân tích"
+          width={PHOTO_W}
+          height={PHOTO_H}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <PlayerTag />
+        {/* On the floor strip under the player's feet, below the tracking box. */}
+        <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/55 to-transparent px-8 pb-6 pt-12 text-white">
+          <p className="font-score text-[1.75rem] leading-tight font-semibold">Từng cú đánh, đúng chỗ cầu rơi.</p>
+          <p className="mt-1 text-sm text-white/75">AI gọi tên từng cú và chỉ ra pha mất điểm trong video trận đấu.</p>
+        </figcaption>
+      </figure>
     </div>
   </div>
 );
+
+/**
+ * /images/auth-player.jpg is the arena photo cropped to a portrait around the player, so a narrow or tall column
+ * never cuts him off. The overlay uses its pixel coordinates so the box stays on him.
+ */
+const PHOTO_W = 1100;
+const PHOTO_H = 1380;
+const BOX = { x: 300, y: 215, w: 500, h: 950 };
+const CORNER = 70;
+
+/**
+ * Tracking corners around the player with the stroke the AI named, as on the analysis screens.
+ * Same scaling as the photo (object-cover, centred), so it lines up at any column size.
+ */
+const PlayerTag: React.FC = () => {
+  const { x, y, w, h } = BOX;
+  const r = x + w;
+  const b = y + h;
+  const corners = [
+    `M${x} ${y + CORNER}V${y}H${x + CORNER}`,
+    `M${r - CORNER} ${y}H${r}V${y + CORNER}`,
+    `M${x} ${b - CORNER}V${b}H${x + CORNER}`,
+    `M${r - CORNER} ${b}H${r}V${b - CORNER}`,
+  ].join('');
+  return (
+    <svg
+      viewBox={`0 0 ${PHOTO_W} ${PHOTO_H}`}
+      preserveAspectRatio="xMidYMid slice"
+      className="absolute inset-0 h-full w-full"
+      aria-hidden
+    >
+      <path d={corners} fill="none" stroke="#6FCF97" strokeWidth={7} strokeLinecap="square" />
+      <rect x={x} y={y - 92} width={250} height={70} rx={10} fill="#2E7D5B" />
+      <text x={x + 125} y={y - 45} textAnchor="middle" fontSize={40} fontWeight={700} fill="#fff" fontFamily="'Be Vietnam Pro', sans-serif">
+        Đập cầu
+      </text>
+    </svg>
+  );
+};
 
 const boxClass =
   'group flex h-12 items-center gap-3 rounded-md border border-ink/15 bg-sheet px-3.5 transition-colors hover:border-ink/30 focus-within:border-pitch focus-within:ring-2 focus-within:ring-pitch/20';
