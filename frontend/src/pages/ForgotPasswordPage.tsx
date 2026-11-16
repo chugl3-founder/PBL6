@@ -29,14 +29,21 @@ export const ForgotPasswordPage: React.FC = () => {
   return (
     <AuthShell
       top={
-        <Link to="/login" className="inline-flex items-center gap-1.5 text-sm text-ink/70 hover:text-ink mb-4">
+        <Link to="/login" className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-ink/60 transition-colors hover:text-ink">
           <ArrowLeft className="w-4 h-4" aria-hidden />
-          Đăng nhập
+          Quay lại đăng nhập
         </Link>
       }
       title="Quên mật khẩu"
       subtitle="Nhập email tài khoản, chúng tôi gửi liên kết đặt lại mật khẩu (hiệu lực 15 phút)."
-      footer={<>Chưa có tài khoản? <Link to="/register" className={authLinkClass}>Đăng ký</Link></>}
+      footer={
+        <>
+          Chưa có tài khoản?{' '}
+          <Link to="/register" className={authLinkClass}>
+            Tạo tài khoản
+          </Link>
+        </>
+      }
     >
       {error && <AuthAlert tone="error">{error}</AuthAlert>}
 

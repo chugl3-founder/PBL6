@@ -50,7 +50,14 @@ export const ResetPasswordPage: React.FC = () => {
     <AuthShell
       title="Đặt lại mật khẩu"
       subtitle="Mật khẩu mới có hiệu lực ngay; các phiên đăng nhập cũ sẽ bị đăng xuất."
-      footer={<>Nhớ mật khẩu? <Link to="/login" className={authLinkClass}>Đăng nhập</Link></>}
+      footer={
+        <>
+          Nhớ mật khẩu?{' '}
+          <Link to="/login" className={authLinkClass}>
+            Đăng nhập
+          </Link>
+        </>
+      }
     >
       {!token && (
         <AuthAlert tone="error">
@@ -65,7 +72,7 @@ export const ResetPasswordPage: React.FC = () => {
           <AuthAlert tone="success">Đã đổi mật khẩu. Bạn có thể đăng nhập bằng mật khẩu mới.</AuthAlert>
           <Link
             to="/login"
-            className="w-full h-11 rounded-md bg-pitch hover:bg-pitch-deep text-white text-sm font-semibold transition-colors flex items-center justify-center"
+            className="w-full h-12 rounded-md bg-pitch hover:bg-pitch-deep text-white text-sm font-semibold transition-colors flex items-center justify-center"
           >
             Đăng nhập
           </Link>

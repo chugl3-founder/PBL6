@@ -39,13 +39,20 @@ export const LoginPage: React.FC = () => {
   return (
     <AuthShell
       title="Đăng nhập"
-      subtitle="Xem lại các trận đã tải lên và tiếp tục phân tích."
-      footer={<>Chưa có tài khoản? <Link to="/register" className={authLinkClass}>Đăng ký</Link></>}
+      subtitle="Xem lại các trận đã tải lên và từng pha cầu AI đã tách."
+      footer={
+        <>
+          Chưa có tài khoản?{' '}
+          <Link to="/register" className={authLinkClass}>
+            Tạo tài khoản
+          </Link>
+        </>
+      }
     >
       {isRegisteredSuccess && <AuthAlert tone="success">Tài khoản đã sẵn sàng. Mời bạn đăng nhập.</AuthAlert>}
       {error && <AuthAlert tone="error">{error}</AuthAlert>}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <AuthField
           id="login-email" name="email" autoComplete="email" spellCheck={false}
           label="Email" icon={Mail} type="email" required
