@@ -118,8 +118,8 @@ export const ReplayScoreboard: React.FC<ReplayScoreboardProps> = ({
             {gameResults.length > 1 && liveGame != null && `, ván ${liveGame}`}
             <br />
             {gameResults.length > 1
-              ? <>Các ván: {gameResults.map(g => `${g.playerA}–${g.playerB}`).join(', ')}, {scoreFromScoreboard ? 'đọc từ bảng điểm' : 'AI ước tính'}</>
-              : <>Cuối video {finalScore.playerA}–{finalScore.playerB}, {scoreFromScoreboard ? 'đọc từ bảng điểm' : 'AI ước tính'}</>}
+              ? <>Các ván: {gameResults.map(g => `${g.playerA}–${g.playerB}`).join(', ')}{scoreFromScoreboard ? '' : ', AI ước tính'}</>
+              : <>Cuối video {finalScore.playerA}–{finalScore.playerB}{scoreFromScoreboard ? '' : ', AI ước tính'}</>}
           </p>
         )}
         {onCreateHighlight && (
