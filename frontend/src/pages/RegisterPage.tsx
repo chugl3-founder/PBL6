@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, User } from 'lucide-react';
-import { AuthShell, AuthField, AuthSelect, AuthAlert, AuthSubmit, authLinkClass } from '../components/auth/AuthShell';
+import { AuthShell, AuthField, AuthChoice, AuthAlert, AuthSubmit, authLinkClass } from '../components/auth/AuthShell';
 import { register } from '../api/auth';
 import { errorMessage } from '../api/errors';
 
@@ -33,8 +33,15 @@ export const RegisterPage: React.FC = () => {
   return (
     <AuthShell
       title="Tạo tài khoản"
-      subtitle="Miễn phí. Tải video trận của bạn lên và xem trọn các trận trong thư viện."
-      footer={<>Đã có tài khoản? <Link to="/login" className={authLinkClass}>Đăng nhập</Link></>}
+      subtitle="Tạo xong là tải được video trận đầu tiên lên để AI phân tích."
+      footer={
+        <>
+          Đã có tài khoản?{' '}
+          <Link to="/login" className={authLinkClass}>
+            Đăng nhập
+          </Link>
+        </>
+      }
     >
       {error && <AuthAlert tone="error">{error}</AuthAlert>}
 
@@ -57,19 +64,23 @@ export const RegisterPage: React.FC = () => {
           value={password} onChange={(e) => setPassword(e.target.value)}
           hint="Tối thiểu 6 ký tự."
         />
-        <div className="grid grid-cols-2 gap-3">
-          <AuthSelect id="reg-level" name="badmintonLevel" label="Trình độ" value={badmintonLevel} onChange={(e) => setBadmintonLevel(e.target.value)}>
-            <option value="BEGINNER">Mới chơi</option>
-            <option value="INTERMEDIATE">Phong trào</option>
-            <option value="ADVANCED">Nâng cao</option>
-            <option value="PRO">Chuyên nghiệp</option>
-          </AuthSelect>
-          <AuthSelect id="reg-gender" name="gender" label="Giới tính" value={gender} onChange={(e) => setGender(e.target.value)}>
-            <option value="MALE">Nam</option>
-            <option value="FEMALE">Nữ</option>
-            <option value="OTHER">Khác</option>
-          </AuthSelect>
-        </div>
+        <AuthChoice
+          name="badmintonLevel" label="Trình độ" value={badmintonLevel} onChange={setBadmintonLevel}
+          options={[
+            { value: 'BEGINNER', label: 'Mới chơi' },
+            { value: 'INTERMEDIATE', label: 'Phong trào' },
+            { value: 'ADVANCED', label: 'Nâng cao' },
+            { value: 'PRO', label: 'Chuyên nghiệp' },
+          ]}
+        />
+        <AuthChoice
+          name="gender" label="Giới tính" value={gender} onChange={setGender}
+          options={[
+            { value: 'MALE', label: 'Nam' },
+            { value: 'FEMALE', label: 'Nữ' },
+            { value: 'OTHER', label: 'Khác' },
+          ]}
+        />
         <div className="pt-1">
           <AuthSubmit loading={loading}>{loading ? 'Đang tạo tài khoản…' : 'Tạo tài khoản'}</AuthSubmit>
         </div>

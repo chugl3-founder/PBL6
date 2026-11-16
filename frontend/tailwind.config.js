@@ -76,8 +76,19 @@ export default {
           from: { transform: 'scaleY(0)' },
           to: { transform: 'scaleY(1)' },
         },
+        // Account pages: the rally on the court draws itself, one stroke after another.
+        trace: {
+          from: { strokeDashoffset: '1' },
+          to: { strokeDashoffset: '0' },
+        },
+        pop: {
+          from: { opacity: '0', transform: 'scale(0.4)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
       },
       animation: {
+        trace: 'trace 560ms cubic-bezier(0.45, 0, 0.55, 1) both',
+        pop: 'pop 260ms cubic-bezier(0.2, 0.8, 0.2, 1.2) both',
         'fade-in': 'fade-in 200ms ease-out both',
         'ribbon-grow': 'ribbon-grow 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both',
       },
