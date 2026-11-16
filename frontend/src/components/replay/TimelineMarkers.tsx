@@ -18,11 +18,15 @@ interface TimelineMarkersProps {
    * Several ranges once the viewer made the AI jump ahead; null when the analysis is done.
    */
   analyzedRanges?: [number, number][] | null;
+  /** Part of the video the strip spans, in seconds; [0, durationSeconds] when left out. */
+  view?: { start: number; end: number };
 }
 
 const clock = (seconds: number) => {
   const s = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const h = Math.floor(s / 3600);
+  const mmss = `${Math.floor((s % 3600) / 60)}:${String(s % 60).padStart(2, '0')}`;
+  return h > 0 ? `${h}:${mmss.padStart(5, '0')}` : mmss;
 };
 
 /**
@@ -41,20 +45,25 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
   lowerName = '',
   onSelectRally,
   analyzedRanges = null,
+  view,
 }) => {
   if (!durationSeconds || durationSeconds <= 0) return null;
 
-  const pct = (seconds: number) => Math.max(0, Math.min(100, (seconds / durationSeconds) * 100));
+  const viewStart = view?.start ?? 0;
+  const viewEnd = view && view.end > view.start ? view.end : durationSeconds;
+  const inView = (seconds: number) => seconds >= viewStart && seconds <= viewEnd;
+  const pct = (seconds: number) =>
+    Math.max(0, Math.min(100, ((seconds - viewStart) / (viewEnd - viewStart)) * 100));
   const pendingGaps: [number, number][] = [];
   if (analyzedRanges) {
-    let cursor = 0;
+    let cursor = viewStart;
     for (const [start, end] of [...analyzedRanges].sort((x, y) => x[0] - y[0])) {
       if (start > cursor + 0.5) pendingGaps.push([cursor, start]);
       cursor = Math.max(cursor, end);
     }
-    if (cursor < durationSeconds - 0.5) pendingGaps.push([cursor, durationSeconds]);
+    if (cursor < viewEnd - 0.5) pendingGaps.push([cursor, viewEnd]);
   }
-  const playhead = pct(currentTimeSeconds);
+  const playhead = inView(currentTimeSeconds) ? pct(currentTimeSeconds) : null;
 
   return (
     <div className="space-y-1.5">
@@ -62,7 +71,7 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
         {/* The court mat */}
         <div className="absolute inset-x-0 top-1.5 h-6 rounded-md bg-pitch overflow-hidden">
           {/* Rallies, coloured by who won the point */}
-          {rallies.map(rally => {
+          {rallies.filter(rally => rally.endTime >= viewStart && rally.startTime <= viewEnd).map(rally => {
             const won = rally.winnerSide === 'UPPER' ? 'bg-pa' : rally.winnerSide === 'LOWER' ? 'bg-pb' : 'bg-white/40';
             const name = rally.winnerSide === 'UPPER' ? upperName : rally.winnerSide === 'LOWER' ? lowerName : 'chưa rõ';
             return (
@@ -91,7 +100,7 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
         </div>
 
         {/* Hits */}
-        {events.map(event => {
+        {events.filter(event => inView(event.timeSeconds)).map(event => {
           const isActive = currentEvent?.timeSeconds === event.timeSeconds;
           const player = event.playerSide === 'UPPER' ? upperName : lowerName;
           return (
@@ -119,18 +128,20 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
         })}
 
         {/* Playhead */}
-        <div
-          className="absolute top-0 bottom-0 w-0.5 bg-ink z-20 pointer-events-none -translate-x-1/2"
-          style={{ left: `${playhead}%` }}
-        />
+        {playhead != null && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-ink z-20 pointer-events-none -translate-x-1/2"
+            style={{ left: `${playhead}%` }}
+          />
+        )}
       </div>
 
       <div className="flex justify-between text-[11px] text-ink/65 tabular-nums">
-        <span>0:00</span>
+        <span>{clock(viewStart)}</span>
         {pendingGaps.length > 0 && (
           <span className="text-ink/70">Phần sọc: AI chưa phân tích tới</span>
         )}
-        <span>{clock(durationSeconds)}</span>
+        <span>{clock(viewEnd)}</span>
       </div>
     </div>
   );

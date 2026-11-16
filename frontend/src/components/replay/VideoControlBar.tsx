@@ -1,11 +1,14 @@
 import React from 'react';
-import { Play, Pause, Volume2, Volume1, VolumeX, RotateCcw, RotateCw, SkipBack, SkipForward, Gauge, Maximize, Keyboard } from 'lucide-react';
+import { Play, Pause, Volume2, Volume1, VolumeX, RotateCcw, RotateCw, SkipBack, SkipForward, Gauge, Maximize, Keyboard, Scissors } from 'lucide-react';
 import { PLAYBACK_RATES } from './playback';
 
 const formatTime = (secs: number) => {
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const total = Math.max(0, Math.floor(secs));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mmss = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return h > 0 ? `${h}:${mmss}` : mmss;
 };
 
 interface VideoControlBarProps {
@@ -28,6 +31,10 @@ interface VideoControlBarProps {
   handleChangeSpeed: (rate: number) => void;
   handleToggleFullscreen: () => void;
   onShowShortcuts: () => void;
+  /** Part of the video the seek bar spans, in seconds; the whole video when left out. */
+  view?: { start: number; end: number };
+  /** Only when the AI analysed part of a YouTube video: switches the seek bar between that part and the whole video. */
+  segmentToggle?: { showingWholeVideo: boolean; onToggle: () => void };
 }
 
 /** The player's own controls, drawn over the video for both the MP4 and the YouTube player. */
@@ -50,7 +57,13 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
   handleChangeSpeed,
   handleToggleFullscreen,
   onShowShortcuts,
-}) => (
+  view,
+  segmentToggle,
+}) => {
+  const start = view?.start ?? 0;
+  const end = view && view.end > view.start ? view.end : duration || 100;
+  const played = Math.max(0, Math.min(100, ((currentTime - start) / (end - start)) * 100));
+  return (
     <div 
       className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-8 pb-3 px-4 space-y-2.5 transition-all duration-300 ${
         isControlsVisible || !isPlaying
@@ -63,15 +76,15 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
       <div className="relative flex items-center group/slider">
         <input
           type="range"
-          min="0"
-          max={duration || 100}
+          min={start}
+          max={end}
           step="0.05"
-          value={currentTime}
+          value={Math.max(start, Math.min(end, currentTime))}
           onChange={handleSliderChange}
           aria-label="Tua video"
           className="video-seek w-full h-1.5 rounded-full appearance-none cursor-pointer"
           style={{
-            background: `linear-gradient(to right, #5FB88A ${(currentTime / (duration || 100)) * 100}%, rgba(255,255,255,0.25) ${(currentTime / (duration || 100)) * 100}%)`,
+            background: `linear-gradient(to right, #5FB88A ${played}%, rgba(255,255,255,0.25) ${played}%)`,
           }}
         />
       </div>
@@ -170,12 +183,26 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
           {/* Bộ đếm thời gian */}
           <div className="text-[11px] font-mono text-white/80 ml-1.5">
             <span className="text-white font-bold">{formatTime(currentTime)}</span>
-            <span className="text-white/40"> / {formatTime(duration)}</span>
+            <span className="text-white/40"> / {formatTime(end)}</span>
           </div>
         </div>
 
         {/* Cụm nút Tốc độ phát (Speed), Hướng dẫn phím tắt & Toàn màn hình */}
         <div className="flex items-center gap-1.5 sm:gap-2 relative">
+
+          {/* Thanh tua: chỉ đoạn AI đã phân tích, hoặc cả video YouTube */}
+          {segmentToggle && (
+            <button
+              type="button"
+              onClick={segmentToggle.onToggle}
+              aria-pressed={!segmentToggle.showingWholeVideo}
+              title={segmentToggle.showingWholeVideo ? 'Thanh tua chỉ chạy trong đoạn AI đã phân tích' : 'Thanh tua chạy cả video YouTube'}
+              className="px-2 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs flex items-center gap-1.5 transition-colors border border-white/10"
+            >
+              <Scissors className="w-3.5 h-3.5 text-pitch" aria-hidden />
+              <span>{segmentToggle.showingWholeVideo ? 'Đoạn phân tích' : 'Cả video'}</span>
+            </button>
+          )}
 
           {/* Menu Tốc độ phát (0.25x -> 2.0x) */}
           <div className="relative">
@@ -236,4 +263,5 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
       </div>
 
     </div>
-);
+  );
+};

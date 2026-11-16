@@ -362,6 +362,12 @@ export const MatchReplayPage: React.FC = () => {
   })();
 
   // Người xem đang ở đoạn AI chưa phân tích xong
+  // Thanh tua và dải diễn biến chỉ trải trên đoạn AI phân tích, trừ khi người xem chọn xem cả video
+  const [showingWholeVideo, setShowingWholeVideo] = useState(false);
+  const segmentViewEnd = segment ? Math.min(segment.end ?? duration, duration || (segment.end ?? 0)) : 0;
+  const timelineView = segment && !showingWholeVideo && segmentViewEnd > segment.start
+    ? { start: segment.start, end: segmentViewEnd }
+    : undefined;
   // Ngoài đoạn được chọn thì AI không phân tích, nên không báo "đang chờ" và không gửi vị trí cho worker
   const outsideSegment = segment != null
     && (currentTime < segment.start - 1 || (segment.end != null && currentTime > segment.end + 1));
@@ -928,6 +934,8 @@ export const MatchReplayPage: React.FC = () => {
               handleChangeSpeed={handleChangeSpeed}
               handleToggleFullscreen={handleToggleFullscreen}
               onShowShortcuts={() => setShowShortcutsModal(true)}
+              view={timelineView}
+              segmentToggle={segment ? { showingWholeVideo, onToggle: () => setShowingWholeVideo(v => !v) } : undefined}
             />
           </div>
 
@@ -973,6 +981,7 @@ export const MatchReplayPage: React.FC = () => {
             <TimelineMarkers
               events={sides.timelineEvents}
               durationSeconds={duration || 60}
+              view={timelineView}
               currentTimeSeconds={currentTime}
               currentEvent={selectedEvent}
               onSeekToEvent={(e) => handleSeekToEvent(events.find(x => x.id === e.id) ?? e)}
