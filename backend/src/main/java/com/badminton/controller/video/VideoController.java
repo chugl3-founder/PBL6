@@ -1,0 +1,72 @@
+package com.badminton.controller.video;
+
+import com.badminton.dto.video.VideoCompleteRequest;
+import com.badminton.dto.video.VideoResponse;
+import com.badminton.dto.video.VideoUploadUrlRequest;
+import com.badminton.dto.video.VideoUploadUrlResponse;
+import com.badminton.dto.video.YoutubeVideoRequest;
+import com.badminton.service.video.VideoService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/matches/{id}")
+@RequiredArgsConstructor
+public class VideoController {
+
+    private final VideoService videoService;
+
+    @PostMapping("/videos/upload-url")
+    public ResponseEntity<VideoUploadUrlResponse> getPresignedUploadUrl(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email,
+            @Valid @RequestBody VideoUploadUrlRequest request
+    ) {
+        VideoUploadUrlResponse response = videoService.getPresignedUploadUrl(id, request, email);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/videos/complete")
+    public ResponseEntity<VideoResponse> completeVideoUpload(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email,
+            @Valid @RequestBody VideoCompleteRequest request
+    ) {
+        VideoResponse response = videoService.completeVideoUpload(id, request, email);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(value = "/videos/direct-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<VideoResponse> uploadVideoDirectly(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email,
+            @RequestParam("file") MultipartFile file
+    ) {
+        VideoResponse response = videoService.uploadVideoDirectly(id, file, email);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/videos/youtube")
+    public ResponseEntity<VideoResponse> attachYoutubeVideo(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email,
+            @Valid @RequestBody YoutubeVideoRequest request
+    ) {
+        return ResponseEntity.ok(videoService.attachYoutubeVideo(id, request, email));
+    }
+
+    @GetMapping("/video")
+    public ResponseEntity<VideoResponse> getVideoMetadata(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
+    ) {
+        VideoResponse response = videoService.getVideoByMatchId(id, email);
+        return ResponseEntity.ok(response);
+    }
+}
+

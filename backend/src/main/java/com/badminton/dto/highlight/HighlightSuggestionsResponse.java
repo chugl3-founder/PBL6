@@ -1,6 +1,6 @@
 package com.badminton.dto.highlight;
 
-import com.badminton.service.HighlightSelector;
+import com.badminton.service.highlight.HighlightSelector;
 
 import java.util.List;
 

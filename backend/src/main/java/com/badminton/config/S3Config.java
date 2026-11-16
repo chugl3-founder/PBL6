@@ -49,8 +49,11 @@ public class S3Config {
     }
 
     private S3Configuration serviceConfiguration() {
+        // Supabase Storage answers larger PUTs with a multipart-style ETag ("<hash>-<parts>"),
+        // which the SDK cannot read as an MD5 and rejects after the object is already stored.
         return S3Configuration.builder()
                 .pathStyleAccessEnabled(properties.pathStyleAccess())
+                .checksumValidationEnabled(false)
                 .build();
     }
 }

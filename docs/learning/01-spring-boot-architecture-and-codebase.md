@@ -83,7 +83,7 @@ Hai khái niệm nền tảng mà bạn bắt buộc phải hiểu:
    - Khi Class A cần Class B, Spring Container sẽ tự động "tiêm" (inject) instance của Class B vào Class A thông qua Constructor.
 
 #### Code thực tế trong dự án PBL6 Badminton:
-Tại [`MatchController.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/controller/MatchController.java#L16-L22):
+Tại [`MatchController.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/controller/match/MatchController.java#L16-L22):
 ```java
 @RestController
 @RequestMapping("/api/matches")
@@ -132,7 +132,7 @@ sequenceDiagram
 
 ### 2.1. Phân tích Từng Tầng qua Code Dự Án Thực Tế
 
-#### A. Tầng 1: Web / Controller ([`MatchController.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/controller/MatchController.java))
+#### A. Tầng 1: Web / Controller ([`MatchController.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/controller/match/MatchController.java))
 Nhiệm vụ: **Chỉ làm việc với giao thức HTTP** (đón request, parse tham số, kiểm tra tính hợp lệ của DTO, trả mã HTTP Status). **Tuyệt đối không viết logic tính toán hay query SQL ở đây.**
 
 ```java
@@ -148,7 +148,7 @@ public ResponseEntity<MatchResponse> createMatch(
 * **`@RestController`**: Kết hợp giữa `@Controller` và `@ResponseBody`. Báo cho Spring biết kết quả trả về của hàm sẽ được tự động tuần tự hóa (serialize) thành JSON thông qua thư viện Jackson để đẩy vào HTTP Response Body.
 * **`@Valid`**: Kích hoạt cơ chế Hibernate Bean Validation trên DTO [`CreateMatchRequest`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/dto/match/CreateMatchRequest.java). Nếu `playerAName` bị trống (`@NotBlank`), Spring sẽ ngắt request ngay lập tức và ném ra `MethodArgumentNotValidException` mà không cần bạn phải viết lệnh `if (name == null)`.
 
-#### B. Tầng 2: Nghiệp Vụ / Service ([`MatchService.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/service/MatchService.java))
+#### B. Tầng 2: Nghiệp Vụ / Service ([`MatchService.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/service/match/MatchService.java))
 Nhiệm vụ: **Nơi chứa trái tim của ứng dụng** (Business Logic, tính toán, kiểm tra nghiệp vụ, điều phối giao dịch CSDL).
 
 ```java
@@ -197,7 +197,7 @@ public class MatchService {
   - Nếu có bất kỳ `RuntimeException` nào xảy ra (ví dụ ném `ApiException`): Tự động `ROLLBACK` toàn bộ các câu lệnh INSERT/UPDATE trước đó về trạng thái ban đầu, bảo vệ tính toàn vẹn dữ liệu (ACID).
   - Kích hoạt cơ chế **Dirty Checking** của Hibernate: Nếu bạn lấy một Entity ra và gọi `match.setStatus("READY")`, khi kết thúc hàm `@Transactional`, Hibernate tự phát hiện đối tượng đã bị sửa đổi và tự sinh lệnh `UPDATE matches SET status = ...` mà không cần bạn phải gọi `repository.save()`.
 
-#### C. Tầng 3: Truy Cập Dữ Liệu / Repository ([`MatchRepository.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/repository/MatchRepository.java))
+#### C. Tầng 3: Truy Cập Dữ Liệu / Repository ([`MatchRepository.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/repository/match/MatchRepository.java))
 Nhiệm vụ: **Giao tiếp trực tiếp với cơ sở dữ liệu PostgreSQL**.
 
 ```java
@@ -339,7 +339,7 @@ sequenceDiagram
     Worker->>DB: UPDATE ai_analyses SET status='COMPLETED'
 ```
 
-### 4.2. Code Thực Tế trong Dự Án ([`AnalysisService.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/service/AnalysisService.java#L40-L100))
+### 4.2. Code Thực Tế trong Dự Án ([`AnalysisService.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/service/analysis/AnalysisService.java#L40-L100))
 ```java
 @Transactional
 public AnalysisDispatchResponse dispatchAnalysis(Long matchId, String userEmail) {

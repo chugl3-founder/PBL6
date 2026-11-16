@@ -1,7 +1,7 @@
 package com.badminton.config;
 
-import com.badminton.entity.User;
-import com.badminton.repository.UserRepository;
+import com.badminton.entity.user.User;
+import com.badminton.repository.user.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

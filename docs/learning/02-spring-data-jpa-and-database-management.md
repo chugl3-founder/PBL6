@@ -80,11 +80,11 @@ flowchart TD
 
 ## CHƯƠNG 2: THIẾT KẾ THỰC THỂ (ENTITY MODELING) & ÁNH XẠ CSDL
 
-### 2.1. Phân tích chi tiết Entity [`Match.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/entity/Match.java)
+### 2.1. Phân tích chi tiết Entity [`Match.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/entity/match/Match.java)
 Hãy cùng mổ xẻ từng dòng code trong entity cốt lõi của dự án:
 
 ```java
-package com.badminton.entity;
+package com.badminton.entity.match;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -139,7 +139,7 @@ public class Match {
 
 ---
 
-### 2.2. Xử lý Kiểu dữ liệu Phức tạp: Ánh xạ PostgreSQL `JSONB` trong Spring Boot 3 ([`AiAnalysis.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/entity/AiAnalysis.java#L58-L80))
+### 2.2. Xử lý Kiểu dữ liệu Phức tạp: Ánh xạ PostgreSQL `JSONB` trong Spring Boot 3 ([`AiAnalysis.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/entity/analysis/AiAnalysis.java#L58-L80))
 
 Trong hệ thống phân tích cầu lông, mô hình AI trả về các cây dữ liệu phân tích chiến thuật, radar chart và tọa độ rất phức tạp:
 ```json
@@ -205,7 +205,7 @@ Rất nhiều bạn thắc mắc: *"Tại sao trong code cập nhật trận đ�
 | Đặc điểm | `repository.save(entity)` | `repository.saveAndFlush(entity)` |
 | :--- | :--- | :--- |
 | **Hành vi** | Đưa entity vào Persistence Context. Câu lệnh SQL INSERT/UPDATE **được giữ lại trong bộ đệm** và thường chỉ gửi xuống DB khi Transaction sắp kết thúc (Write-behind optimization). | Đưa entity vào Persistence Context và **ép buộc Hibernate gửi ngay lập tức câu lệnh SQL xuống CSDL** ngay tại dòng lệnh đó. |
-| **Ứng dụng trong dự án** | Dùng cho các thao tác thông thường (Tạo trận đấu, đổi tên, update user). | Dùng trong [`AnalysisService.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/service/AnalysisService.java#L72): Khi tạo phiên AI mới, ta cần câu lệnh INSERT chạy ngay xuống DB để lấy ID phiên gửi sang RabbitMQ cho Worker xử lý. |
+| **Ứng dụng trong dự án** | Dùng cho các thao tác thông thường (Tạo trận đấu, đổi tên, update user). | Dùng trong [`AnalysisService.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/service/analysis/AnalysisService.java#L72): Khi tạo phiên AI mới, ta cần câu lệnh INSERT chạy ngay xuống DB để lấy ID phiên gửi sang RabbitMQ cho Worker xử lý. |
 
 ---
 
@@ -266,7 +266,7 @@ void demoteAllCurrentByMatchId(@Param("matchId") Long matchId);
 ---
 
 ### 4.4. Kỹ thuật 4: Phân trang & Sắp xếp Tối ưu (Pagination & Sorting)
-Tại các API xem danh sách ([`MatchController.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/controller/MatchController.java#L33-L41)), ta luôn truyền đối tượng `Pageable`:
+Tại các API xem danh sách ([`MatchController.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/controller/match/MatchController.java#L33-L41)), ta luôn truyền đối tượng `Pageable`:
 
 ```java
 Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
@@ -318,7 +318,7 @@ Trong các hệ thống thực tế:
 
 #### Triển khai Soft Delete trong dự án:
 * Trong Entity `Match`: Khai báo trường `private OffsetDateTime deletedAt;`.
-* Khi xóa ([`MatchService.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/service/MatchService.java#L110-L125)):
+* Khi xóa ([`MatchService.java`](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/service/match/MatchService.java#L110-L125)):
   ```java
   match.setDeletedAt(OffsetDateTime.now());
   matchRepository.save(match);
@@ -404,5 +404,5 @@ Dự án PBL6 Badminton sử dụng **Flyway** để quản lý lịch sử CSDL
 
 ---
 
-> 💡 **Lời khuyên thực chiến:** Hãy mở đồng thời file [Match.java](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/entity/Match.java), [MatchRepository.java](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/repository/MatchRepository.java) và [V1__init_schema.sql](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/resources/db/migration/V1__init_schema.sql) để kiểm chứng sự ánh xạ hoàn hảo giữa Code Java và Cơ sở dữ liệu PostgreSQL nhé!
+> 💡 **Lời khuyên thực chiến:** Hãy mở đồng thời file [Match.java](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/entity/match/Match.java), [MatchRepository.java](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/java/com/badminton/repository/match/MatchRepository.java) và [V1__init_schema.sql](file:///d:/DUT/HK1_Nam4_2026-2027/PBL6/PBL6_code/backend/src/main/resources/db/migration/V1__init_schema.sql) để kiểm chứng sự ánh xạ hoàn hảo giữa Code Java và Cơ sở dữ liệu PostgreSQL nhé!
 
