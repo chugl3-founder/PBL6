@@ -1,0 +1,14 @@
+{$SITE_ADDRESS} {
+	encode gzip
+
+	# API straight to Spring Boot. flush_interval -1 lets the AI Coach stream (SSE) through unbuffered.
+	handle /api/* {
+		reverse_proxy backend:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}
