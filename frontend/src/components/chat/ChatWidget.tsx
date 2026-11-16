@@ -40,6 +40,16 @@ interface MatchOption {
 // The coach is part of the Spring Boot API, so it goes through the same base URL (Vite proxies /api).
 const COACH_API_URL = `${import.meta.env.VITE_API_URL || '/api'}/coach`;
 
+// crypto.randomUUID only exists on HTTPS or localhost; a server opened by plain-HTTP IP falls back to getRandomValues.
+function randomId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 const WELCOME_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
@@ -84,7 +94,7 @@ export const ChatWidget: React.FC = () => {
     const STORAGE_KEY = 'badminton_coach_browser_key';
     let key = localStorage.getItem(STORAGE_KEY);
     if (!key) {
-      key = crypto.randomUUID();
+      key = randomId();
       localStorage.setItem(STORAGE_KEY, key);
     }
     return key;

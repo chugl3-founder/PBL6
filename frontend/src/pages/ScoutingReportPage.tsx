@@ -136,7 +136,14 @@ export const ScoutingReportPage: React.FC = () => {
 
   const copyLink = async () => {
     if (!report.shareToken) return;
-    await navigator.clipboard.writeText(sharedReportUrl(report.shareToken));
+    const url = sharedReportUrl(report.shareToken);
+    // navigator.clipboard only exists on HTTPS or localhost.
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      window.prompt('Copy link chia sẻ:', url);
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
