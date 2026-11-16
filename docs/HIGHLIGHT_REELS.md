@@ -14,7 +14,7 @@ Trang replay ── POST /api/matches/{id}/highlights (202) ──> backend ─�
      └── khay tiến độ / trang Highlight <── GET /api/highlights <── Supabase DB/S3 <── ghi kết quả
 ```
 
-- **Chọn pha** — [HighlightSelector.java](../backend/src/main/java/com/badminton/service/HighlightSelector.java): chấm điểm từng pha (pha dài, kết thúc ván +40, cứu điểm game +30, smash hoặc tấn công lưới ăn điểm +20), mặc định chọn khoảng 2 phút, tối đa 12 pha, luôn gợi ý ít nhất 3 pha. Giới hạn cứng: 180 giây, 20 pha mỗi video.
+- **Chọn pha** — [HighlightSelector.java](../backend/src/main/java/com/badminton/service/highlight/HighlightSelector.java): chấm điểm từng pha (pha dài, kết thúc ván +40, cứu điểm game +30, smash hoặc tấn công lưới ăn điểm +20), mặc định chọn khoảng 2 phút, tối đa 12 pha, luôn gợi ý ít nhất 3 pha. Giới hạn cứng: 180 giây, 20 pha mỗi video.
 - **Dựng video** — [backend/integrations/media-worker](../backend/integrations/media-worker/README.md): mỗi pha encode riêng 1280x720 H.264 + AAC, ghép bằng stream copy. Bitrate tính theo tổng thời lượng để file dưới khoảng 40 MB vì Supabase giới hạn 50 MB mỗi file. Chạy bằng CPU (libx264), không dùng GPU.
 - **Lưu trữ** — file ở bucket `badminton-videos`, đường dẫn `highlights/{matchId}/{reelId}.mp4`; thông tin ở bảng `highlight_reels` (migration V10).
 - **Giao diện** — nút "Tạo video highlight" trên trang replay (chỉ chủ trận, khi phân tích xong): xem lại từng pha ngay trong hộp thoại rồi tick chọn. Trang **Highlight** (`/highlights`) liệt kê video của mọi trận; khay tiến độ hiện trên mọi trang và tự khôi phục sau khi tải lại trang.

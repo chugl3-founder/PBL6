@@ -1,7 +1,19 @@
 package com.badminton.config;
 
-import com.badminton.entity.*;
-import com.badminton.repository.*;
+import com.badminton.entity.analysis.AiAnalysis;
+import com.badminton.entity.analysis.AiEvent;
+import com.badminton.entity.analysis.MatchStatistic;
+import com.badminton.entity.analysis.Rally;
+import com.badminton.entity.match.Match;
+import com.badminton.entity.user.User;
+import com.badminton.entity.video.Video;
+import com.badminton.repository.analysis.AiAnalysisRepository;
+import com.badminton.repository.analysis.AiEventRepository;
+import com.badminton.repository.analysis.MatchStatisticRepository;
+import com.badminton.repository.analysis.RallyRepository;
+import com.badminton.repository.match.MatchRepository;
+import com.badminton.repository.user.UserRepository;
+import com.badminton.repository.video.VideoRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

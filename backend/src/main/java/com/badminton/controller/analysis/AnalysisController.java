@@ -1,0 +1,128 @@
+package com.badminton.controller.analysis;
+
+import com.badminton.dto.analysis.AiEventResponse;
+import com.badminton.dto.analysis.AnalysisDispatchResponse;
+import com.badminton.dto.analysis.AnalysisFocusRequest;
+import com.badminton.dto.analysis.AnalysisStatusResponse;
+import com.badminton.dto.analysis.MatchStatisticsResponse;
+import com.badminton.dto.analysis.RallyResponse;
+import com.badminton.service.analysis.AnalysisService;
+import com.badminton.service.analysis.ReplayDataService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/matches/{id}/analysis")
+@RequiredArgsConstructor
+public class AnalysisController {
+
+    private final AnalysisService analysisService;
+    private final ReplayDataService replayDataService;
+
+    /**
+     * NFR-PER-02, NFR-AI-01: Bắt đầu phân tích AI, trả về 202 Accepted ngay lập tức (< 200ms)
+     */
+    @PostMapping("/dispatch")
+    public ResponseEntity<AnalysisDispatchResponse> dispatchAnalysis(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
+    ) {
+        AnalysisDispatchResponse response = analysisService.dispatchAnalysis(id, email);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
+
+    /**
+     * Endpoint polling lấy trạng thái & tiến trình xử lý phân tích AI
+     */
+    @GetMapping("/status")
+    public ResponseEntity<AnalysisStatusResponse> getAnalysisStatus(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
+    ) {
+        AnalysisStatusResponse response = analysisService.getAnalysisStatus(id, email);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Lấy toàn bộ danh sách các sự kiện cú đánh (AiEvents) kèm tọa độ 2D của trận đấu phục vụ Replay
+     */
+    @GetMapping("/events")
+    public ResponseEntity<List<AiEventResponse>> getMatchEvents(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
+    ) {
+        List<AiEventResponse> events = replayDataService.getEvents(id, email);
+        return ResponseEntity.ok(events);
+    }
+
+    /**
+     * VS-11: Lấy danh sách các đợt cầu (Rallies) của trận đấu
+     */
+    @GetMapping("/rallies")
+    public ResponseEntity<List<RallyResponse>> getMatchRallies(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
+    ) {
+        List<RallyResponse> rallies = replayDataService.getRallies(id, email);
+        return ResponseEntity.ok(rallies);
+    }
+
+    /**
+     * VS-12: Lấy dữ liệu thống kê chuyên sâu toàn diện của trận đấu
+     */
+    @GetMapping("/statistics")
+    public ResponseEntity<MatchStatisticsResponse> getMatchStatistics(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String email
+    ) {
+        MatchStatisticsResponse statistics = replayDataService.getStatistics(id, email);
+        return ResponseEntity.ok(statistics);
+    }
+
+    /**
+     * VS-13: Thử lại phiên phân tích AI bị FAILED
+     */
+    @PostMapping("/retry")
+    public ResponseEntity<AnalysisDispatchResponse> retryAnalysis(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long analysisId,
+            @AuthenticationPrincipal String email
+    ) {
+        AnalysisDispatchResponse response = analysisService.retryAnalysis(id, analysisId, email);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
+
+    /**
+     * Streaming: người xem tua tới đoạn AI chưa phân tích, GPU worker sẽ ưu tiên quét đoạn đó trước.
+     */
+    @PostMapping("/focus")
+    public ResponseEntity<AnalysisStatusResponse> focusAnalysis(
+            @PathVariable Long id,
+            @Valid @RequestBody AnalysisFocusRequest request,
+            @AuthenticationPrincipal String email
+    ) {
+        AnalysisStatusResponse response = analysisService.focusAnalysis(id, request.getSeconds(), email);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
+
+    /**
+     * VS-13: Hủy phiên phân tích AI đang chạy (QUEUED hoặc PROCESSING)
+     */
+    @PostMapping("/cancel")
+    public ResponseEntity<AnalysisStatusResponse> cancelAnalysis(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long analysisId,
+            @AuthenticationPrincipal String email
+    ) {
+        AnalysisStatusResponse response = analysisService.cancelAnalysis(id, analysisId, email);
+        return ResponseEntity.ok(response);
+    }
+}
+
+

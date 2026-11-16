@@ -27,12 +27,18 @@ is the architecture required by the project:
 backend/src/main/java/com/badminton/
   common/          shared response and exception types
   config/          framework and infrastructure configuration
-  controller/      HTTP adapters only
-  dto/<feature>/   API request/response contracts
-  service/         transactions and use cases
-  repository/      persistence ports
-  entity/          JPA persistence model
+  controller/<feature>/   HTTP adapters only
+  dto/<feature>/          API request/response contracts
+  service/<feature>/      transactions and use cases
+  repository/<feature>/   persistence ports
+  entity/<feature>/       JPA persistence model
 ```
+
+Each layer is split into the same feature folders: `admin`, `analysis`,
+`auth`, `coach`, `highlight`, `match`, `player`, `scouting`, `user`, `video`
+(plus `controller/common` for health and `service/storage` for S3 URLs).
+`analysis` holds the AI results (`ai_events`, `rallies`,
+`match_statistics`). Tests mirror the package of the class they cover.
 
 Controllers must not call repositories directly. Entities must not be exposed
 as HTTP responses. Flyway migrations are the database source of truth;
