@@ -167,6 +167,7 @@ public class CoachTools {
             m.put("rally_number", r.getRallyNumber());
             m.put("game", r.getGameNumber());
             m.put("start_time_seconds", scale1(r.getStartTime()));
+            m.put("start_clock", clock(r.getStartTime()));
             m.put("end_time_seconds", scale1(r.getEndTime()));
             m.put("duration_seconds", scale1(r.getDuration()));
             m.put("strokes_count", r.getTotalStrokes());
@@ -357,6 +358,7 @@ public class CoachTools {
             Map<String, Object> l = new LinkedHashMap<>();
             l.put("rally_number", longest.getRallyNumber());
             l.put("start_time_seconds", scale1(longest.getStartTime()));
+            l.put("start_clock", clock(longest.getStartTime()));
             l.put("duration_seconds", scale1(longest.getDuration()));
             l.put("strokes_count", longest.getTotalStrokes());
             m.put("longest_rally", l);
@@ -440,5 +442,18 @@ public class CoachTools {
 
     private static BigDecimal scale1(BigDecimal v) {
         return v == null ? null : v.setScale(1, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * A time in the video as "mm:ss" for the rally links "[Pha cầu #X - mm:ss]"; minutes go past 59
+     * ("65:30") so the link format stays the same. The model copies it: converting 3725 seconds by
+     * itself it got times wrong, worst on the later part of a long YouTube video.
+     */
+    static String clock(BigDecimal seconds) {
+        if (seconds == null) {
+            return null;
+        }
+        int total = Math.max(0, seconds.setScale(0, RoundingMode.FLOOR).intValue());
+        return String.format("%02d:%02d", total / 60, total % 60);
     }
 }

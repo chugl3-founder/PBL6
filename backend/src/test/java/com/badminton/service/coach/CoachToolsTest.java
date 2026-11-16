@@ -88,7 +88,15 @@ class CoachToolsTest {
         assertThat(rallies).hasSize(1);
         assertThat(rallies.get(0)).containsEntry("winner", "Momota")
                 .containsEntry("score_after", "Axelsen 14 - 16 Momota")
-                .containsEntry("start_time_seconds", new BigDecimal("33.8"));
+                .containsEntry("start_time_seconds", new BigDecimal("33.8"))
+                .containsEntry("start_clock", "00:33");
+    }
+
+    @Test
+    void clockKeepsCountingMinutesPastAnHour() {
+        assertThat(CoachTools.clock(new BigDecimal("607.4"))).isEqualTo("10:07");
+        assertThat(CoachTools.clock(new BigDecimal("3725.9"))).isEqualTo("62:05");
+        assertThat(CoachTools.clock(null)).isNull();
     }
 
     @SuppressWarnings("unchecked")
