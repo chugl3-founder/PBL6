@@ -33,8 +33,10 @@ public class S3Config {
 
     @Bean
     public S3Presigner s3Presigner() {
-        String presignerEndpoint = (properties.publicUrl() != null && !properties.publicUrl().isBlank())
-                ? properties.publicUrl()
+        // Signed links must go through the S3 API. publicUrl is not one: on Supabase it is the
+        // /object/public path, which answers "Bucket not found" for a private bucket.
+        String presignerEndpoint = (properties.presignEndpoint() != null && !properties.presignEndpoint().isBlank())
+                ? properties.presignEndpoint()
                 : properties.endpoint();
         return S3Presigner.builder()
                 .endpointOverride(URI.create(presignerEndpoint))

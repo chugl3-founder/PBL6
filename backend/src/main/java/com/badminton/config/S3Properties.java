@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record S3Properties(
         String endpoint,
         String publicUrl,
+        /* Host that browsers reach for signed links, when it differs from endpoint (MinIO in Docker). */
+        String presignEndpoint,
         String accessKey,
         String secretKey,
         String region,
