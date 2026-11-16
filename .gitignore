@@ -62,3 +62,6 @@ rabbitmq_data/
 SuaBaoCao/
 
 .claude/settings.local.json
+
+# Production settings on the server (passwords)
+.env.prod

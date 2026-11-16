@@ -1,0 +1,72 @@
+# Production stack for one small server (AWS Lightsail 4 GB).
+# The database and video storage stay on Supabase, the broker on CloudAMQP and the AI worker on a rented GPU,
+# so only the web app and the highlight renderer run here.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# See docs/DEPLOY_AWS.md.
+
+services:
+  # Spring Boot API. Not published: Caddy reaches it on the internal network.
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: badminton_backend
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      # Heap at 70% of the container limit leaves room for metaspace and thread stacks.
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70"
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # React build served by nginx.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: badminton_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: 128m
+
+  # Renders highlight reels with ffmpeg.
+  media-worker:
+    build:
+      context: ./backend/integrations/media-worker
+      dockerfile: Dockerfile
+    container_name: badminton_media_worker
+    restart: unless-stopped
+    env_file: .env.prod
+    mem_limit: 1536m
+
+  # Entry point on ports 80/443. SITE_ADDRESS=":80" serves plain HTTP on the server IP;
+  # set it to a domain name and Caddy obtains an HTTPS certificate by itself.
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: badminton_caddy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 128m
+
+volumes:
+  caddy_data:
+  caddy_config:
