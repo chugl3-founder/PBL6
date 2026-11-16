@@ -69,6 +69,19 @@ public class MatchResultService {
             if (finished && g.aAfter() > g.bAfter()) wonA++;
             if (finished && g.bAfter() > g.aAfter()) wonB++;
         }
+        // Broadcasts often cut to a close-up during the match point, so its rally is not seen and the
+        // last game stops one short (20-12). A match does not end on match point: when the leader of
+        // the last game had match point there, they won the next rally.
+        if (!scores.isEmpty() && !scores.get(scores.size() - 1).finished()) {
+            MatchResult.GameScore last = scores.get(scores.size() - 1);
+            if (wonA == 1 && HighlightSelector.hasGamePoint(last.scoreA(), last.scoreB())) {
+                scores.set(scores.size() - 1, new MatchResult.GameScore(last.scoreA() + 1, last.scoreB(), true));
+                wonA++;
+            } else if (wonB == 1 && HighlightSelector.hasGamePoint(last.scoreB(), last.scoreA())) {
+                scores.set(scores.size() - 1, new MatchResult.GameScore(last.scoreA(), last.scoreB() + 1, true));
+                wonB++;
+            }
+        }
         String winner = wonA >= 2 ? "PLAYER_A" : wonB >= 2 ? "PLAYER_B" : null;
         return new MatchResult(scores, winner);
     }

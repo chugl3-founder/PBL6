@@ -56,30 +56,30 @@ export const RallyRibbon: React.FC<{ matchId: number }> = ({ matchId }) => {
   const shown = hovered ?? counts.longest;
 
   return (
-    <section className="rounded-2xl bg-mat text-white p-5 sm:p-8" aria-labelledby="ribbon-title">
+    <section className="rounded-2xl bg-white border border-slate-200/90 shadow-sm text-slate-800 p-5 sm:p-8" aria-labelledby="ribbon-title">
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div>
-          {event && <p className="text-sm text-white/60">{event}</p>}
-          <h2 id="ribbon-title" className="font-score text-3xl sm:text-4xl font-semibold leading-tight">
+          {event && <p className="text-xs uppercase tracking-wider font-semibold text-emerald-600 mb-1">{event}</p>}
+          <h2 id="ribbon-title" className="font-score text-2xl sm:text-3xl font-bold leading-tight text-slate-900">
             <span className="whitespace-nowrap">
-              <span className={`inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle ${colorA}`} aria-hidden />
+              <span className={`inline-block w-3 h-3 rounded-full mr-2 align-middle ${colorA}`} aria-hidden />
               {match.playerAName}
             </span>{' '}
-            <span className="text-white/40 font-normal">gặp</span>{' '}
+            <span className="text-slate-400 font-normal text-xl">gặp</span>{' '}
             <span className="whitespace-nowrap">
-              <span className={`inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle ${colorB}`} aria-hidden />
+              <span className={`inline-block w-3 h-3 rounded-full mr-2 align-middle ${colorB}`} aria-hidden />
               {match.playerBName}
             </span>
           </h2>
         </div>
-        <p className="text-sm text-white/65 max-w-xs">
-          {rallies.length} pha cầu AI đã tách từ video. Bấm một pha để xem lại đúng đoạn đó.
+        <p className="text-sm text-slate-500 max-w-xs">
+          {rallies.length} pha cầu AI đã tách từ video. Bấm vào một vạch để mở xem lại đúng pha đó.
         </p>
       </div>
 
       {/* Above the line: rallies won by player A; below: by player B. */}
-      <div className="relative mt-6 h-44 sm:h-52" role="group" aria-label="Diễn biến từng pha cầu">
-        <div className="absolute inset-x-0 top-1/2 h-px bg-white/25" aria-hidden />
+      <div className="relative mt-6 h-44 sm:h-52 bg-slate-50/80 rounded-xl p-3 border border-slate-100" role="group" aria-label="Diễn biến từng pha cầu">
+        <div className="absolute inset-x-3 top-1/2 h-px bg-slate-200" aria-hidden />
         <div className="relative flex h-full gap-[3px]">
           {rallies.map((r, i) => {
             const aWon = r.winnerPlayer === 'PLAYER_A';
@@ -87,7 +87,7 @@ export const RallyRibbon: React.FC<{ matchId: number }> = ({ matchId }) => {
             const newGame = i > 0 && (r.gameNumber ?? 1) !== (rallies[i - 1].gameNumber ?? 1);
             return (
               <React.Fragment key={r.id}>
-                {newGame && <span className="w-px mx-1 h-full bg-white/20" aria-hidden />}
+                {newGame && <span className="w-px mx-1 h-full bg-slate-300" aria-hidden />}
                 <button
                   type="button"
                   aria-label={describe(r)}
@@ -100,8 +100,8 @@ export const RallyRibbon: React.FC<{ matchId: number }> = ({ matchId }) => {
                 >
                   <span
                     className={`absolute inset-x-0 rounded-[2px] ${aWon ? colorA : colorB} ${
-                      shown?.id === r.id ? 'opacity-100' : 'opacity-75 group-hover:opacity-100'
-                    } group-focus-visible:ring-2 group-focus-visible:ring-white motion-safe:animate-ribbon-grow`}
+                      shown?.id === r.id ? 'opacity-100 ring-2 ring-emerald-500' : 'opacity-80 group-hover:opacity-100'
+                    } group-focus-visible:ring-2 group-focus-visible:ring-emerald-500 motion-safe:animate-ribbon-grow`}
                     style={{
                       height: `${height / 2}%`,
                       ...(aWon ? { bottom: '50%', transformOrigin: 'bottom' } : { top: '50%', transformOrigin: 'top' }),
@@ -116,11 +116,11 @@ export const RallyRibbon: React.FC<{ matchId: number }> = ({ matchId }) => {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm">
-        <p className="text-white/80 min-h-[1.25rem]" aria-live="polite">
+        <p className="text-slate-700 font-medium min-h-[1.25rem]" aria-live="polite">
           {shown && (hovered ? describe(shown) : `Pha dài nhất: ${shown.totalStrokes} cú, ${nameOf(shown)} ghi điểm`)}
         </p>
-        <p className="text-white/60">
-          {match.playerAName} thắng {counts.a} pha, {match.playerBName} thắng {counts.b} pha
+        <p className="text-slate-500 text-xs sm:text-sm">
+          {match.playerAName} thắng <strong className="font-semibold text-slate-800">{counts.a}</strong> pha • {match.playerBName} thắng <strong className="font-semibold text-slate-800">{counts.b}</strong> pha
         </p>
       </div>
     </section>

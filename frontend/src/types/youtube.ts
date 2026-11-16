@@ -20,6 +20,8 @@ export interface YouTubePlayer {
   mute(): void;
   unMute(): void;
   setPlaybackRate(rate: number): void;
+  /** Undocumented but long-standing; 'captions' hides subtitles. */
+  unloadModule?(module: string): void;
   destroy(): void;
 }
 

@@ -54,6 +54,23 @@ class MatchResultServiceTest {
     }
 
     @Test
+    void unseenMatchPointRallyCompletesTheMatch() {
+        int[] count = {0, 0};
+        List<RallyRepository.RallyScore> rallies = new ArrayList<>();
+        run(rallies, "LOWER", 15, count);  // game 1: B (lower) 15 points
+        run(rallies, "UPPER", 21, count);  // A wins 21-15
+        run(rallies, "UPPER", 12, count);  // game 2: B (now upper) 12 points
+        run(rallies, "LOWER", 20, count);  // A reaches match point; the last rally was not seen
+
+        MatchResult result = MatchResultService.resultOf(match(), rallies);
+
+        assertThat(result.winner()).isEqualTo("PLAYER_A");
+        assertThat(result.games()).containsExactly(
+                new MatchResult.GameScore(21, 15, true),
+                new MatchResult.GameScore(21, 12, true));
+    }
+
+    @Test
     void videoStoppingMidGameHasNoWinner() {
         int[] count = {0, 0};
         List<RallyRepository.RallyScore> rallies = new ArrayList<>();

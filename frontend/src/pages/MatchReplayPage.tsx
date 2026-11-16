@@ -219,9 +219,14 @@ export const MatchReplayPage: React.FC = () => {
 
       ytPlayerRef.current = new win.YT!.Player('youtube-player-frame', {
         videoId: video.youtubeVideoId,
+        // The page draws its own controls, so YouTube's are turned off; otherwise both bars show over the video.
         playerVars: {
           autoplay: 0,
-          controls: 1,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          cc_load_policy: 0,
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
@@ -231,6 +236,8 @@ export const MatchReplayPage: React.FC = () => {
         events: {
           onReady: (event: { target: YouTubePlayer }) => {
             if (!isMounted) return;
+            // Captions the viewer turned on for YouTube in general would cover the scoreboard.
+            try { event.target.unloadModule?.('captions'); } catch { /* module not loaded */ }
             const dur = event.target.getDuration();
             if (dur) setDuration(dur);
             event.target.setVolume(volume * 100);
@@ -241,6 +248,8 @@ export const MatchReplayPage: React.FC = () => {
             // 1 = PLAYING, 2 = PAUSED, 0 = ENDED
             if (event.data === 1) {
               setIsPlaying(true);
+              // The captions module loads with the first playback, after onReady.
+              try { ytPlayerRef.current?.unloadModule?.('captions'); } catch { /* not loaded */ }
             } else if (event.data === 2 || event.data === 0) {
               setIsPlaying(false);
             }
@@ -757,11 +766,12 @@ export const MatchReplayPage: React.FC = () => {
             className="relative rounded-3xl overflow-hidden bg-black border border-white/10 shadow-2xl aspect-video group select-none flex flex-col justify-end"
           >
             {isYouTube ? (
-              <div className="w-full h-full relative overflow-hidden bg-black flex items-center justify-center">
-                <div
-                  id="youtube-player-frame"
-                  className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full"
-                />
+              // The iframe is 160px taller than the box and centred, so YouTube letterboxes the 16:9 video into exactly
+              // the visible area and draws its title bar, share buttons and "More videos" strip in the cropped margins.
+              <div className="w-full h-full relative overflow-hidden bg-black [&_iframe]:absolute [&_iframe]:inset-x-0 [&_iframe]:-top-20 [&_iframe]:w-full [&_iframe]:h-[calc(100%+10rem)]">
+                <div id="youtube-player-frame" />
+                {/* Takes the pointer so YouTube shows none of its hover UI; a click plays or pauses like the MP4 player. */}
+                <div onClick={togglePlay} className="absolute inset-0 z-10 cursor-pointer" aria-hidden="true" />
               </div>
             ) : video?.videoUrl ? (
               <video
@@ -844,7 +854,7 @@ export const MatchReplayPage: React.FC = () => {
             )}
 
             {/* Center Play Button Watermark when Paused (Hover to see for MP4 videos) */}
-            {!isPlaying && video?.videoUrl && !isYouTube && (
+            {!isPlaying && video?.videoUrl && (
               <div
                 onClick={togglePlay}
                 className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-black/20 group-hover:bg-black/30 transition-colors"

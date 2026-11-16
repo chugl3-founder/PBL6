@@ -48,107 +48,115 @@ export const RallyCourt: React.FC = () => {
   return (
     <figure className="relative" aria-label="Minh họa một pha cầu: sáu cú đánh, pha kết thúc bằng cú đập cầu của đối thủ rơi trong sân của bạn">
       {/* Scoreboard over the court, as on a broadcast */}
-      <div className="flex items-stretch justify-between gap-4 mb-4">
-        <div className="inline-flex items-stretch rounded-md overflow-hidden bg-[#0A2A1D] ring-1 ring-white/10 font-score text-white">
-          <span className="px-3 flex items-center whitespace-nowrap text-sm text-white/60 border-r border-white/10">Ván 2</span>
-          <div className="divide-y divide-white/10">
-            <div className="flex items-center gap-2.5 pl-3 pr-2 h-8">
-              <span className="w-1 h-4 rounded-full" style={{ background: COLOR.me }} aria-hidden />
-              <span className="text-lg w-20">Bạn</span>
-              <span className="text-xl font-semibold tabular-nums w-7 text-right">18</span>
+      <div className="flex items-stretch justify-between gap-4 mb-3.5">
+        <div className="inline-flex items-stretch rounded-lg overflow-hidden bg-slate-900 border border-slate-700 shadow-md font-score text-white">
+          <span className="px-3 flex items-center whitespace-nowrap text-xs uppercase tracking-wider text-emerald-400 font-semibold border-r border-slate-700">Ván 2</span>
+          <div className="divide-y divide-slate-700">
+            <div className="flex items-center gap-2.5 pl-3 pr-3 h-8">
+              <span className="w-1.5 h-3.5 rounded-full" style={{ background: COLOR.me }} aria-hidden />
+              <span className="text-base w-20 font-medium">Bạn</span>
+              <span className="text-lg font-bold tabular-nums w-7 text-right">18</span>
             </div>
-            <div className="flex items-center gap-2.5 pl-3 pr-2 h-8">
-              <span className="w-1 h-4 rounded-full" style={{ background: COLOR.opp }} aria-hidden />
-              <span className="text-lg w-20">Đối thủ</span>
-              <span className="relative text-xl font-semibold tabular-nums w-7 text-right">
+            <div className="flex items-center gap-2.5 pl-3 pr-3 h-8">
+              <span className="w-1.5 h-3.5 rounded-full" style={{ background: COLOR.opp }} aria-hidden />
+              <span className="text-base w-20 font-medium">Đối thủ</span>
+              <span className="relative text-lg font-bold tabular-nums w-7 text-right">
                 <span className="absolute inset-0 rally-score-out" style={delay(END + 0.3)}>19</span>
-                <span className="rally-score-in" style={delay(END + 0.3)}>20</span>
+                <span className="rally-score-in text-emerald-400" style={delay(END + 0.3)}>20</span>
               </span>
             </div>
           </div>
         </div>
-        <p className="hidden sm:block self-end text-sm text-white/55 text-right max-w-[13rem] leading-snug">
-          Pha 37, AI nhận ra 6 cú đánh
-        </p>
+        <div className="hidden sm:flex flex-col justify-end items-end">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            AI Live Vision
+          </span>
+          <p className="mt-1 text-xs text-slate-500 text-right">
+            Pha 37 • Nhận diện 6 cú đánh
+          </p>
+        </div>
       </div>
 
-      <svg viewBox="-24 -24 718 353" className="w-full h-auto" role="img" aria-hidden>
-        <defs>
-          <radialGradient id="mat-light" cx="50%" cy="45%" r="65%">
-            <stop offset="0%" stopColor="#1F6E4C" />
-            <stop offset="100%" stopColor="#14563A" />
-          </radialGradient>
-        </defs>
-        <rect x="-24" y="-24" width="718" height="353" rx="10" fill="url(#mat-light)" />
+      <div className="rounded-xl overflow-hidden shadow-md border border-slate-200/90 bg-slate-900">
+        <svg viewBox="-24 -24 718 353" className="w-full h-auto block" role="img" aria-hidden>
+          <defs>
+            <radialGradient id="mat-light" cx="50%" cy="45%" r="65%">
+              <stop offset="0%" stopColor="#12583A" />
+              <stop offset="100%" stopColor="#0B3E28" />
+            </radialGradient>
+          </defs>
+          <rect x="-24" y="-24" width="718" height="353" fill="url(#mat-light)" />
 
-        {/* Court lines: doubles boundary, singles sidelines, long service lines, short service lines, centre lines */}
-        <g stroke="#F4F7F4" strokeWidth="3" fill="none" opacity="0.92">
-          <rect x="0" y="0" width="670" height="305" />
-          <path d="M0 23H670M0 282H670" />
-          <path d="M38 0V305M632 0V305" />
-          <path d="M236 0V305M434 0V305" />
-          <path d="M0 152.5H236M434 152.5H670" />
-        </g>
-        {/* The net */}
-        <line x1="335" y1="-14" x2="335" y2="319" stroke="#F4F7F4" strokeWidth="5" strokeDasharray="6 5" />
-        <circle cx="335" cy="-14" r="5" fill="#F4F7F4" />
-        <circle cx="335" cy="319" r="5" fill="#F4F7F4" />
-
-        {/* The rally */}
-        {HITS.map((hit, i) => (
-          <g key={i}>
-            <path
-              d={arc(hit, i)}
-              pathLength={1}
-              fill="none"
-              stroke={COLOR[hit.by]}
-              strokeWidth="3.5"
-              strokeLinecap="round"
-              className="rally-draw"
-              style={delay(START + i * STEP)}
-            />
-            <g className="rally-pop" style={{ ...delay(START + i * STEP - 0.05), transformOrigin: `${hit.from[0]}px ${hit.from[1]}px` }}>
-              <circle cx={hit.from[0]} cy={hit.from[1]} r="11" fill="#0A2A1D" stroke={COLOR[hit.by]} strokeWidth="3" />
-              <text
-                x={hit.from[0]}
-                y={hit.from[1] + 5}
-                textAnchor="middle"
-                fontFamily="Barlow Condensed, sans-serif"
-                fontWeight="700"
-                fontSize="15"
-                fill="#FFFFFF"
-              >
-                {i + 1}
-              </text>
-            </g>
+          {/* Court lines */}
+          <g stroke="#FFFFFF" strokeWidth="3" fill="none" opacity="0.95">
+            <rect x="0" y="0" width="670" height="305" />
+            <path d="M0 23H670M0 282H670" />
+            <path d="M38 0V305M632 0V305" />
+            <path d="M236 0V305M434 0V305" />
+            <path d="M0 152.5H236M434 152.5H670" />
           </g>
-        ))}
+          {/* The net */}
+          <line x1="335" y1="-14" x2="335" y2="319" stroke="#FFFFFF" strokeWidth="5" strokeDasharray="6 5" />
+          <circle cx="335" cy="-14" r="5" fill="#FFFFFF" />
+          <circle cx="335" cy="319" r="5" fill="#FFFFFF" />
 
-        {/* Where the point was lost */}
-        <g className="rally-pop" style={{ ...delay(END), transformOrigin: `${lx}px ${ly}px` }}>
-          <circle cx={lx} cy={ly} r="9" fill="#E5534B" />
-          <circle cx={lx} cy={ly} r="9" fill="none" stroke="#E5534B" strokeWidth="3" className="rally-ring" style={{ ...delay(END + 0.1), transformOrigin: `${lx}px ${ly}px` }} />
-        </g>
-      </svg>
+          {/* The rally */}
+          {HITS.map((hit, i) => (
+            <g key={i}>
+              <path
+                d={arc(hit, i)}
+                pathLength={1}
+                fill="none"
+                stroke={COLOR[hit.by]}
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                className="rally-draw"
+                style={delay(START + i * STEP)}
+              />
+              <g className="rally-pop" style={{ ...delay(START + i * STEP - 0.05), transformOrigin: `${hit.from[0]}px ${hit.from[1]}px` }}>
+                <circle cx={hit.from[0]} cy={hit.from[1]} r="11" fill="#0A2A1D" stroke={COLOR[hit.by]} strokeWidth="3" />
+                <text
+                  x={hit.from[0]}
+                  y={hit.from[1] + 5}
+                  textAnchor="middle"
+                  fontFamily="Barlow Condensed, sans-serif"
+                  fontWeight="700"
+                  fontSize="15"
+                  fill="#FFFFFF"
+                >
+                  {i + 1}
+                </text>
+              </g>
+            </g>
+          ))}
 
-      {/* The strokes, named, lighting up as they are played */}
-      <ol className="mt-4 grid grid-cols-3 sm:grid-cols-6 gap-1.5" aria-label="Các cú đánh trong pha">
+          {/* Where the point was lost */}
+          <g className="rally-pop" style={{ ...delay(END), transformOrigin: `${lx}px ${ly}px` }}>
+            <circle cx={lx} cy={ly} r="9" fill="#EF4444" />
+            <circle cx={lx} cy={ly} r="9" fill="none" stroke="#EF4444" strokeWidth="3" className="rally-ring" style={{ ...delay(END + 0.1), transformOrigin: `${lx}px ${ly}px` }} />
+          </g>
+        </svg>
+      </div>
+
+      {/* The strokes, named */}
+      <ol className="mt-3.5 grid grid-cols-3 sm:grid-cols-6 gap-1.5" aria-label="Các cú đánh trong pha">
         {HITS.map((hit, i) => (
           <li
             key={i}
-            className="rally-chip flex items-center gap-1.5 rounded-md bg-white/[0.07] px-2 h-9 text-[13px] xl:text-sm text-white"
+            className="rally-chip flex items-center gap-1.5 rounded-lg bg-white border border-slate-200/90 shadow-xs px-2 h-9 text-[13px] font-medium text-slate-800"
             style={delay(START + i * STEP)}
           >
-            <span className="font-score font-semibold text-base" style={{ color: COLOR[hit.by] }}>{i + 1}</span>
+            <span className="font-score font-bold text-sm" style={{ color: COLOR[hit.by] }}>{i + 1}</span>
             <span className="truncate">{hit.name}</span>
           </li>
         ))}
       </ol>
-      <figcaption className="rally-fade mt-4 flex items-start gap-2.5 text-[15px] text-white" style={delay(END + 0.4)}>
-        <span className="mt-1.5 w-2.5 h-2.5 rounded-full bg-[#E5534B] shrink-0" aria-hidden />
+      <figcaption className="rally-fade mt-3 flex items-start gap-2.5 text-xs sm:text-sm text-slate-600 bg-slate-50 border border-slate-200/70 p-2.5 rounded-lg" style={delay(END + 0.4)}>
+        <span className="mt-1 w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" aria-hidden />
         <span>
-          Mất điểm: đối thủ đập ăn điểm ngay sau cú nâng cầu của bạn.{' '}
-          <span className="text-white/60">Pha này được xếp vào nhóm “bị đập sau nâng cầu”.</span>
+          <strong className="text-slate-800 font-semibold">Mất điểm:</strong> Đối thủ đập ăn điểm ngay sau cú nâng cầu của bạn.{' '}
+          <span className="text-slate-500">Pha này được gom vào nhóm “Bị đập sau nâng cầu”.</span>
         </span>
       </figcaption>
     </figure>
