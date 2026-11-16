@@ -4,6 +4,8 @@ import { errorMessage } from '../../api/errors';
 import type { Match } from '../../types/match';
 
 interface StartScoreFormProps {
+  /** Start of the analysed part of a YouTube video ("30:00"), when only a part is analysed. */
+  segmentStartText?: string | null;
   matchId: number | string;
   playerAName: string;
   playerBName: string;
@@ -28,6 +30,7 @@ export const StartScoreForm: React.FC<StartScoreFormProps> = ({
   startScoreA = 0,
   startScoreB = 0,
   onSaved,
+  segmentStartText = null,
 }) => {
   const [game, setGame] = useState(startGame);
   const [a, setA] = useState(startScoreA);
@@ -63,9 +66,12 @@ export const StartScoreForm: React.FC<StartScoreFormProps> = ({
   return (
     <form onSubmit={save} className="border-t border-ink/10 pt-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-ink">Tỉ số lúc video bắt đầu</h3>
+        <h3 className="text-sm font-semibold text-ink">
+          {segmentStartText ? `Tỉ số lúc ${segmentStartText}, đầu đoạn phân tích` : 'Tỉ số lúc video bắt đầu'}
+        </h3>
         <p className="text-xs text-ink/70 mt-0.5">
-          Chỉ cần sửa khi video bắt đầu giữa trận và AI không đọc được bảng điểm. Mặc định: ván 1, 0–0.
+          {segmentStartText ? 'Chỉ cần sửa khi đoạn bắt đầu giữa trận' : 'Chỉ cần sửa khi video bắt đầu giữa trận'}
+          {' '}và AI không đọc được bảng điểm. Mặc định: ván 1, 0–0.
         </p>
       </div>
       <div className="flex flex-wrap items-end gap-3">

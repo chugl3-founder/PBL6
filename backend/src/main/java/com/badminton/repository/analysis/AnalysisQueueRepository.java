@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Optional;
@@ -38,12 +39,16 @@ public class AnalysisQueueRepository {
                 FROM videos v JOIN analyzing a ON a.id = v.match_id
                 RETURNING id, video_id
             )
-            SELECT c.id, v.storage_path, v.video_source_type, v.youtube_url FROM created c JOIN videos v ON v.id = c.video_id
+            SELECT c.id, v.storage_path, v.video_source_type, v.youtube_url,
+                   v.segment_start_seconds, v.segment_end_seconds
+            FROM created c JOIN videos v ON v.id = c.video_id
             """.formatted(DISPATCHABLE_MATCH);
 
     private final JdbcTemplate jdbcTemplate;
 
-    public record QueuedAnalysis(Long analysisId, String videoStoragePath, String videoSourceType, String youtubeUrl) {
+    /** segmentStartSeconds/segmentEndSeconds: the part of a YouTube video to analyse, or null. */
+    public record QueuedAnalysis(Long analysisId, String videoStoragePath, String videoSourceType, String youtubeUrl,
+                                 BigDecimal segmentStartSeconds, BigDecimal segmentEndSeconds) {
         public boolean fromYoutube() {
             return "YOUTUBE".equalsIgnoreCase(videoSourceType) && youtubeUrl != null;
         }
@@ -59,7 +64,8 @@ public class AnalysisQueueRepository {
             statement.execute();
             statement.getMoreResults();
             try (ResultSet row = statement.getResultSet()) {
-                return row.next() ? new QueuedAnalysis(row.getLong(1), row.getString(2), row.getString(3), row.getString(4)) : null;
+                return row.next() ? new QueuedAnalysis(row.getLong(1), row.getString(2), row.getString(3),
+                        row.getString(4), row.getBigDecimal(5), row.getBigDecimal(6)) : null;
             }
         });
         return Optional.ofNullable(queued);

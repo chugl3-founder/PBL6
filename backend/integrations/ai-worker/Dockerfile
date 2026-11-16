@@ -4,6 +4,9 @@ WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1
 
+# ffmpeg cuts the chosen part out of a YouTube video.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

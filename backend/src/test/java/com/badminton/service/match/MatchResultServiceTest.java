@@ -13,13 +13,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MatchResultServiceTest {
 
     private record Score(Long matchId, Long id, Integer rallyNumber, String winnerSide, Integer scoreUpper,
-                         Integer scoreLower) implements RallyRepository.RallyScore {
+                         Integer scoreLower, Boolean partialVideo) implements RallyRepository.RallyScore {
         public Long getMatchId() { return matchId; }
         public Long getId() { return id; }
         public Integer getRallyNumber() { return rallyNumber; }
         public String getWinnerSide() { return winnerSide; }
         public Integer getScoreUpper() { return scoreUpper; }
         public Integer getScoreLower() { return scoreLower; }
+        public Boolean getPartialVideo() { return partialVideo; }
+    }
+
+    /** The same rallies from an analysis of only part of a YouTube video, ending before the video does. */
+    private static List<RallyRepository.RallyScore> partOfVideo(List<RallyRepository.RallyScore> rallies) {
+        return rallies.stream()
+                .map(r -> (RallyRepository.RallyScore) new Score(r.getMatchId(), r.getId(), r.getRallyNumber(),
+                        r.getWinnerSide(), r.getScoreUpper(), r.getScoreLower(), true))
+                .toList();
     }
 
     /** Points won on one half of the court, as the AI's running count per side. */
@@ -28,7 +37,7 @@ class MatchResultServiceTest {
             if ("UPPER".equals(side)) count[0]++;
             else count[1]++;
             long n = into.size() + 1;
-            into.add(new Score(1L, n, (int) n, side, count[0], count[1]));
+            into.add(new Score(1L, n, (int) n, side, count[0], count[1], false));
         }
     }
 
@@ -68,6 +77,23 @@ class MatchResultServiceTest {
         assertThat(result.games()).containsExactly(
                 new MatchResult.GameScore(21, 15, true),
                 new MatchResult.GameScore(21, 12, true));
+    }
+
+    @Test
+    void partOfVideoEndingOnMatchPointLeavesTheMatchOpen() {
+        int[] count = {0, 0};
+        List<RallyRepository.RallyScore> rallies = new ArrayList<>();
+        run(rallies, "LOWER", 15, count);  // game 1: B (lower) 15 points
+        run(rallies, "UPPER", 21, count);  // A wins 21-15
+        run(rallies, "UPPER", 12, count);  // game 2: B (now upper) 12 points
+        run(rallies, "LOWER", 20, count);  // A has match point when the chosen part of the video ends
+
+        MatchResult result = MatchResultService.resultOf(match(), partOfVideo(rallies));
+
+        assertThat(result.winner()).isNull();
+        assertThat(result.games()).containsExactly(
+                new MatchResult.GameScore(21, 15, true),
+                new MatchResult.GameScore(20, 12, false));
     }
 
     @Test

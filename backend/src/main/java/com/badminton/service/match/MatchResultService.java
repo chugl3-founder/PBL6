@@ -73,7 +73,10 @@ public class MatchResultService {
         // Broadcasts often cut to a close-up during the match point, so its rally is not seen and the
         // last game stops one short (20-12). A match does not end on match point: when the leader of
         // the last game had match point there, they won the next rally.
-        if (!scores.isEmpty() && !scores.get(scores.size() - 1).finished()) {
+        // Not when the owner analysed only a part of the video that ends earlier: the match goes on
+        // after that part, so a game point at its end decides nothing.
+        boolean partialVideo = Boolean.TRUE.equals(rallies.get(0).getPartialVideo());
+        if (!partialVideo && !scores.isEmpty() && !scores.get(scores.size() - 1).finished()) {
             MatchResult.GameScore last = scores.get(scores.size() - 1);
             if (wonA == 1 && HighlightSelector.hasGamePoint(last.scoreA(), last.scoreB())) {
                 scores.set(scores.size() - 1, new MatchResult.GameScore(last.scoreA() + 1, last.scoreB(), true));
