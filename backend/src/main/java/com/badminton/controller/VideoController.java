@@ -8,9 +8,11 @@ import com.badminton.dto.video.YoutubeVideoRequest;
 import com.badminton.service.VideoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/matches/{id}")
@@ -39,11 +41,11 @@ public class VideoController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping(value = "/videos/direct-upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/videos/direct-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<VideoResponse> uploadVideoDirectly(
             @PathVariable Long id,
             @AuthenticationPrincipal String email,
-            @RequestParam("file") org.springframework.web.multipart.MultipartFile file
+            @RequestParam("file") MultipartFile file
     ) {
         VideoResponse response = videoService.uploadVideoDirectly(id, file, email);
         return ResponseEntity.ok(response);

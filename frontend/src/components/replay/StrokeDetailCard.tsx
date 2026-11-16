@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle2, Zap, Activity,
   Play, RotateCcw, Target, Sparkles, User, Crosshair
 } from 'lucide-react';
-import { AiEventData } from '../court/Court2DViewer';
+import { AiEventData } from '../../types/replay';
 import { normalizeStrokeSide } from '../../utils/strokeSide';
 
 interface StrokeDetailCardProps {

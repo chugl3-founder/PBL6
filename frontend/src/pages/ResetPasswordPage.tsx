@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import { AuthShell, AuthField, AuthAlert, AuthSubmit, authLinkClass } from '../components/auth/AuthShell';
-import apiClient from '../api/client';
+import { resetPassword } from '../api/auth';
+import { errorMessage } from '../api/errors';
 
 export const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -36,14 +37,10 @@ export const ResetPasswordPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await apiClient.post('/auth/reset-password', {
-        token,
-        newPassword
-      });
+      await resetPassword(token, newPassword);
       setSuccess(true);
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      setError(serverMsg || 'Không thể đặt lại mật khẩu. Liên kết có thể đã hết hạn hoặc không hợp lệ.');
+    } catch (err) {
+      setError(errorMessage(err, 'Không thể đặt lại mật khẩu. Liên kết có thể đã hết hạn hoặc không hợp lệ.'));
     } finally {
       setLoading(false);
     }

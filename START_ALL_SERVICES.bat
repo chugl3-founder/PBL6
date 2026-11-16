@@ -5,7 +5,7 @@ echo   KHOI DONG HE THONG PBL6 BADMINTON PLATFORM (4 TERMINALS)
 echo ========================================================
 echo.
 
-echo [1/4] Dang khoi dong Spring Boot Backend (Port 8080)...
+echo [1/4] Dang khoi dong Spring Boot Backend (Port 8080, gom ca AI Coach chatbot)...
 start "1. Backend (Spring Boot 8080)" cmd /k "cd /d "%~dp0backend" && powershell -ExecutionPolicy Bypass -File .\run-backend.ps1"
 
 ping 127.0.0.1 -n 3 >nul
@@ -15,26 +15,26 @@ start "2. Frontend (React Vite 5173)" cmd /k "cd /d "%~dp0frontend" && npm run d
 
 ping 127.0.0.1 -n 3 >nul
 
+rem The media worker only needs CPU and ffmpeg, so it runs here in both modes.
+echo [3/4] Dang khoi dong Media Worker (dung video highlight, can ffmpeg)...
+start "3. Media Worker (Highlight ffmpeg)" cmd /k "cd /d "%~dp0backend\integrations\media-worker" && python worker.py"
+
+ping 127.0.0.1 -n 2 >nul
+
 rem START_WEB_ONLY.bat passes "web" when the AI worker runs on a rented GPU machine instead.
 if /i "%~1"=="web" (
-    echo [3/4] Bo qua AI Worker: worker dang chay tren may GPU thue.
-    goto :coach
+    echo [4/4] Bo qua AI Worker: worker dang chay tren may GPU thue.
+    goto :done
 )
+echo [4/4] Dang khoi dong AI Worker (CloudAMQP Consumer)...
+start "4. AI Worker (PyTorch Pipeline)" cmd /k "cd /d "%~dp0backend\integrations\ai-worker" && python worker.py"
 
-echo [3/4] Dang khoi dong AI Worker (CloudAMQP Consumer)...
-start "3. AI Worker (PyTorch Pipeline)" cmd /k "cd /d "%~dp0backend\integrations\ai-worker" && python worker.py"
-
-ping 127.0.0.1 -n 3 >nul
-
-:coach
-echo [4/4] Dang khoi dong BadmintonAI Coach Service (Port 8000)...
-start "4. AI Coach RAG (FastAPI 8000)" cmd /k "cd /d "%~dp0ai-rag-coach" && python main.py"
-
+:done
 echo.
 echo ========================================================
-echo   TAT CA 4 TERMINAL DA DUOC MO THANH CONG!
-echo   - Backend:   http://localhost:8080
+echo   CAC TERMINAL DA DUOC MO THANH CONG!
+echo   - Backend:   http://localhost:8080 (ca AI Coach chatbot /api/coach)
 echo   - Frontend:  http://localhost:5173
-echo   - AI Worker: Dang lang nghe hang doi CloudAMQP...
-echo   - AI Coach:  http://localhost:8000 (RAG & Chatbot)
+echo   - Media Worker: Dang lang nghe hang doi badminton.media.queue...
+echo   - AI Worker: Dang lang nghe hang doi CloudAMQP (khi khong chay che do web)
 echo ========================================================

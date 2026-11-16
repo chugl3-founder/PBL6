@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { clearSession, getAccessToken, getRefreshToken, saveTokens } from '../auth/session';
 
 export interface ErrorDetail {
   field?: string;
@@ -24,7 +25,7 @@ const apiClient = axios.create({
 // Request Interceptor: Gắn Bearer Token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -43,7 +44,7 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !isAuthRequest) {
       // Token hết hạn hoặc chưa đăng nhập
       const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = getRefreshToken();
 
       if (refreshToken && !originalRequest._retry) {
         originalRequest._retry = true;
@@ -51,11 +52,7 @@ apiClient.interceptors.response.use(
           const baseURL = apiClient.defaults.baseURL || '/api';
           const res = await axios.post(`${baseURL}/auth/refresh-token`, { refreshToken });
           const newAccessToken = res.data.accessToken;
-          const newRefreshToken = res.data.refreshToken;
-          localStorage.setItem('access_token', newAccessToken);
-          if (newRefreshToken) {
-            localStorage.setItem('refresh_token', newRefreshToken);
-          }
+          saveTokens(newAccessToken, res.data.refreshToken);
 
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
@@ -63,14 +60,11 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest);
         } catch {
           // Refresh thất bại -> xóa token và chuyển về đăng nhập
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user_info');
+          clearSession();
           window.location.href = '/login';
         }
       } else if (!refreshToken) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user_info');
+        clearSession();
         window.location.href = '/login';
       }
     }

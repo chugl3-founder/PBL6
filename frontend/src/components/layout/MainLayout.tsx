@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
+import { HighlightJobsProvider } from '../highlight/HighlightJobsContext';
+import { HighlightTray } from '../highlight/HighlightTray';
 import { ChatWidget } from '../chat/ChatWidget';
 
 // Pages in the light "court" identity: every client page (landing, library, players, scouting,
@@ -11,6 +13,7 @@ const COURT_ROUTES = [
   /^\/public-matches(\/\d+\/replay)?\/?$/,
   /^\/players(\/[^/]+)?\/?$/,
   /^\/scouting(\/.*)?$/,
+  /^\/highlights\/?$/,
   /^\/my-matches\/?$/,
   /^\/matches\/create\/?$/,
   /^\/matches\/\d+(\/replay)?\/?$/,
@@ -27,6 +30,7 @@ export const MainLayout: React.FC = () => {
   }, [isCourtPage]);
 
   return (
+    <HighlightJobsProvider>
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -34,7 +38,10 @@ export const MainLayout: React.FC = () => {
       </main>
       {/* Only the landing page needs an ending; work pages stop where the work stops. */}
       {location.pathname === '/' && <Footer />}
+      {/* Highlight renders keep running on the server; the tray follows them on every page. */}
+      <HighlightTray />
       <ChatWidget />
     </div>
+    </HighlightJobsProvider>
   );
 };

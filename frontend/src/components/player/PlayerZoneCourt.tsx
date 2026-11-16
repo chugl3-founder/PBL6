@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { PlayerProfile, ZoneCell } from '../../api/players';
-import { COURT_RECT, COURT_VIEWBOX, CourtLines } from '../court/CourtLines';
+import { CourtLines } from '../court/CourtLines';
+import { COURT_RECT, COURT_VIEWBOX } from '../court/courtGeometry';
 import { topZones, zoneName } from '../../utils/playerProfile';
 
 type Layer = 'position' | 'landing' | 'conceded';

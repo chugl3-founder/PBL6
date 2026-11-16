@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Play } from 'lucide-react';
-import apiClient from '../api/client';
+import { deleteMatch, listMyMatches } from '../api/matches';
+import { errorMessage } from '../api/errors';
 
 interface MatchItem {
   id: number;
@@ -99,20 +100,20 @@ export const MyMatchesPage: React.FC = () => {
 
   const fetchSummary = async () => {
     try {
-      const res = await apiClient.get('/matches', { params: { page: 0, size: SUMMARY_SIZE } });
-      const all: MatchItem[] = res.data.data || [];
+      const res = await listMyMatches({ page: 0, size: SUMMARY_SIZE });
+      const all: MatchItem[] = res.data || [];
       const byStatus: Record<string, number> = {};
       for (const m of all) {
         const key = m.status === 'DRAFT' || m.status === 'READY' || m.status === 'ANALYZING' ? m.status : 'ANALYZED';
         byStatus[key] = (byStatus[key] ?? 0) + 1;
       }
       setSummary({
-        matches: res.data.pagination?.totalElements ?? all.length,
+        matches: res.pagination?.totalElements ?? all.length,
         analyzed: byStatus.ANALYZED ?? 0,
         analyzing: byStatus.ANALYZING ?? 0,
         rallies: all.reduce((sum, m) => sum + (m.totalRallies ?? 0), 0),
         strokes: all.reduce((sum, m) => sum + (m.totalStrokes ?? 0), 0),
-        capped: (res.data.pagination?.totalElements ?? 0) > all.length,
+        capped: (res.pagination?.totalElements ?? 0) > all.length,
         byStatus,
       });
     } catch {
@@ -128,15 +129,15 @@ export const MyMatchesPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const params: Record<string, string | number> = { page, size: 10 };
-      if (statusFilter && statusFilter !== 'ALL') {
-        params.status = statusFilter;
-      }
-      const res = await apiClient.get('/matches', { params });
-      setMatches(res.data.data || []);
-      setPagination(res.data.pagination || null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Không tải được danh sách trận.');
+      const res = await listMyMatches({
+        page,
+        size: 10,
+        status: statusFilter && statusFilter !== 'ALL' ? statusFilter : undefined,
+      });
+      setMatches(res.data || []);
+      setPagination(res.pagination || null);
+    } catch (err) {
+      setError(errorMessage(err, 'Không tải được danh sách trận.'));
     } finally {
       setLoading(false);
     }
@@ -158,14 +159,14 @@ export const MyMatchesPage: React.FC = () => {
     if (!matchToDelete) return;
     try {
       setIsDeleting(true);
-      await apiClient.delete(`/matches/${matchToDelete.id}`);
+      await deleteMatch(matchToDelete.id);
       setMatches((prev) => prev.filter((m) => m.id !== matchToDelete.id));
       setSuccessMsg(`Đã xóa "${matchToDelete.title || `${matchToDelete.playerAName} gặp ${matchToDelete.playerBName}`}"`);
       setMatchToDelete(null);
       fetchSummary();
       setTimeout(() => setSuccessMsg(null), 4000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Không xóa được trận.');
+    } catch (err) {
+      setError(errorMessage(err, 'Không xóa được trận.'));
     } finally {
       setIsDeleting(false);
     }

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -26,6 +27,6 @@ public class AnalysisStatusResponse {
     private Double analyzedUntilSeconds;
     private Double videoDurationSeconds;
     /** [[start, end], ...] seconds whose provisional hits are final; null when not streaming. */
-    private java.util.List<java.util.List<Double>> analyzedRanges;
+    private List<List<Double>> analyzedRanges;
 }
 

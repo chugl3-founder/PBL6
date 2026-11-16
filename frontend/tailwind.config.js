@@ -36,6 +36,7 @@ export default {
           light: '#38bdf8',
         },
         // "Court" identity (match pages): the green of a BWF mat, white lines, scoreboard type.
+        mat: '#0F4A31', // the court mat under broadcast lights: landing hero and closing band
         ground: '#EEF1EE', // page background: cool pale grey-green, not cream
         sheet: '#FFFFFF',  // reading surfaces
         ink: '#16201B',    // text: green-black
@@ -70,9 +71,15 @@ export default {
           from: { opacity: '0', transform: 'translateY(4px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        // The one entrance on the home page: the rally bars grow out of the centre line.
+        'ribbon-grow': {
+          from: { transform: 'scaleY(0)' },
+          to: { transform: 'scaleY(1)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 200ms ease-out both',
+        'ribbon-grow': 'ribbon-grow 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both',
       },
     },
   },

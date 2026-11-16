@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { PlayCircle, Loader2 } from 'lucide-react';
-import { AiEventData } from '../court/Court2DViewer';
-import { RallyData } from './RalliesExplorer';
-import { analyzeLostPoints, CourtSide, PlaylistClip, sideName, toPlaylist } from './PointLossInsights';
+import { AiEventData, RallyData } from '../../types/replay';
+import { analyzeLostPoints, CourtSide, PlaylistClip, sideName, toPlaylist } from '../../utils/pointLoss';
 
 interface MatchHighlightsProps {
   rallies: RallyData[];

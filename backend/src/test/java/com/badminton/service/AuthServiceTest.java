@@ -90,7 +90,7 @@ class AuthServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, exception.getStatus());
         assertEquals(ErrorType.VALIDATION, exception.getErrorType());
-        assertEquals("AUTH_EMAIL_ALREADY_EXISTS", exception.getCode());
+        assertEquals("ERR_EMAIL_ALREADY_EXISTS", exception.getCode());
 
         // Đảm bảo không mã hóa mật khẩu hoặc lưu DB khi email đã trùng
         verify(passwordEncoder, never()).encode(anyString());

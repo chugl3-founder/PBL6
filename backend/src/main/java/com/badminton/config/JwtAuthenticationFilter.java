@@ -48,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.setContentType("application/json;charset=UTF-8");
                     String errorJson = String.format(
-                            "{\"errorType\":\"SYSTEM\",\"code\":\"AUTH_ACCOUNT_LOCKED\",\"message\":\"Tài khoản của bạn đã bị khóa bởi quản trị viên.\",\"timestamp\":\"%s\"}",
+                            "{\"errorType\":\"SYSTEM\",\"code\":\"ERR_ACCOUNT_LOCKED\",\"message\":\"Tài khoản của bạn đã bị khóa bởi quản trị viên.\",\"timestamp\":\"%s\"}",
                             Instant.now().toString()
                     );
                     response.getWriter().write(errorJson);

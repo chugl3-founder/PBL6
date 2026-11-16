@@ -1,7 +1,8 @@
 services:
   # 1. Cơ sở dữ liệu quan hệ PostgreSQL 15
   postgres:
-    image: postgres:15-alpine
+    # Postgres 15 with the pgvector extension, used by the AI Coach knowledge search (Flyway V13).
+    image: pgvector/pgvector:pg15
     container_name: badminton_postgres
     restart: unless-stopped
     environment:
@@ -82,6 +83,7 @@ services:
       S3_PATH_STYLE_ACCESS: ${S3_PATH_STYLE_ACCESS:-true}
       S3_BUCKET_VIDEOS: ${S3_BUCKET_VIDEOS:-badminton-videos}
       S3_BUCKET_AVATARS: ${S3_BUCKET_AVATARS:-badminton-avatars}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8080:8080"
     healthcheck:
@@ -134,6 +136,34 @@ services:
       S3_REGION: ${S3_REGION:-ap-southeast-1}
     volumes:
       - ./AI_Classifier:/opt/AI_Classifier:ro
+
+  # 7. Media Worker: renders highlight reels with ffmpeg (CPU only)
+  media-worker:
+    build:
+      context: ./backend/integrations/media-worker
+      dockerfile: Dockerfile
+    container_name: badminton_media_worker
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      MEDIA_QUEUE: badminton.media.queue
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-badminton_db}
+      DB_USER: ${POSTGRES_USER:-badminton_user}
+      DB_PASS: ${POSTGRES_PASSWORD:-badminton_password}
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET_VIDEOS:-badminton-videos}
+      S3_REGION: ap-southeast-1
 
 volumes:
   postgres_data:

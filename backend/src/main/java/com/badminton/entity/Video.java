@@ -51,6 +51,10 @@ public class Video {
     @Column(name = "duration_seconds", precision = 10, scale = 2)
     private BigDecimal durationSeconds;
 
+    /** Still frame shown on match cards (object storage key); written by the media worker, null for YouTube. */
+    @Column(name = "thumbnail_path", length = 500)
+    private String thumbnailPath;
+
     @Column
     private Integer width;
 

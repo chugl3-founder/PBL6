@@ -5,6 +5,7 @@ import { fetchPlayers, playerPath, type PlayerSummary } from '../api/players';
 import { PlayerMonogram } from '../components/player/PlayerMonogram';
 import { PlayerRadarChart } from '../components/player/PlayerRadarChart';
 import { formatDate, hasRadar, playstyleLabel, playstyleTone, winRate } from '../utils/playerProfile';
+import { isSignedIn } from '../auth/session';
 
 const PlayerCard: React.FC<{ player: PlayerSummary }> = ({ player }) => {
   const rate = winRate(player.ralliesWon, player.ralliesLost);
@@ -69,7 +70,7 @@ export const PlayersPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [search, setSearch] = useState('');
-  const isLoggedIn = Boolean(localStorage.getItem('access_token'));
+  const isLoggedIn = isSignedIn();
 
   useEffect(() => {
     let cancelled = false;

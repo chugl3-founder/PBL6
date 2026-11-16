@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, User } from 'lucide-react';
 import { AuthShell, AuthField, AuthSelect, AuthAlert, AuthSubmit, authLinkClass } from '../components/auth/AuthShell';
-import apiClient from '../api/client';
+import { register } from '../api/auth';
+import { errorMessage } from '../api/errors';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,17 +21,10 @@ export const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await apiClient.post('/auth/register', { 
-        email, 
-        password, 
-        fullName,
-        badmintonLevel,
-        gender
-      });
+      await register({ email, password, fullName, badmintonLevel, gender });
       navigate('/login?registered=true');
-    } catch (err: any) {
-      const serverMsg = err.response?.data?.message;
-      setError(serverMsg || 'Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.');
+    } catch (err) {
+      setError(errorMessage(err, 'Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.'));
     } finally {
       setLoading(false);
     }

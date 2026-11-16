@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { ZoneCell } from '../../api/players';
-import { COURT_RECT, COURT_VIEWBOX, CourtLines } from '../court/CourtLines';
+import { CourtLines } from '../court/CourtLines';
+import { COURT_RECT, COURT_VIEWBOX } from '../court/courtGeometry';
 import { topZones } from '../../utils/playerProfile';
 
 const ALONG = 12;

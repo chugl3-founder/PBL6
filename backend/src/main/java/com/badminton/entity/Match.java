@@ -3,7 +3,9 @@ package com.badminton.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -38,6 +40,22 @@ public class Match {
     @Column(name = "lower_player", nullable = false, length = 20)
     @Builder.Default
     private String lowerPlayer = "PLAYER_B"; // PLAYER_A, PLAYER_B
+
+    /** Game and per-player score when the video starts (see V11); the AI counts from 0-0. */
+    @Column(name = "start_game", nullable = false, columnDefinition = "SMALLINT")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Builder.Default
+    private Integer startGame = 1;
+
+    @Column(name = "start_score_a", nullable = false, columnDefinition = "SMALLINT")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Builder.Default
+    private Integer startScoreA = 0;
+
+    @Column(name = "start_score_b", nullable = false, columnDefinition = "SMALLINT")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Builder.Default
+    private Integer startScoreB = 0;
 
     @Column(name = "match_date", nullable = false)
     @Builder.Default

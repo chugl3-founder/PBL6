@@ -15,6 +15,7 @@ import {
   type Insight,
 } from '../utils/playerProfile';
 import { strokeLabel } from '../utils/strokeLabels';
+import { isSignedIn } from '../auth/session';
 
 const PITCH = '#2E7D5B';
 const COMPARE = '#C9701F';
@@ -195,7 +196,7 @@ export const PlayerProfilePage: React.FC = () => {
   const handTotal = handParts.reduce((sum, p) => sum + p.value, 0);
   const concededTotal = profile.concededBy.reduce((sum, c) => sum + c.count, 0);
   const noAnalysis = profile.analyzedMatchCount === 0;
-  const isLoggedIn = Boolean(localStorage.getItem('access_token'));
+  const isLoggedIn = isSignedIn();
 
   return (
     <div className="max-w-6xl mx-auto space-y-5 pb-16 font-vn">
