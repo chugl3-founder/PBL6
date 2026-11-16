@@ -40,7 +40,8 @@ def chunk_text(text, max_chars=1000, overlap=120):
     return chunks
 
 def main():
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # backend/scripts/coach-knowledge/ingest.py -> the repository root, where .env lives
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
     env_path = os.path.join(root_dir, '.env')
     env = load_env(env_path)
     

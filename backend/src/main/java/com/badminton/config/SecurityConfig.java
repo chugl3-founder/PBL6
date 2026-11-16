@@ -51,6 +51,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/players", "/api/players/**").permitAll()
                 // Báo cáo trinh sát được chia sẻ qua link
                 .requestMatchers(HttpMethod.GET, "/api/scouting-reports/shared/*").permitAll()
+                // AI Coach: khách dùng browser_key, người đăng nhập dùng JWT; quyền xem trận do service kiểm tra
+                .requestMatchers("/api/coach/**").permitAll()
                 // Video stream public (có giới hạn preview 5p cho guest)
                 .requestMatchers("/api/videos/*/stream").permitAll()
                 // Admin endpoints bắt buộc quyền ADMIN

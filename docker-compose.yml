@@ -1,7 +1,8 @@
 services:
   # 1. Cơ sở dữ liệu quan hệ PostgreSQL 15
   postgres:
-    image: postgres:15-alpine
+    # Postgres 15 with the pgvector extension, used by the AI Coach knowledge search (Flyway V13).
+    image: pgvector/pgvector:pg15
     container_name: badminton_postgres
     restart: unless-stopped
     environment:
@@ -82,6 +83,7 @@ services:
       S3_PATH_STYLE_ACCESS: ${S3_PATH_STYLE_ACCESS:-true}
       S3_BUCKET_VIDEOS: ${S3_BUCKET_VIDEOS:-badminton-videos}
       S3_BUCKET_AVATARS: ${S3_BUCKET_AVATARS:-badminton-avatars}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8080:8080"
     healthcheck:

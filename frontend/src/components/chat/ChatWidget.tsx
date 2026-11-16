@@ -37,7 +37,8 @@ interface MatchOption {
   total_strokes: number;
 }
 
-const COACH_API_URL = 'http://localhost:8000';
+// The coach is part of the Spring Boot API, so it goes through the same base URL (Vite proxies /api).
+const COACH_API_URL = `${import.meta.env.VITE_API_URL || '/api'}/coach`;
 
 const WELCOME_MESSAGE: Message = {
   id: 'welcome',
@@ -147,7 +148,7 @@ export const ChatWidget: React.FC = () => {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${COACH_API_URL}/api/matches/list`, { headers });
+      const res = await fetch(`${COACH_API_URL}/matches`, { headers });
       const data = await res.json();
       if (data && data.matches) {
         setAvailableMatches(data.matches);
@@ -261,7 +262,7 @@ export const ChatWidget: React.FC = () => {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${COACH_API_URL}/api/chat/history/${sid}?browser_key=${browserKey}`, { headers });
+      const res = await fetch(`${COACH_API_URL}/sessions/${sid}/messages?browser_key=${encodeURIComponent(browserKey)}`, { headers });
       if (!res.ok) {
         if (res.status === 403 || res.status === 401) {
           console.warn('Không có quyền truy cập session này.');
@@ -301,7 +302,7 @@ export const ChatWidget: React.FC = () => {
         ...(currentMatchId ? { match_id: currentMatchId.toString() } : {})
       });
 
-      const res = await fetch(`${COACH_API_URL}/api/chat/sessions?${queryParams.toString()}`, { headers });
+      const res = await fetch(`${COACH_API_URL}/sessions?${queryParams.toString()}`, { headers });
       const data = await res.json();
       if (data && data.sessions) {
         setSessionsList(data.sessions);
@@ -463,7 +464,7 @@ export const ChatWidget: React.FC = () => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch(`${COACH_API_URL}/api/chat/stream`, {
+      const response = await fetch(`${COACH_API_URL}/chat/stream`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -492,9 +493,10 @@ export const ChatWidget: React.FC = () => {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:')) {
             try {
-              const data = JSON.parse(line.replace('data: ', ''));
+              const data = JSON.parse(trimmed.slice(5));
               if (data.text) {
                 accumulatedText += data.text;
                 setMessages(prev =>
@@ -534,7 +536,7 @@ export const ChatWidget: React.FC = () => {
           m.id === aiMsgId
             ? {
                 ...m,
-                content: '⚠️ Không thể kết nối tới BadmintonAI Coach Service. Vui lòng đảm bảo service Python cổng 8000 đang chạy.',
+                content: '⚠️ Không kết nối được tới Huấn luyện viên AI. Bạn vui lòng thử lại sau ít phút nhé.',
                 isStreaming: false
               }
             : m

@@ -44,6 +44,8 @@ tags:
     description: Thư viện trận đấu công khai cho cộng đồng và khách vãng lai
   - name: Admin
     description: Quản trị người dùng, duyệt trận đấu và giám sát worker AI
+  - name: AI Coach
+    description: Chatbot huấn luyện viên AI (RAG tri thức cầu lông + số liệu trận đấu)
 
 paths:
   # =========================================================================
@@ -1241,6 +1243,125 @@ paths:
         '403':
           $ref: '#/components/responses/ForbiddenError'
 
+  # =========================================================================
+  # AI COACH CHATBOT (RAG + match data, Gemini)
+  # Open to guests (browser_key) and signed-in users (JWT). The coach only reads matches the caller may see.
+  # =========================================================================
+  /api/coach/chat/stream:
+    post:
+      tags: [AI Coach]
+      summary: Hỏi Huấn luyện viên AI, câu trả lời được stream dạng Server-Sent Events
+      description: |
+        Mỗi event là `data:{"text": "...", "done": false}`. Event cuối có `done: true`, `session_id`,
+        `video_citations` và `error` (true khi AI không trả lời được; khi đó câu hỏi không được lưu).
+        Không gửi `session_id` để bắt đầu cuộc trò chuyện mới; khách phải gửi `browser_key`.
+      operationId: coachChatStream
+      security:
+        - {}
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachChatRequest'
+      responses:
+        '200':
+          description: Luồng SSE của câu trả lời
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Câu hỏi rỗng hoặc khách thiếu browser_key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/coach/sessions:
+    get:
+      tags: [AI Coach]
+      summary: Các cuộc trò chuyện của người dùng (theo JWT) hoặc của trình duyệt khách (theo browser_key)
+      operationId: coachSessions
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - name: browser_key
+          in: query
+          schema:
+            type: string
+        - name: match_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Tối đa 20 cuộc trò chuyện mới nhất
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachSessionList'
+
+  /api/coach/sessions/{sessionId}/messages:
+    get:
+      tags: [AI Coach]
+      summary: Tin nhắn của một cuộc trò chuyện (chỉ chủ cuộc trò chuyện)
+      operationId: coachHistory
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: browser_key
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tin nhắn theo thứ tự thời gian
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachHistory'
+        '401':
+          description: Thiếu cả JWT lẫn browser_key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/coach/matches:
+    get:
+      tags: [AI Coach]
+      summary: Các trận đã phân tích mà người gọi được xem, để chọn so sánh phong độ
+      operationId: coachMatches
+      security:
+        - {}
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tối đa 50 trận, mới nhất trước
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachMatchOptions'
+
 # =============================================================================
 # COMPONENTS (SCHEMAS, RESPONSES, PARAMETERS, SECURITY)
 # =============================================================================
@@ -2092,3 +2213,114 @@ components:
           format: float
           example: 0.915
 
+    CoachChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 4000
+          example: "Pha cầu dài nhất trận này là pha nào?"
+        match_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: Trận đang xem; câu hỏi sau trong cùng cuộc trò chuyện dùng lại trận này
+        session_id:
+          type: string
+          format: uuid
+          nullable: true
+        browser_key:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Mã ngẫu nhiên của trình duyệt khách, bắt buộc với khách khi bắt đầu cuộc trò chuyện
+
+    CoachVideoCitation:
+      type: object
+      properties:
+        rally_number:
+          type: integer
+          example: 3
+        timestamp:
+          type: string
+          example: "01:56"
+        seconds:
+          type: integer
+          example: 116
+
+    CoachSessionList:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            type: object
+            properties:
+              session_id:
+                type: string
+                format: uuid
+              user_id:
+                type: integer
+                format: int64
+                nullable: true
+              match_id:
+                type: integer
+                format: int64
+                nullable: true
+              title:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+
+    CoachHistory:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              role:
+                type: string
+                enum: [user, assistant]
+              content:
+                type: string
+              video_citations:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CoachVideoCitation'
+              created_at:
+                type: string
+                format: date-time
+
+    CoachMatchOptions:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                format: int64
+              title:
+                type: string
+              player_a:
+                type: string
+              player_b:
+                type: string
+              score:
+                type: string
+                description: Tỷ số các ván thấy trong video theo thứ tự A-B
+                example: "21-15, 18-21"
+              total_strokes:
+                type: integer
