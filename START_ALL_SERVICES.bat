@@ -1,42 +1,46 @@
 @echo off
 chcp 65001 >nul
 echo ========================================================
-echo   KHOI DONG HE THONG PBL6 BADMINTON PLATFORM (4 TERMINALS)
+echo   KHOI DONG HE THONG PBL6 BADMINTON PLATFORM (5 TERMINALS)
 echo ========================================================
 echo.
 
-echo [1/3] Dang khoi dong Spring Boot Backend (Port 8080)...
+echo [1/5] Dang khoi dong Spring Boot Backend (Port 8080)...
 start "1. Backend (Spring Boot 8080)" cmd /k "cd /d "%~dp0backend" && powershell -ExecutionPolicy Bypass -File .\run-backend.ps1"
 
 ping 127.0.0.1 -n 3 >nul
 
-echo [2/3] Dang khoi dong React Frontend (Port 5173)...
+echo [2/5] Dang khoi dong React Frontend (Port 5173)...
 start "2. Frontend (React Vite 5173)" cmd /k "cd /d "%~dp0frontend" && npm run dev"
 
 ping 127.0.0.1 -n 3 >nul
 
 rem The media worker only needs CPU and ffmpeg, so it runs here in both modes.
-echo [3/4] Dang khoi dong Media Worker (dung video highlight, can ffmpeg)...
+echo [3/5] Dang khoi dong Media Worker (dung video highlight, can ffmpeg)...
 start "3. Media Worker (Highlight ffmpeg)" cmd /k "cd /d "%~dp0backend\integrations\media-worker" && python worker.py"
 
 ping 127.0.0.1 -n 2 >nul
 
 rem START_WEB_ONLY.bat passes "web" when the AI worker runs on a rented GPU machine instead.
 if /i "%~1"=="web" (
-    echo [4/4] Bo qua AI Worker: worker dang chay tren may GPU thue.
-    goto :done
+    echo [4/5] Bo qua AI Worker: worker dang chay tren may GPU thue.
+    goto :coach
 )
-echo [4/4] Dang khoi dong AI Worker (CloudAMQP Consumer)...
+echo [4/5] Dang khoi dong AI Worker (CloudAMQP Consumer)...
 start "4. AI Worker (PyTorch Pipeline)" cmd /k "cd /d "%~dp0backend\integrations\ai-worker" && python worker.py"
 
-:done
+ping 127.0.0.1 -n 3 >nul
+
+:coach
+echo [5/5] Dang khoi dong BadmintonAI Coach Service (Port 8000)...
+start "5. AI Coach RAG (FastAPI 8000)" cmd /k "cd /d "%~dp0ai-rag-coach" && python main.py"
 
 echo.
 echo ========================================================
-echo   CAC TERMINAL DA DUOC MO THANH CONG!
-echo   - Backend:  http://localhost:8080
-echo   - Frontend: http://localhost:5173
+echo   TAT CA CAC TERMINAL DA DUOC MO THANH CONG!
+echo   - Backend:   http://localhost:8080
+echo   - Frontend:  http://localhost:5173
 echo   - Media Worker: Dang lang nghe hang doi badminton.media.queue...
 echo   - AI Worker: Dang lang nghe hang doi CloudAMQP...
+echo   - AI Coach:  http://localhost:8000 (RAG & Chatbot)
 echo ========================================================
-

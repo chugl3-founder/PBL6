@@ -1,0 +1,41 @@
+appId: host.exp.exponent
+---
+# ==============================================================================
+# FLOW 3: MT-05, MT-06, MT-07 - Dashboard Thống Kê & Radar Chiến Thuật (Function H)
+# ==============================================================================
+
+# 1. Chọn nút Thống kê của trận đấu đầu tiên trên danh sách (Trận Chung kết - ID 9)
+- tapOn:
+    text: ".*Thống kê.*|.*Statistics.*|.*Stats.*"
+    index: 0
+
+# 2. MT-05: Chờ màn hình Báo Cáo Thống Kê AI nạp xong dữ liệu phân tích từ Supabase
+- extendedWaitUntil:
+    visible: ".*Báo Cáo.*|.*vs.*|.*Tổng.*|.*Forehand.*|.*Smash.*|.*Axelsen.*|.*Momota.*"
+    timeout: 15000
+
+# 3. MT-05: Kiểm tra Tab 1 - Tổng quan (Phân bố Forehand / Backhand)
+- tapOn:
+    text: ".*Tổng quan.*|.*Overview.*"
+    optional: true
+
+# Cuộn màn hình để xem biểu đồ và bảng chỉ số định lượng
+- scroll
+
+# 4. MT-06: Chuyển sang Tab 2 - Biểu đồ cú đánh (Donut SVG & Column Chart)
+- tapOn:
+    text: ".*Biểu đồ.*|.*Chart.*"
+    optional: true
+
+# Cuộn xuống để xem phân bổ chi tiết
+- scroll
+
+# 5. MT-07: Chuyển sang Tab 3 - Chiến thuật AI (Radar 5 trục & Chuỗi phối hợp 2-Gram)
+- tapOn:
+    text: ".*Chiến thuật.*|.*Tactical.*"
+    optional: true
+
+# 6. Bấm nút Quay lại trên thanh điều hướng để về màn hình chính
+- tapOn:
+    id: "btn-back-stats"
+

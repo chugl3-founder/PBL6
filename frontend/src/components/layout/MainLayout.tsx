@@ -4,6 +4,7 @@ import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { HighlightJobsProvider } from '../highlight/HighlightJobsContext';
 import { HighlightTray } from '../highlight/HighlightTray';
+import { ChatWidget } from '../chat/ChatWidget';
 
 // Pages in the light "court" identity: every client page (landing, library, players, scouting,
 // the coach's matches, create, detail, replay, account and profile pages).
@@ -39,6 +40,7 @@ export const MainLayout: React.FC = () => {
       {location.pathname === '/' && <Footer />}
       {/* Highlight renders keep running on the server; the tray follows them on every page. */}
       <HighlightTray />
+      <ChatWidget />
     </div>
     </HighlightJobsProvider>
   );

@@ -122,6 +122,7 @@ export const PublicMatchesScreen: React.FC = () => {
       <View style={styles.searchBox}>
         <Search color="#94a3b8" size={18} style={{ marginRight: 8 }} />
         <TextInput
+          testID="search-match-input"
           style={styles.searchInput}
           placeholder="Tìm theo tuyển thủ, giải đấu..."
           placeholderTextColor="#64748b"
@@ -129,7 +130,7 @@ export const PublicMatchesScreen: React.FC = () => {
           onChangeText={setSearch}
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <TouchableOpacity testID="btn-clear-search" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => setSearch('')}>
             <Text style={styles.clearSearch}>✕</Text>
           </TouchableOpacity>
         )}
@@ -246,7 +247,11 @@ export const PublicMatchesScreen: React.FC = () => {
           data={matches}
           renderItem={renderItem}
           keyExtractor={(item) => String(item.id)}
-          ListHeaderComponent={renderHeader}
+          // Truyền element (renderHeader()) thay vì hàm: hàm tạo mới mỗi lần render
+          // khiến FlatList remount header -> TextInput mất focus sau mỗi ký tự.
+          ListHeaderComponent={renderHeader()}
+          // Cho phép chạm nút ✕ / thẻ trận ngay khi bàn phím đang mở (mặc định lần chạm đầu chỉ đóng bàn phím)
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl

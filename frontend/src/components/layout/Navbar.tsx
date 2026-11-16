@@ -63,6 +63,12 @@ export const Navbar: React.FC = () => {
     } catch {
       // Ignored: the local session is cleared in any case
     } finally {
+      // Chat sessions are kept per account in localStorage; drop them so the next account cannot see them.
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('badminton_chat_session_')) {
+          localStorage.removeItem(key);
+        }
+      });
       navigate('/login');
     }
   };

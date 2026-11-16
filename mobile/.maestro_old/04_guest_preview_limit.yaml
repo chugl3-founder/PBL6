@@ -1,0 +1,28 @@
+appId: host.exp.exponent
+---
+# ==============================================================================
+# FLOW 3: MT-04 - Tìm kiếm & Lọc danh sách trận đấu (Search & Filter Matches)
+# Kiểm thử chức năng tìm kiếm trực tiếp trên màn hình Khám phá (Explore Screen)
+# ==============================================================================
+
+# 1. Xác thực đang ở màn hình Khám phá & danh sách trận đấu sẵn sàng
+- assertVisible: ".*Khám phá.*|.*Kho Trận Đấu.*|.*vs.*|.*VS.*"
+
+# 2. Chạm vào ô tìm kiếm trận đấu
+- tapOn:
+    id: "search-match-input"
+
+# 3. Nhập từ khóa tìm kiếm tuyển thủ "Axelsen"
+- inputText: "Axelsen"
+
+# 4. Xác thực kết quả tìm kiếm hiển thị trận đấu phù hợp
+- extendedWaitUntil:
+    visible: ".*Axelsen.*"
+    timeout: 10000
+
+# 5. Bấm nút xoá tìm kiếm (✕) để khôi phục danh sách đầy đủ
+- tapOn:
+    id: "btn-clear-search"
+
+# 6. Xác thực danh sách trận đấu được khôi phục đầy đủ
+- assertVisible: ".*Danh Sách Trận Đấu.*|.*Chung kết.*"

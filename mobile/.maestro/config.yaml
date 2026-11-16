@@ -1,0 +1,15 @@
+# Chạy cả bộ: maestro test .maestro/
+# Mỗi flow là 1 test độc lập (tự về màn Khám phá qua subflows/go_home.yaml),
+# flow trước FAIL không làm dừng flow sau.
+flows:
+  - "01_replay_timeline_rallies.yaml"
+  - "02_search_matches.yaml"
+  - "03_statistics.yaml"
+  - "04_guest_preview_limit.yaml"
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - "MT-01..03 Replay, Timeline seek, Rallies"
+    - "MT-04 Search & filter"
+    - "MT-05..07 Statistics dashboard"
+    - "Guest preview 5 min limit"
