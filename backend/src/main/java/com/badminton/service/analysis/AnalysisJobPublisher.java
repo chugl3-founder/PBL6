@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -25,8 +26,16 @@ public class AnalysisJobPublisher {
     private final MockAiEngineService mockAiEngineService;
     private final ObjectMapper objectMapper;
 
-    /** youtubeUrl is set only for a YouTube video: the worker downloads it instead of reading object storage. */
-    public record AnalysisJob(Long analysisId, Long matchId, String videoStoragePath, String youtubeUrl) {
+    /**
+     * youtubeUrl is set only for a YouTube video: the worker downloads it instead of reading object storage.
+     * segmentStartSeconds/segmentEndSeconds pick the part of that video to analyse (null: from 0 / to the end);
+     * the worker reports every time in seconds of the original video.
+     */
+    public record AnalysisJob(Long analysisId, Long matchId, String videoStoragePath, String youtubeUrl,
+                              BigDecimal segmentStartSeconds, BigDecimal segmentEndSeconds) {
+        public AnalysisJob(Long analysisId, Long matchId, String videoStoragePath, String youtubeUrl) {
+            this(analysisId, matchId, videoStoragePath, youtubeUrl, null, null);
+        }
     }
 
     public void publish(AnalysisJob job) {
@@ -37,6 +46,12 @@ public class AnalysisJobPublisher {
             message.put("videoStoragePath", job.videoStoragePath());
             if (job.youtubeUrl() != null) {
                 message.put("youtubeUrl", job.youtubeUrl());
+                if (job.segmentStartSeconds() != null) {
+                    message.put("segmentStartSeconds", job.segmentStartSeconds());
+                }
+                if (job.segmentEndSeconds() != null) {
+                    message.put("segmentEndSeconds", job.segmentEndSeconds());
+                }
             }
             String payload = objectMapper.writeValueAsString(message);
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, RabbitMQConfig.ROUTING_KEY, payload);

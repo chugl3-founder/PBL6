@@ -54,8 +54,10 @@ public class AnalysisService {
     public AnalysisDispatchResponse dispatchAnalysis(Long matchId, String email) {
         AnalysisQueueRepository.QueuedAnalysis queued = analysisQueueRepository.createQueuedAnalysis(matchId, email)
                 .orElseThrow(() -> transactionTemplate.execute(status -> dispatchRejection(matchId, email)));
+        boolean youtube = queued.fromYoutube();
         jobPublisher.publish(new AnalysisJobPublisher.AnalysisJob(queued.analysisId(), matchId,
-                queued.videoStoragePath(), queued.fromYoutube() ? queued.youtubeUrl() : null));
+                queued.videoStoragePath(), youtube ? queued.youtubeUrl() : null,
+                youtube ? queued.segmentStartSeconds() : null, youtube ? queued.segmentEndSeconds() : null));
         return queuedResponse(queued.analysisId(), matchId, "Yêu cầu phân tích đã được tiếp nhận và đưa vào hàng đợi xử lý.");
     }
 
@@ -141,7 +143,10 @@ public class AnalysisService {
         // Read the video before the demote below clears the persistence context.
         Video video = old.getVideo();
         String storagePath = video.getStoragePath();
-        String youtubeUrl = "YOUTUBE".equalsIgnoreCase(video.getVideoSourceType()) ? video.getYoutubeUrl() : null;
+        boolean youtube = "YOUTUBE".equalsIgnoreCase(video.getVideoSourceType());
+        String youtubeUrl = youtube ? video.getYoutubeUrl() : null;
+        BigDecimal segmentStart = youtube ? video.getSegmentStartSeconds() : null;
+        BigDecimal segmentEnd = youtube ? video.getSegmentEndSeconds() : null;
 
         aiAnalysisRepository.demoteAllCurrentByMatchId(match.getId());
         AiAnalysis created = aiAnalysisRepository.saveAndFlush(AiAnalysis.builder()
@@ -154,7 +159,8 @@ public class AnalysisService {
                 .build());
         match.setStatus("ANALYZING");
         matchRepository.saveAndFlush(match);
-        return new AnalysisJobPublisher.AnalysisJob(created.getId(), match.getId(), storagePath, youtubeUrl);
+        return new AnalysisJobPublisher.AnalysisJob(created.getId(), match.getId(), storagePath, youtubeUrl,
+                segmentStart, segmentEnd);
     }
 
     @Transactional

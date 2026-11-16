@@ -162,6 +162,94 @@ def _insert_events(cur, analysis_id: int, predictions: List[Dict[str, Any]]) -> 
 FOCUS_POLL_SECONDS = 2.0
 
 
+class Segment:
+    """
+    The analysed part of a YouTube video. The pipeline sees only that part, so its times start at 0;
+    every time stored or read by the web app is in seconds of the original video, which the replay
+    page plays through the YouTube player.
+    """
+
+    def __init__(self, start: float, end: float, fps: float):
+        self.start = float(start)
+        self.end = float(end)
+        self.frames = int(round(self.start * fps))
+
+    def shift_predictions(self, predictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        shifted = []
+        for pred in predictions:
+            pred = dict(pred)
+            if pred.get("time_seconds") is not None:
+                pred["time_seconds"] = round(float(pred["time_seconds"]) + self.start, 3)
+            for key in ("frame", "hit_frame", "refined_frame"):
+                if pred.get(key) is not None:
+                    pred[key] = int(pred[key]) + self.frames
+            analytics = pred.get("analytics")
+            if isinstance(analytics, dict) and analytics.get("landing_proxy_frame") is not None:
+                pred["analytics"] = {**analytics, "landing_proxy_frame": int(analytics["landing_proxy_frame"]) + self.frames}
+            shifted.append(pred)
+        return shifted
+
+    def shift_rallies(self, rallies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        shifted = []
+        for rally in rallies:
+            rally = dict(rally)
+            for key in ("start_time_seconds", "end_time_seconds"):
+                if rally.get(key) is not None:
+                    rally[key] = round(float(rally[key]) + self.start, 3)
+            shifted.append(rally)
+        return shifted
+
+    def shift_progress(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """A provisional report; duration_seconds stays the length of the part, so progress is measured on it."""
+        payload = dict(payload)
+        if payload.get("analyzed_ranges") is not None:
+            payload["analyzed_ranges"] = [[a + self.start, b + self.start] for a, b in payload["analyzed_ranges"]]
+        if payload.get("analyzed_until_seconds") is not None:
+            payload["analyzed_until_seconds"] = float(payload["analyzed_until_seconds"]) + self.start
+        if "predictions" in payload:
+            payload["predictions"] = self.shift_predictions(payload["predictions"])
+        if "rallies" in payload:
+            payload["rallies"] = self.shift_rallies(payload["rallies"])
+        return payload
+
+    def shift_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        result = dict(result)
+        result["predictions"] = self.shift_predictions(result.get("predictions", []))
+        scoreboard = dict(result.get("scoreboard") or {})
+        if "rallies" in scoreboard:
+            scoreboard["rallies"] = self.shift_rallies(scoreboard["rallies"])
+        result["scoreboard"] = scoreboard
+        # Kept in raw_result: the times above are on the original video, the other blocks keep the pipeline's.
+        result["segment"] = {
+            "start_seconds": self.start,
+            "end_seconds": self.end,
+            "shifted": ["predictions", "scoreboard.rallies"],
+        }
+        return result
+
+    def local_focus(self, focus: tuple[str, float] | None) -> tuple[str, float] | None:
+        """The viewer's seek in seconds of the part; a seek outside the part is not this job's."""
+        if focus is None:
+            return None
+        version, seconds = focus
+        if not self.start <= seconds < self.end:
+            return None
+        return version, seconds - self.start
+
+
+def _video_fps(path: Path) -> float:
+    import cv2
+
+    capture = cv2.VideoCapture(str(path))
+    try:
+        fps = capture.get(cv2.CAP_PROP_FPS)
+    finally:
+        capture.release()
+    if not fps or fps <= 0:
+        raise RuntimeError("Không đọc được số khung hình mỗi giây của đoạn video.")
+    return float(fps)
+
+
 class ProgressWriter:
     """Store provisional results while the pipeline runs, on a background thread.
 
@@ -312,6 +400,8 @@ class ProgressWriter:
 
 def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[str, Any]):
     logger.info(f"Saving AI analysis results to Supabase DB for Analysis ID {analysis_id}...")
+    # Set when only part of a YouTube video was analysed (Segment.shift_result).
+    segment_start = float((result.get("segment") or {}).get("start_seconds", 0.0))
     conn = get_connection()
     cur = conn.cursor()
 
@@ -536,9 +626,9 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
             """
             UPDATE ai_analyses
             SET status = 'COMPLETED',
-                analyzed_until_seconds = video_duration_seconds,
+                analyzed_until_seconds = %s + video_duration_seconds,
                 analyzed_ranges = CASE WHEN video_duration_seconds IS NULL THEN NULL
-                    ELSE jsonb_build_array(jsonb_build_array(0, video_duration_seconds)) END,
+                    ELSE jsonb_build_array(jsonb_build_array(%s, %s + video_duration_seconds)) END,
                 completed_at = NOW(),
                 updated_at = NOW(),
                 summary_data = %s,
@@ -561,6 +651,9 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
             WHERE id = %s;
             """,
             (
+                segment_start,
+                segment_start,
+                segment_start,
                 Json(result.get("summary", {})),
                 Json(result.get("reliability", {})),
                 Json(result.get("tactical_patterns", {})),
@@ -592,6 +685,8 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
         )
 
         video = result.get("video", {})
+        # The pipeline measured only the analysed part; the length of the whole video is not known here.
+        whole_video = "segment" not in result
         cur.execute(
             """
             UPDATE videos
@@ -602,9 +697,9 @@ def save_ai_results_to_database(analysis_id: int, match_id: int, result: Dict[st
             WHERE match_id = %s
             """,
             (
-                video.get("duration_seconds"),
+                video.get("duration_seconds") if whole_video else None,
                 video.get("fps"),
-                video.get("total_frames"),
+                video.get("total_frames") if whole_video else None,
                 match_id,
             ),
         )
@@ -705,9 +800,16 @@ def process_job(payload: Dict[str, Any]):
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
         youtube_url = payload.get("youtubeUrl")
+        segment: Segment | None = None
         if youtube_url:
             temp_video_path = Path(tmpdir) / f"match_{match_id}_youtube.mp4"
-            download_youtube_video(youtube_url, temp_video_path)
+            span = download_youtube_video(
+                youtube_url, temp_video_path,
+                payload.get("segmentStartSeconds"), payload.get("segmentEndSeconds"),
+            )
+            if span is not None:
+                segment = Segment(*span, fps=_video_fps(temp_video_path))
+                logger.info(f"Analysing {segment.start:.0f}s-{segment.end:.0f}s of the YouTube video")
         else:
             temp_video_path = Path(tmpdir) / Path(storage_path).name
             download_video(storage_path, temp_video_path)
@@ -738,13 +840,20 @@ def process_job(payload: Dict[str, Any]):
         logger.info(f"Launching AI pipeline inference on GPU...")
         # Provisional rallies appear on the replay page while the rest of the video is analysed.
         progress = ProgressWriter(analysis_id, match_id)
+        on_progress: Callable[[Dict[str, Any]], None] = progress.submit
+        focus: Callable[[], tuple[str, float] | None] = progress.focus
+        if segment is not None:
+            on_progress = lambda report: progress.submit(segment.shift_progress(report))  # noqa: E731
+            focus = lambda: segment.local_focus(progress.focus())  # noqa: E731
         try:
             result = run_ai_pipeline(
                 temp_video_path, output_json_path, player_upper, player_lower,
-                on_progress=progress.submit, focus=progress.focus,
+                on_progress=on_progress, focus=focus,
             )
         finally:
             progress.close()
+        if segment is not None:
+            result = segment.shift_result(result)
 
         save_ai_results_to_database(analysis_id, match_id, result)
         logger.info(f"=== [JOB COMPLETED] Successfully analyzed Match {match_id} ===")

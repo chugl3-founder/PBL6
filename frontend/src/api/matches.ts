@@ -35,8 +35,17 @@ export const deleteMatch = async (id: string | number) => {
 export const getMatchVideo = async (id: string | number) =>
   (await apiClient.get<MatchVideo>(`/matches/${id}/video`)).data;
 
-export const attachYoutubeVideo = async (id: string | number, url: string) =>
-  (await apiClient.post<MatchVideo>(`/matches/${id}/videos/youtube`, { url })).data;
+/** startSeconds/endSeconds pick the part to analyse, in seconds of the YouTube video; omit for the whole video. */
+export const attachYoutubeVideo = async (
+  id: string | number,
+  url: string,
+  segment: { startSeconds?: number | null; endSeconds?: number | null } = {},
+) =>
+  (await apiClient.post<MatchVideo>(`/matches/${id}/videos/youtube`, {
+    url,
+    startSeconds: segment.startSeconds ?? null,
+    endSeconds: segment.endSeconds ?? null,
+  })).data;
 
 export interface UploadCallbacks {
   onStage: (stage: 'uploading' | 'verifying') => void;

@@ -29,11 +29,16 @@ public interface RallyRepository extends JpaRepository<Rally, Long> {
         Integer getScoreUpper();
 
         Integer getScoreLower();
+
+        /** True when only a part of a YouTube video ending before the video's end was analysed. */
+        Boolean getPartialVideo();
     }
 
     /** The rallies of the current analysis of each match, in one query (match cards show the result). */
     @Query("SELECT r.match.id AS matchId, r.id AS id, r.rallyNumber AS rallyNumber, r.winnerSide AS winnerSide, "
-            + "r.scoreUpper AS scoreUpper, r.scoreLower AS scoreLower FROM Rally r "
+            + "r.scoreUpper AS scoreUpper, r.scoreLower AS scoreLower, "
+            + "CASE WHEN r.analysis.video.segmentEndSeconds IS NOT NULL THEN true ELSE false END AS partialVideo "
+            + "FROM Rally r "
             + "WHERE r.analysis.isCurrent = true AND r.match.id IN :matchIds ORDER BY r.match.id, r.rallyNumber")
     List<RallyScore> findCurrentScoresByMatchIdIn(@Param("matchIds") Collection<Long> matchIds);
 }

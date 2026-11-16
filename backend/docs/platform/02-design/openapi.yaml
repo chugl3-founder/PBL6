@@ -508,6 +508,8 @@ paths:
       description: >-
         Lưu link YouTube thay cho file tải lên, không sao chép video vào kho lưu trữ. Khi bắt đầu phân tích,
         AI Worker tự tải video từ YouTube; trang xem lại phát video qua trình phát YouTube.
+        Có thể chọn một đoạn (startSeconds, endSeconds) để chỉ tải và phân tích đoạn đó; mọi mốc thời gian
+        trong kết quả vẫn tính theo video gốc.
       operationId: attachYoutubeVideo
       security:
         - BearerAuth: []
@@ -527,7 +529,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/VideoResponse'
         '400':
-          description: Link không phải video YouTube (ERR_INVALID_YOUTUBE_URL)
+          description: >-
+            Link không phải video YouTube (ERR_INVALID_YOUTUBE_URL), hoặc đoạn phân tích không hợp lệ
+            (ERR_INVALID_SEGMENT: thời điểm âm, hoặc đoạn ngắn hơn 30 giây)
           content:
             application/json:
               schema:
@@ -1895,6 +1899,22 @@ components:
           maxLength: 500
           description: Link youtube.com/watch?v=, youtu.be/, /shorts/, /live/ hoặc /embed/
           example: https://youtu.be/E3V9GWOr-_o
+        startSeconds:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+          description: Bắt đầu đoạn cần phân tích (giây của video gốc). Bỏ trống để phân tích từ đầu.
+          example: 1800
+        endSeconds:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+          description: >-
+            Kết thúc đoạn cần phân tích (giây của video gốc), sau startSeconds ít nhất 30 giây.
+            Bỏ trống để phân tích đến hết video; nếu vượt quá độ dài video thì AI Worker dừng ở cuối video.
+          example: 2400
 
     VideoCompleteRequest:
       type: object
@@ -1931,6 +1951,18 @@ components:
         storagePath:
           type: string
           example: matches/10/video.mp4
+        segmentStartSeconds:
+          type: number
+          format: double
+          nullable: true
+          description: Video YouTube - bắt đầu đoạn được phân tích (giây của video gốc); null là từ đầu video
+          example: 1800
+        segmentEndSeconds:
+          type: number
+          format: double
+          nullable: true
+          description: Video YouTube - kết thúc đoạn được phân tích; null là đến hết video
+          example: 2400
         mimeType:
           type: string
           example: video/mp4

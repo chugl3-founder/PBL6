@@ -28,6 +28,8 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -272,6 +274,31 @@ public class VideoService {
         return m.matches() ? Optional.of(m.group(1)) : Optional.empty();
     }
 
+    /** Shortest part of a YouTube video worth analysing: a few rallies. */
+    static final double MIN_SEGMENT_SECONDS = 30;
+
+    /** Analysed part of a YouTube video; null start means from 0, null end means to the end of the video. */
+    record Segment(BigDecimal start, BigDecimal end) {
+    }
+
+    /**
+     * Checks the requested part of a YouTube video. A start of 0 is stored as null, so "the whole video"
+     * has a single form. The video length is unknown here; the AI worker checks the end against it.
+     */
+    static Segment youtubeSegment(Double startSeconds, Double endSeconds) {
+        double start = startSeconds == null ? 0 : startSeconds;
+        if (start < 0 || (endSeconds != null && endSeconds < 0)) {
+            throw ApiException.badRequest("ERR_INVALID_SEGMENT", "Thời điểm bắt đầu và kết thúc không được âm.");
+        }
+        if (endSeconds != null && endSeconds - start < MIN_SEGMENT_SECONDS) {
+            throw ApiException.badRequest("ERR_INVALID_SEGMENT",
+                    "Đoạn phân tích phải kết thúc sau thời điểm bắt đầu ít nhất " + (int) MIN_SEGMENT_SECONDS + " giây.");
+        }
+        return new Segment(
+                start > 0 ? BigDecimal.valueOf(start).setScale(2, RoundingMode.HALF_UP) : null,
+                endSeconds != null ? BigDecimal.valueOf(endSeconds).setScale(2, RoundingMode.HALF_UP) : null);
+    }
+
     /**
      * Uses a YouTube video as the match video. Nothing is copied to storage: the AI worker downloads the
      * video itself when the analysis starts, and the replay page plays it through the YouTube player.
@@ -288,12 +315,15 @@ public class VideoService {
                 HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_INVALID_YOUTUBE_URL",
                 "Link không phải video YouTube. Hãy dán link dạng youtube.com/watch?v=… hoặc youtu.be/…"));
         String canonicalUrl = "https://www.youtube.com/watch?v=" + videoId;
+        Segment segment = youtubeSegment(request.startSeconds(), request.endSeconds());
 
         Video video = videoRepository.findByMatchId(matchId)
                 .orElse(Video.builder().match(match).build());
         video.setVideoSourceType("YOUTUBE");
         video.setYoutubeUrl(canonicalUrl);
         video.setYoutubeVideoId(videoId);
+        video.setSegmentStartSeconds(segment.start());
+        video.setSegmentEndSeconds(segment.end());
         video.setFileName("youtube-" + videoId + ".mp4");
         video.setStoragePath("youtube/" + videoId);
         video.setFileSize(null);
@@ -303,7 +333,8 @@ public class VideoService {
         match.setStatus("READY");
         matchRepository.save(match);
 
-        log.info("Gắn video YouTube cho match ID={}: videoId={}", matchId, videoId);
+        log.info("Gắn video YouTube cho match ID={}: videoId={}, segment={}-{}",
+                matchId, videoId, segment.start(), segment.end());
         return mapToVideoResponse(saved);
     }
 
@@ -381,6 +412,8 @@ public class VideoService {
                 .videoSourceType(video.getVideoSourceType() != null ? video.getVideoSourceType() : "MINIO_UPLOAD")
                 .youtubeUrl(video.getYoutubeUrl())
                 .youtubeVideoId(video.getYoutubeVideoId())
+                .segmentStartSeconds(video.getSegmentStartSeconds())
+                .segmentEndSeconds(video.getSegmentEndSeconds())
                 .mimeType(video.getMimeType())
                 .fileSize(video.getFileSize())
                 .durationSeconds(video.getDurationSeconds())

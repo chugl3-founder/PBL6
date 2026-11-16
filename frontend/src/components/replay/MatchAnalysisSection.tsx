@@ -16,6 +16,8 @@ interface MatchAnalysisSectionProps {
   handlePlayRally: (rally: RallyData) => void;
   handlePlayPlaylist: (title: string, clips: PlaylistClip[]) => void;
   handleSeekToTime: (seconds: number, label: string) => void;
+  /** "30:00 – 40:00" when the AI analysed only that part of a YouTube video. */
+  segmentText?: string | null;
 }
 
 /** "Phân tích cả trận": score flow, heatmap and statistics; every "Xem" seeks the video above. */
@@ -28,6 +30,7 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
   handlePlayRally,
   handlePlayPlaylist,
   handleSeekToTime,
+  segmentText = null,
 }) => {
   const [analysisTab, setAnalysisTab] = useState<'FLOW' | 'HEATMAP' | 'STATS'>('FLOW');
 
@@ -35,9 +38,12 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
     <section className="rounded-xl bg-sheet border border-ink/10 p-4 sm:p-6 space-y-5" aria-labelledby="match-analysis-title">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-ink/10 pb-4">
         <div>
-          <h2 id="match-analysis-title" className="text-lg font-semibold text-ink">Phân tích cả trận</h2>
+          <h2 id="match-analysis-title" className="text-lg font-semibold text-ink">
+            {segmentText ? <>Phân tích đoạn <span className="tabular-nums">{segmentText}</span></> : 'Phân tích cả trận'}
+          </h2>
           <p className="text-xs text-ink/70 mt-0.5">
             {match.playerAName} và {match.playerBName}: tỉ số, vị trí trên sân và số liệu cú đánh
+            {segmentText && '. Số liệu chỉ tính trong đoạn này, không phải cả trận.'}
           </p>
         </div>
         <div className="grid grid-cols-3 gap-1 p-1 bg-ink/[0.04] rounded-lg border border-ink/10 text-xs sm:w-[420px]" role="tablist">

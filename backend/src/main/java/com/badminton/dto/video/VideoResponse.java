@@ -21,6 +21,9 @@ public class VideoResponse {
     private String videoSourceType;
     private String youtubeUrl;
     private String youtubeVideoId;
+    /** Analysed part of a YouTube video, in seconds of the original video; null when the whole video. */
+    private BigDecimal segmentStartSeconds;
+    private BigDecimal segmentEndSeconds;
     private String mimeType;
     private Long fileSize;
     private BigDecimal durationSeconds;

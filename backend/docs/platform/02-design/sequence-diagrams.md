@@ -51,6 +51,7 @@ sequenceDiagram
         BE->>DB: INSERT ai_analyses (status='QUEUED', is_current=false) -> Nhận analysisId
         BE->>DB: UPDATE matches (status='ANALYZING')
         BE->>Queue: Push Job {analysisId, matchId, videoStoragePath}
+        Note over BE,Queue: Video YouTube thêm youtubeUrl, và segmentStartSeconds/segmentEndSeconds khi chỉ phân tích một đoạn.<br/>Worker tải video, cắt đoạn bằng ffmpeg, lưu mọi mốc thời gian theo video gốc.
         BE-->>FE: 202 Accepted {analysisId, status: 'QUEUED'} (Phản hồi < 200ms)
     end
 

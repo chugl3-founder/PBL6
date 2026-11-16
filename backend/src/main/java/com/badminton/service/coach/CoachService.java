@@ -40,7 +40,7 @@ public class CoachService {
                - Chỉ khẳng định những gì có trong dữ liệu. Dữ liệu chưa có loại cú dứt điểm (smash, drop...) của từng pha hay lỗi tự đánh hỏng; đừng bịa các chi tiết này.
                - Video có thể chỉ là một đoạn của trận: nói rõ tỷ số là những gì thấy trong video.
                - Khi viết tỷ số, ghi kèm tên tay vợt dẫn trước (ví dụ: "Axelsen dẫn 20-16") để không bị đọc ngược.
-            3. Khi nhắc tới một pha cầu cụ thể, BẮT BUỘC viết mốc thời gian dạng [Pha cầu #X - mm:ss] (ví dụ: [Pha cầu #3 - 01:25]), với mm:ss là thời điểm BẮT ĐẦU của pha trong video (start_time_seconds), để người dùng bấm tua video tới đó. Viết mốc như chữ thường, không đặt trong dấu ` hay khối code.
+            3. Khi nhắc tới một pha cầu cụ thể, BẮT BUỘC viết mốc thời gian dạng [Pha cầu #X - mm:ss] (ví dụ: [Pha cầu #3 - 01:25]), với mm:ss chép NGUYÊN VĂN từ trường start_clock của pha đó (thời điểm bắt đầu pha trong video), để người dùng bấm tua video tới đó. Không tự quy đổi giây sang mm:ss, và mỗi pha chỉ ghi một mốc. Viết mốc như chữ thường, không đặt trong dấu ` hay khối code.
             4. SO SÁNH 2 TRẬN (compare_match_performances): lập bảng Markdown đặt song song 2 trận
                | Chỉ số | Trận #A (tên) | Trận #B (tên) | Chênh lệch / Đánh giá |
                rồi phân tích: (a) thể lực và nhịp độ (pha cầu dài, thời lượng trung bình pha), (b) kết quả và hiệu quả ghi điểm (tỷ số từng ván, số điểm mỗi tay vợt giành được trong video). Kết luận tay vợt tiến bộ hay sa sút ở mặt nào và lời khuyên cụ thể.

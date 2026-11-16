@@ -25,6 +25,7 @@ import { usePlayerSides } from '../hooks/usePlayerSides';
 import type { AiEventData, RallyData } from '../types/replay';
 import { strokeLabel, LOW_CONFIDENCE } from '../utils/strokeLabels';
 import { YouTubePlayer, youTubeGlobal } from '../types/youtube';
+import { segmentLabel } from '../utils/clock';
 
 // Mức 2: tua vào đoạn chưa phân tích thì báo backend để GPU worker quét đoạn đó trước.
 const FOCUS_RESEND_GAP_S = 15;
@@ -120,6 +121,13 @@ export const MatchReplayPage: React.FC = () => {
   const [autoScrollStrokes, setAutoScrollStrokes] = useState<boolean>(true);
 
   const isYouTube = video?.videoSourceType === 'YOUTUBE' || Boolean(video?.youtubeVideoId);
+  // Phần video YouTube mà AI phân tích; trình phát vẫn phát cả video
+  const segment = isYouTube && (video?.segmentStartSeconds || video?.segmentEndSeconds != null)
+    ? {
+        start: Number(video?.segmentStartSeconds ?? 0),
+        end: video?.segmentEndSeconds != null ? Number(video.segmentEndSeconds) : null,
+      }
+    : null;
   const isGuest = isPublic && !isSignedIn();
 
   // Hover controls & auto-hide
@@ -231,7 +239,9 @@ export const MatchReplayPage: React.FC = () => {
           rel: 0,
           playsinline: 1,
           enablejsapi: 1,
-          origin: window.location.origin
+          origin: window.location.origin,
+          // Mở sẵn ở đầu đoạn đã phân tích
+          ...(segment && segment.start > 0 ? { start: Math.floor(segment.start) } : {}),
         },
         events: {
           onReady: (event: { target: YouTubePlayer }) => {
@@ -352,7 +362,16 @@ export const MatchReplayPage: React.FC = () => {
   })();
 
   // Người xem đang ở đoạn AI chưa phân tích xong
-  const watchingUnanalyzed = liveRanges != null && !isAnalyzedAt(liveRanges, currentTime);
+  // Thanh tua và dải diễn biến chỉ trải trên đoạn AI phân tích, trừ khi người xem chọn xem cả video
+  const [showingWholeVideo, setShowingWholeVideo] = useState(false);
+  const segmentViewEnd = segment ? Math.min(segment.end ?? duration, duration || (segment.end ?? 0)) : 0;
+  const timelineView = segment && !showingWholeVideo && segmentViewEnd > segment.start
+    ? { start: segment.start, end: segmentViewEnd }
+    : undefined;
+  // Ngoài đoạn được chọn thì AI không phân tích, nên không báo "đang chờ" và không gửi vị trí cho worker
+  const outsideSegment = segment != null
+    && (currentTime < segment.start - 1 || (segment.end != null && currentTime > segment.end + 1));
+  const watchingUnanalyzed = liveRanges != null && !outsideSegment && !isAnalyzedAt(liveRanges, currentTime);
 
   // Mức 2: báo vị trí xem để worker nhảy tới đó (giới hạn tần suất, bỏ qua dịch chuyển nhỏ)
   useEffect(() => {
@@ -818,6 +837,24 @@ export const MatchReplayPage: React.FC = () => {
               </div>
             )}
 
+            {/* Đang xem phần video nằm ngoài đoạn được chọn để phân tích */}
+            {outsideSegment && segment && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 w-[min(92%,30rem)]" role="status" aria-live="polite">
+                <div className="rounded-2xl border border-white/20 bg-slate-950/85 backdrop-blur-md px-4 py-2.5 text-[12px] text-white/90 shadow-2xl flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span className="flex-1 min-w-[12rem]">
+                    AI chỉ phân tích đoạn <strong className="tabular-nums">{segmentLabel(segment.start, segment.end)}</strong>, đoạn bạn đang xem không có cú đánh.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleSeekToTime(segment.start, 'Về đoạn đã phân tích')}
+                    className="rounded-full bg-white/10 hover:bg-white/20 border border-white/25 px-3 py-1 font-semibold transition-colors"
+                  >
+                    Về đoạn phân tích
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Mức 1: đang xem đoạn AI chưa phân tích, nói rõ AI đang làm gì và khi nào có */}
             {watchingUnanalyzed && (
               <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 w-[min(92%,30rem)]" role="status" aria-live="polite">
@@ -897,6 +934,8 @@ export const MatchReplayPage: React.FC = () => {
               handleChangeSpeed={handleChangeSpeed}
               handleToggleFullscreen={handleToggleFullscreen}
               onShowShortcuts={() => setShowShortcutsModal(true)}
+              view={timelineView}
+              segmentToggle={segment ? { showingWholeVideo, onToggle: () => setShowingWholeVideo(v => !v) } : undefined}
             />
           </div>
 
@@ -942,6 +981,7 @@ export const MatchReplayPage: React.FC = () => {
             <TimelineMarkers
               events={sides.timelineEvents}
               durationSeconds={duration || 60}
+              view={timelineView}
               currentTimeSeconds={currentTime}
               currentEvent={selectedEvent}
               onSeekToEvent={(e) => handleSeekToEvent(events.find(x => x.id === e.id) ?? e)}
@@ -1091,6 +1131,7 @@ export const MatchReplayPage: React.FC = () => {
         handlePlayRally={handlePlayRally}
         handlePlayPlaylist={handlePlayPlaylist}
         handleSeekToTime={handleSeekToTime}
+        segmentText={segment ? segmentLabel(segment.start, segment.end) : null}
       />
 
       {showShortcutsModal && <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />}

@@ -49,6 +49,14 @@ public class Video {
     @Column(name = "youtube_video_id", length = 50)
     private String youtubeVideoId;
 
+    /** Part of a YouTube video to analyse, in seconds of the original video; null means from the start. */
+    @Column(name = "segment_start_seconds", precision = 10, scale = 2)
+    private BigDecimal segmentStartSeconds;
+
+    /** End of the analysed part; null means to the end of the video. */
+    @Column(name = "segment_end_seconds", precision = 10, scale = 2)
+    private BigDecimal segmentEndSeconds;
+
     @Column(name = "duration_seconds", precision = 10, scale = 2)
     private BigDecimal durationSeconds;
 

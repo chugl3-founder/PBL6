@@ -54,6 +54,9 @@ export interface MatchVideo {
   videoSourceType?: 'UPLOAD' | 'YOUTUBE' | string;
   youtubeUrl?: string | null;
   youtubeVideoId?: string | null;
+  /** Analysed part of a YouTube video, in seconds of that video; null for the whole video. */
+  segmentStartSeconds?: number | null;
+  segmentEndSeconds?: number | null;
   mimeType?: string;
   fileSize?: number | null;
   durationSeconds?: number | null;

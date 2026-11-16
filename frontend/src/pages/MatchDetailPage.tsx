@@ -12,10 +12,13 @@ import { cancelAnalysis, dispatchAnalysis, getAnalysisStatus, retryAnalysis } fr
 import { errorMessage, isNetworkError } from '../api/errors';
 import type { Match, MatchVideo } from '../types/match';
 import type { AnalysisStatus } from '../types/replay';
+import { formatLongClock, parseClock, segmentLabel } from '../utils/clock';
 
 /** Same patterns the backend accepts: watch?v=, youtu.be/, /shorts/, /live/ and /embed/ links. */
 const YOUTUBE_ID = /^(?:https?:\/\/)?(?:(?:www\.|m\.|music\.)?youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})(?:[?&#/].*)?$/;
 const parseYoutubeId = (url: string) => url.trim().match(YOUTUBE_ID)?.[1] ?? null;
+// Same floor as the backend (VideoService.MIN_SEGMENT_SECONDS): a few rallies
+const MIN_SEGMENT_SECONDS = 30;
 
 /** Name plates laid over the video frame: upper (far) player at the top, lower (near) at the bottom. */
 const SidePlates: React.FC<{ upper: string; lower: string }> = ({ upper, lower }) => (
@@ -54,6 +57,9 @@ export const MatchDetailPage: React.FC = () => {
   const [youtubeSaving, setYoutubeSaving] = useState(false);
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const youtubeId = parseYoutubeId(youtubeUrl);
+  // Optional part of the YouTube video to analyse, typed as "30:00" or "30" (minutes)
+  const [segmentStart, setSegmentStart] = useState('');
+  const [segmentEnd, setSegmentEnd] = useState('');
 
   // Local preview of the chosen file, before anything is uploaded
   const [dragOver, setDragOver] = useState(false);
@@ -242,12 +248,24 @@ export const MatchDetailPage: React.FC = () => {
       setYoutubeError('Link chưa đúng. Hãy dán link dạng youtube.com/watch?v=… hoặc youtu.be/…');
       return;
     }
+    const startSeconds = parseClock(segmentStart);
+    const endSeconds = parseClock(segmentEnd);
+    if (Number.isNaN(startSeconds) || Number.isNaN(endSeconds)) {
+      setYoutubeError('Thời điểm chưa đúng. Hãy nhập dạng 30:00, 1:05:30, hoặc số phút như 30.');
+      return;
+    }
+    if (endSeconds != null && endSeconds - (startSeconds ?? 0) < MIN_SEGMENT_SECONDS) {
+      setYoutubeError('Thời điểm kết thúc phải sau thời điểm bắt đầu ít nhất 30 giây.');
+      return;
+    }
     setYoutubeSaving(true);
     setYoutubeError(null);
     try {
-      setVideo(await attachYoutubeVideo(id, youtubeUrl.trim()));
+      setVideo(await attachYoutubeVideo(id, youtubeUrl.trim(), { startSeconds, endSeconds }));
       if (match) setMatch({ ...match, status: 'READY' });
       setYoutubeUrl('');
+      setSegmentStart('');
+      setSegmentEnd('');
     } catch (err) {
       setYoutubeError(errorMessage(err, 'Không lưu được link YouTube. Hãy thử lại.'));
     } finally {
@@ -481,6 +499,39 @@ export const MatchDetailPage: React.FC = () => {
                       </span>
                     )}
                   </div>
+                  {youtubeId && (
+                    <fieldset className="space-y-2">
+                      <legend className="text-sm font-medium text-ink">
+                        Đoạn cần phân tích <span className="font-normal text-ink/65">(không bắt buộc)</span>
+                      </legend>
+                      <div className="grid grid-cols-2 gap-3">
+                        {([
+                          { key: 'start', label: 'Từ', value: segmentStart, set: setSegmentStart, placeholder: '0:00' },
+                          { key: 'end', label: 'Đến', value: segmentEnd, set: setSegmentEnd, placeholder: 'Hết video' },
+                        ] as const).map(field => (
+                          <label key={field.key} className="flex items-center gap-2 text-sm text-ink/70">
+                            <span className="shrink-0 w-7">{field.label}</span>
+                            <input
+                              name={`segment-${field.key}`}
+                              inputMode="numeric"
+                              autoComplete="off"
+                              value={field.value}
+                              onChange={e => {
+                                field.set(e.target.value);
+                                setYoutubeError(null);
+                              }}
+                              placeholder={field.placeholder}
+                              className="w-full h-10 px-3 rounded-md bg-sheet border border-ink/15 text-sm text-ink tabular-nums placeholder:text-ink/55 focus:outline-none focus:border-pitch focus:ring-2 focus:ring-pitch/20"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-ink/65">
+                        Nhập dạng 30:00 hoặc 1:05:30, hoặc số phút như 30. Chỉ phân tích một đoạn thì AI chạy nhanh hơn,
+                        còn trang xem lại vẫn phát cả video YouTube.
+                      </p>
+                    </fieldset>
+                  )}
                   {youtubeError && (
                     <div className="px-3 py-2.5 rounded-md bg-loss/10 text-sm text-loss flex items-center gap-2" role="alert">
                       <AlertCircle className="w-4 h-4 shrink-0" aria-hidden />
@@ -581,6 +632,13 @@ export const MatchDetailPage: React.FC = () => {
                 <p className="text-sm text-ink/70 mt-1">
                   AI sẽ tìm từng cú đánh và pha cầu. Bạn xem được trận ngay khi AI bắt đầu, kết quả hiện dần theo từng pha.
                 </p>
+                {segmentLabel(video?.segmentStartSeconds, video?.segmentEndSeconds) && (
+                  <p className="text-sm text-ink mt-2">
+                    Chỉ phân tích đoạn{' '}
+                    <strong className="tabular-nums">{segmentLabel(video?.segmentStartSeconds, video?.segmentEndSeconds)}</strong>{' '}
+                    của video YouTube.
+                  </p>
+                )}
               </div>
               {analysisStatus?.status === 'CANCELLED' && (
                 <p className="text-sm text-ink/70">Lần phân tích trước đã dừng. Bấm bên dưới để phân tích lại.</p>
@@ -724,6 +782,7 @@ export const MatchDetailPage: React.FC = () => {
             startScoreA={match.startScoreA}
             startScoreB={match.startScoreB}
             onSaved={setMatch}
+            segmentStartText={video?.segmentStartSeconds ? formatLongClock(Number(video.segmentStartSeconds)) : null}
           />
           {video && match.status === 'READY' && (
             video.videoSourceType === 'YOUTUBE' && video.youtubeVideoId ? (
