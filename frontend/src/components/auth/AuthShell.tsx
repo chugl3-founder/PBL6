@@ -1,11 +1,47 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle2, Eye, EyeOff, type LucideIcon } from 'lucide-react';
-import { RallyCourt } from './RallyCourt';
 
 /**
- * Account pages (login, register, password recovery): the form on a white sheet beside the court mat,
- * where one rally plays out the way the AI reads it from a broadcast.
+ * Account pages (login, register, password recovery): the white form card over the arena photo, where the
+ * player's smash is traced from the racket to where the shuttle lands, the way the AI follows it in a match.
  */
+
+/** Size of /images/court-bg.jpg; the overlay shares its coordinates so the trace stays on the racket. */
+const PHOTO_W = 2070;
+const PHOTO_H = 1380;
+const RACKET = { x: 1404, y: 292 };
+/** The shuttle leaves the racket forward, over the player's head, before it dives; a straight line would cut through him. */
+const BEND = { x: 1130, y: 170 };
+const LANDING = { x: 820, y: 1180 };
+
+const SmashTrace: React.FC = () => (
+  <svg
+    viewBox={`0 0 ${PHOTO_W} ${PHOTO_H}`}
+    preserveAspectRatio="xMidYMid slice"
+    className="absolute inset-0 h-full w-full pointer-events-none"
+    aria-hidden
+  >
+    <path
+      d={`M${RACKET.x} ${RACKET.y}Q${BEND.x} ${BEND.y} ${LANDING.x} ${LANDING.y}`}
+      pathLength={1}
+      fill="none"
+      stroke="#6FCF97"
+      strokeWidth={6}
+      strokeLinecap="round"
+      strokeDasharray="1"
+      className="motion-safe:animate-trace"
+      style={{ animationDelay: '500ms', animationDuration: '700ms' }}
+    />
+    <g
+      className="motion-safe:animate-pop"
+      style={{ animationDelay: '1150ms', transformBox: 'fill-box', transformOrigin: 'center' }}
+    >
+      <ellipse cx={LANDING.x} cy={LANDING.y} rx={46} ry={16} fill="none" stroke="#6FCF97" strokeWidth={5} />
+      <circle cx={LANDING.x} cy={LANDING.y} r={8} fill="#6FCF97" />
+    </g>
+  </svg>
+);
+
 export const AuthShell: React.FC<{
   title: string;
   subtitle: string;
@@ -13,35 +49,32 @@ export const AuthShell: React.FC<{
   footer?: React.ReactNode;
   children: React.ReactNode;
 }> = ({ title, subtitle, top, footer, children }) => (
-  <div className="font-vn max-w-6xl mx-auto lg:py-4">
-    <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] rounded-lg overflow-hidden border border-ink/10 bg-sheet lg:min-h-[640px]">
-      <div className="flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-14">
-        <div className="w-full max-w-[400px]">
-          {top}
-          <h1 className="font-score text-[2.75rem] leading-none font-semibold text-ink">{title}</h1>
-          <p className="mt-3 mb-8 text-[15px] leading-relaxed text-ink/65">{subtitle}</p>
-          {children}
-          {footer && <div className="mt-8 text-sm text-ink/65">{footer}</div>}
-        </div>
-      </div>
+  <div className="font-vn relative overflow-hidden rounded-lg bg-[#0B1310] min-h-[calc(100vh-7.5rem)] flex items-center">
+    <img
+      src="/images/court-bg.jpg"
+      alt=""
+      width={PHOTO_W}
+      height={PHOTO_H}
+      className="absolute inset-0 h-full w-full object-cover"
+    />
+    <SmashTrace />
 
-      <section className="hidden lg:flex flex-col bg-mat text-white" aria-label="Cách AI đọc một pha cầu">
-        <div className="flex items-center gap-6 px-10 pt-9 font-score text-lg tracking-wide text-white/85">
-          <span className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-sm bg-pa" aria-hidden />A, sân trên
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-sm bg-pb" aria-hidden />B, sân dưới
-          </span>
-        </div>
-        <RallyCourt className="w-full flex-1 min-h-0 px-4" />
-        <div className="px-10 pb-10">
-          <p className="font-score text-[2rem] leading-tight font-semibold">Từng cú đánh, đúng chỗ cầu rơi.</p>
-          <p className="mt-2 max-w-md text-[15px] leading-relaxed text-white/70">
-            Tải video trận lên, AI tách từng pha cầu, gọi tên từng cú và chỉ ra pha mất điểm bắt đầu từ đâu.
-          </p>
-        </div>
-      </section>
+    <div className="relative z-10 w-full px-4 py-8 sm:px-10 lg:px-16">
+      <div className="w-full max-w-[420px] rounded-lg bg-sheet p-7 text-ink shadow-[0_24px_60px_-24px_rgba(0,0,0,0.65)] sm:p-9">
+        {top}
+        <h1 className="font-score text-[2.6rem] leading-none font-semibold">{title}</h1>
+        <p className="mt-3 mb-7 text-[15px] leading-relaxed text-ink/65">{subtitle}</p>
+        {children}
+        {footer && <div className="mt-7 border-t border-ink/10 pt-5 text-sm text-ink/65">{footer}</div>}
+      </div>
+    </div>
+
+    {/* On the dark curtain above the player, clear of the chat button in the bottom corner. */}
+    <div className="absolute top-9 right-10 z-10 hidden max-w-[22rem] text-right text-white min-[1380px]:block">
+      <p className="font-score text-[1.9rem] leading-tight font-semibold">Từng cú đánh, đúng chỗ cầu rơi.</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-white/70">
+        AI tách từng pha cầu trong video, gọi tên từng cú và chỉ ra pha mất điểm bắt đầu từ đâu.
+      </p>
     </div>
   </div>
 );
@@ -107,9 +140,9 @@ export const AuthChoice: React.FC<{
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }> = ({ name, label, value, onChange, options }) => (
-  <fieldset className="space-y-1.5">
-    <legend className="text-sm font-medium text-ink mb-1.5">{label}</legend>
-    <div className="flex rounded-md bg-ground p-1 border border-ink/10">
+  <fieldset>
+    <legend className="mb-1.5 text-sm font-medium text-ink">{label}</legend>
+    <div className="flex rounded-md border border-ink/10 bg-ground p-1">
       {options.map((o) => (
         <label key={o.value} className="flex-1 cursor-pointer">
           <input
