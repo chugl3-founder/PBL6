@@ -1093,7 +1093,7 @@ export const MatchReplayPage: React.FC = () => {
             )}
 
             {activeTab === 'POINTS' && (
-              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+              <div className="relative flex-1 overflow-y-auto pr-1 scrollbar-thin">
                 <PointLossInsights
                   rallies={sides.playerRallies}
                   events={sides.playerEvents}
@@ -1108,7 +1108,7 @@ export const MatchReplayPage: React.FC = () => {
 
             {activeTab === 'TACTICS' && (
               /* Chiến thuật cạnh video: bấm là tua, không phải cuộn trang */
-              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+              <div className="relative flex-1 overflow-y-auto pr-1 scrollbar-thin">
                 {statistics ? (
                   <TacticsBreakdown
                     tactics={statistics.structuredTactics}
@@ -1129,7 +1129,7 @@ export const MatchReplayPage: React.FC = () => {
 
             {activeTab === 'COURT' && (
               /* Cú đang phát: ai đứng đâu, cầu rơi vào ô nào */
-              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-3">
+              <div className="relative flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-3">
                 <Court2DViewer
                   currentEvent={selectedEvent}
                   playerAName={match.playerAName}
