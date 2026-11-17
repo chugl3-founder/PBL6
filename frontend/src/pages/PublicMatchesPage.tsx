@@ -28,7 +28,7 @@ const FeaturedMatch: React.FC<{ match: Match }> = ({ match }) => {
     <article className="grid grid-cols-1 lg:grid-cols-12 rounded-xl bg-sheet border border-ink/10 overflow-hidden" aria-labelledby="featured-title">
       <Link to={to} className="group relative lg:col-span-7 aspect-video bg-ink flex items-center justify-center" tabIndex={-1} aria-hidden>
         {match.thumbnailUrl ? (
-          <img src={match.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+          <img src={match.thumbnailUrl} alt="" width={480} height={270} className="w-full h-full object-cover" />
         ) : (
           <Video className="h-10 w-10 text-white/25" />
         )}

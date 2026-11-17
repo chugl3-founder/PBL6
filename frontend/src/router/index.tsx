@@ -22,9 +22,12 @@ import { PlayerProfilePage } from '../pages/PlayerProfilePage';
 import { ScoutingListPage } from '../pages/ScoutingListPage';
 import { ScoutingReportPage } from '../pages/ScoutingReportPage';
 import { HighlightsPage } from '../pages/HighlightsPage';
+import { RouteTitle } from './RouteTitle';
 
 export const AppRouter: React.FC = () => {
   return (
+    <>
+    <RouteTitle />
     <Routes>
       {/* GIAO DIỆN QUẢN TRỊ VIÊN ĐỘC LẬP HOÀN TOÀN VỚI CLIENT */}
       <Route
@@ -126,6 +129,7 @@ export const AppRouter: React.FC = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </>
   );
 };
 

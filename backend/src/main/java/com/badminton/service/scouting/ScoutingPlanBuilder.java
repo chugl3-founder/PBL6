@@ -1,5 +1,6 @@
 package com.badminton.service.scouting;
 
+import com.badminton.util.PlayerKey;
 import com.badminton.dto.player.PlayerProfileResponse;
 import com.badminton.dto.player.PlayerProfileResponse.MatchEntry;
 import com.badminton.dto.player.PlayerProfileResponse.Radar;
@@ -183,9 +184,9 @@ final class ScoutingPlanBuilder {
     }
 
     private static HeadToHead headToHead(PlayerProfileResponse opp, String ownName) {
-        String key = ownName.trim().toLowerCase(Locale.ROOT);
+        String key = PlayerKey.of(ownName);
         List<HeadToHeadMatch> list = opp.matches().stream()
-                .filter(m -> m.opponent().trim().toLowerCase(Locale.ROOT).equals(key))
+                .filter(m -> PlayerKey.of(m.opponent()).equals(key))
                 .map(m -> new HeadToHeadMatch(m.matchId(), m.matchDate(), "PUBLISHED".equals(m.status()),
                         m.ralliesLost(), m.ralliesWon()))
                 .toList();

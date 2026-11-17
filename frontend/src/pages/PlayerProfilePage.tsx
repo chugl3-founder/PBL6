@@ -355,7 +355,7 @@ export const PlayerProfilePage: React.FC = () => {
               className="lg:col-span-5"
               action={
                 radarMatches.length > 1 && (
-                  <select
+                  <select name="compare-match"
                     value={compareId ?? ''}
                     onChange={e => setCompareId(e.target.value ? Number(e.target.value) : null)}
                     aria-label="So sánh với một trận"
@@ -378,7 +378,7 @@ export const PlayerProfilePage: React.FC = () => {
                       size={320}
                       series={[
                         { radar: profile.radar, color: PITCH, label: 'Trung bình' },
-                        ...(compare ? [{ radar: compare.radar, color: COMPARE, dashed: true, label: 'Trận' }] : []),
+                        ...(compare && hasRadar(compare.radar) ? [{ radar: compare.radar, color: COMPARE, dashed: true, label: 'Trận' }] : []),
                       ]}
                     />
                   </div>

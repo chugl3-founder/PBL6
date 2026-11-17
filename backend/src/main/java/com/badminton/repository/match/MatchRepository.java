@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -62,4 +63,15 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     long countByDeletedAtIsNotNull();
 
     long countByStatusAndDeletedAtIsNull(String status);
+
+    /**
+     * Matches left in ANALYZING with no analysis still queued or running (the worker failed, a job was
+     * cancelled or lost): back to ANALYZED when an earlier analysis completed, otherwise READY to analyse again.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE matches m SET status = CASE WHEN EXISTS (SELECT 1 FROM ai_analyses a "
+            + "WHERE a.match_id = m.id AND a.status = 'COMPLETED') THEN 'ANALYZED' ELSE 'READY' END, updated_at = NOW() "
+            + "WHERE m.status = 'ANALYZING' AND NOT EXISTS (SELECT 1 FROM ai_analyses a "
+            + "WHERE a.match_id = m.id AND a.status IN ('QUEUED', 'PROCESSING'))", nativeQuery = true)
+    int releaseStuckAnalyzing();
 }

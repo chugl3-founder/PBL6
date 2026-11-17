@@ -154,7 +154,7 @@ export const CourtHeatmap: React.FC<CourtHeatmapProps> = ({
             Chỗ đứng
           </button>
         </div>
-        <select
+        <select name="heatmap-stroke"
           value={stroke}
           onChange={e => setStroke(e.target.value)}
           aria-label="Loại cú"

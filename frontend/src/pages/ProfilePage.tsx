@@ -20,7 +20,7 @@ export const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<UserAccount | null>(null);
   const [fullName, setFullName] = useState('');
   const [age, setAge] = useState<number | ''>('');
-  const [gender, setGender] = useState('MALE');
+  const [gender, setGender] = useState('');
   const [badmintonLevel, setBadmintonLevel] = useState('INTERMEDIATE');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
@@ -39,7 +39,7 @@ export const ProfilePage: React.FC = () => {
       setProfile(data);
       setFullName(data.fullName || '');
       setAge(data.age || '');
-      setGender(data.gender || 'MALE');
+      setGender(data.gender || '');
       setBadmintonLevel(data.badmintonLevel || 'INTERMEDIATE');
       setAvatarUrl(data.avatarUrl || null);
     } catch (err) {
@@ -66,7 +66,8 @@ export const ProfilePage: React.FC = () => {
       const saved = await updateMyProfile({
         fullName,
         age: age ? Number(age) : null,
-        gender,
+        // Not chosen yet: left out, which leaves it unset instead of saving "Nam".
+        gender: gender || undefined,
         badmintonLevel,
       });
       setProfile(saved);
@@ -113,7 +114,7 @@ export const ProfilePage: React.FC = () => {
   }
 
   const levelLabel = LEVELS.find(l => l.value === (profile?.badmintonLevel || badmintonLevel))?.label ?? 'Chưa đặt';
-  const genderLabel = profile?.gender === 'MALE' ? 'Nam' : profile?.gender === 'FEMALE' ? 'Nữ' : 'Khác';
+  const genderLabel = profile?.gender === 'MALE' ? 'Nam' : profile?.gender === 'FEMALE' ? 'Nữ' : profile?.gender === 'OTHER' ? 'Khác' : 'Chưa cập nhật';
   const memberSince = profile?.createdAt
     ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(new Date(profile.createdAt))
     : null;
@@ -239,6 +240,7 @@ export const ProfilePage: React.FC = () => {
                 onChange={(e) => setGender(e.target.value)}
                 className={inputClass}
               >
+                <option value="" disabled>Chưa cập nhật</option>
                 <option value="MALE">Nam</option>
                 <option value="FEMALE">Nữ</option>
                 <option value="OTHER">Khác</option>

@@ -48,6 +48,23 @@ def update_analysis_status(
                     """,
                     (status, error_message, analysis_id),
                 )
+                # The match leaves ANALYZING too, unless another analysis of it is still running.
+                cursor.execute(
+                    """
+                    UPDATE matches m
+                    SET status = CASE WHEN EXISTS (
+                            SELECT 1 FROM ai_analyses a WHERE a.match_id = m.id AND a.status = 'COMPLETED'
+                        ) THEN 'ANALYZED' ELSE 'READY' END,
+                        updated_at = NOW()
+                    WHERE m.id = (SELECT match_id FROM ai_analyses WHERE id = %s)
+                      AND m.status = 'ANALYZING'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM ai_analyses a
+                        WHERE a.match_id = m.id AND a.status IN ('QUEUED', 'PROCESSING')
+                      )
+                    """,
+                    (analysis_id,),
+                )
     except Exception:
         logger.exception("Failed to update analysis %s status", analysis_id)
         return False

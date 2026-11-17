@@ -225,12 +225,16 @@ export const MatchesSection: React.FC<AdminOutletContext> = ({ metrics, refreshM
                             </TextAction>
                           ) : (
                             <>
-                              {m.status === 'ANALYZED' && (
+                              {m.status === 'ANALYZED' && (m.totalRallies ? (
                                 // Filled only in the "Chờ công khai" queue; in the full list it would drown the page in green.
                                 <TextAction primary={status === 'ANALYZED'} busy={busy} onClick={() => publish(m)}>
                                   Công khai
                                 </TextAction>
-                              )}
+                              ) : (
+                                <span className="text-xs text-ink/55" title="AI không tìm thấy pha cầu nào, không có gì để công khai">
+                                  Không có pha cầu
+                                </span>
+                              ))}
                               {published && (
                                 <TextAction busy={busy} onClick={() => setPending({ kind: 'unpublish', match: m })}>
                                   Gỡ công khai

@@ -74,7 +74,7 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
 
       {/* Thanh trượt điều hướng Seeker Bar */}
       <div className="relative flex items-center group/slider">
-        <input
+        <input name="video-seek"
           type="range"
           min={start}
           max={end}
@@ -164,7 +164,7 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
             </button>
             {/* Thanh slider âm lượng mở rộng khi hover */}
             <div className="flex items-center gap-1.5 w-0 opacity-0 group-hover/vol:w-24 group-hover/vol:opacity-100 transition-all duration-300 overflow-hidden px-0 group-hover/vol:px-1">
-              <input
+              <input name="video-volume"
                 type="range"
                 min="0"
                 max="1"

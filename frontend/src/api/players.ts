@@ -17,7 +17,8 @@ export interface PlayerSummary {
   ralliesWon: number;
   ralliesLost: number;
   totalShots: number;
-  radar: PlayerRadar;
+  /** Null when the player has too few strokes for a style. */
+  radar: PlayerRadar | null;
   playstyle: string | null;
 }
 
@@ -57,7 +58,7 @@ export interface PlayerMatchEntry {
   ralliesLost: number;
   avgDistanceMeters: number | null;
   playstyle: string | null;
-  radar: PlayerRadar;
+  radar: PlayerRadar | null;
 }
 
 export interface PlayerProfile {

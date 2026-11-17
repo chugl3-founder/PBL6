@@ -21,6 +21,7 @@ import { PLAYBACK_RATES } from '../components/replay/playback';
 import { MatchAnalysisSection } from '../components/replay/MatchAnalysisSection';
 import { ShortcutsModal } from '../components/replay/ShortcutsModal';
 import { GuestLimitModal } from '../components/replay/GuestLimitModal';
+import { isShownRally } from '../utils/rallies';
 import { useReplayData } from '../hooks/useReplayData';
 import { usePlayerSides } from '../hooks/usePlayerSides';
 import type { AiEventData, RallyData } from '../types/replay';
@@ -139,6 +140,12 @@ export const MatchReplayPage: React.FC = () => {
       }
     : null;
   const isGuest = isPublic && !isSignedIn();
+  // A broadcast opens with walk-on and warm-up: the guest's 5 minutes start with the first rally, not at 0:00.
+  const guestPreviewEnd = (() => {
+    const starts = rallies.map((r) => Number(r.startTime)).filter((t) => Number.isFinite(t));
+    const firstRally = starts.length ? Math.min(...starts) : 0;
+    return Math.max(0, firstRally - 2) + GUEST_PREVIEW_SECONDS;
+  })();
 
   // Hover controls & auto-hide
   const [isControlsVisible, setIsControlsVisible] = useState(true);
@@ -312,7 +319,7 @@ export const MatchReplayPage: React.FC = () => {
 
   /** Guests stop at the preview limit; true when playback was stopped. */
   const stopAtGuestLimit = (seconds: number) => {
-    if (!isGuest || seconds < GUEST_PREVIEW_SECONDS) return false;
+    if (!isGuest || seconds < guestPreviewEnd) return false;
     pausePlayer();
     setIsPlaying(false);
     setShowGuestLimitModal(true);
@@ -1050,7 +1057,7 @@ export const MatchReplayPage: React.FC = () => {
             <ReplaySideTabs
               activeTab={activeTab}
               setActiveTab={setActiveTab}
-              ralliesCount={rallies.length}
+              ralliesCount={rallies.filter(isShownRally).length}
               strokesCount={filteredEvents.length}
             />
 

@@ -1,5 +1,6 @@
 package com.badminton.service.player;
 
+import com.badminton.util.PlayerKey;
 import com.badminton.common.dto.ErrorType;
 import com.badminton.common.exception.ApiException;
 import com.badminton.dto.player.PlayerProfileResponse;
@@ -77,7 +78,7 @@ public class PlayerProfileService {
                         analyzed.stream().mapToInt(MatchRow::lost).sum(),
                         average(analyzed.stream().map(MatchRow::avgDistance).toList())),
                 averageRadar(analyzed),
-                playstyles(analyzed),
+                playstyles(analyzed, averageRadar(analyzed).playstyle()),
                 hasAnalysis ? playerStatsRepository.findStrokes(viewerId, key) : List.of(),
                 hasAnalysis ? playerStatsRepository.findHandSides(viewerId, key) : Map.of(),
                 hasAnalysis ? playerStatsRepository.findRallyLengths(viewerId, key) : List.of(),
@@ -106,7 +107,7 @@ public class PlayerProfileService {
 
     private static List<OpponentStat> opponents(List<MatchRow> rows) {
         Map<String, List<MatchRow>> byOpponent = rows.stream().collect(Collectors.groupingBy(
-                r -> r.opponent().toLowerCase(), LinkedHashMap::new, Collectors.toList()));
+                r -> PlayerKey.of(r.opponent()), LinkedHashMap::new, Collectors.toList()));
         return byOpponent.values().stream()
                 .map(list -> new OpponentStat(
                         list.get(0).opponent(),
@@ -118,19 +119,21 @@ public class PlayerProfileService {
                 .toList();
     }
 
-    private static List<LabelCount> playstyles(List<MatchRow> analyzed) {
+    /** Styles of the analysed matches, most frequent first, led by the style of the averaged radar. */
+    private static List<LabelCount> playstyles(List<MatchRow> analyzed, String overall) {
         return analyzed.stream()
                 .map(MatchRow::playstyle)
                 .filter(Objects::nonNull)
                 .collect(Collectors.groupingBy(Function.identity(), LinkedHashMap::new, Collectors.counting()))
                 .entrySet().stream()
                 .map(e -> new LabelCount(e.getKey(), e.getValue().intValue()))
-                .sorted(Comparator.comparingInt(LabelCount::count).reversed())
+                .sorted(Comparator.comparing((LabelCount l) -> !l.label().equals(overall))
+                        .thenComparing(Comparator.comparingInt(LabelCount::count).reversed()))
                 .toList();
     }
 
     private static Radar averageRadar(List<MatchRow> rows) {
-        List<Radar> radars = rows.stream().map(MatchRow::radar).toList();
+        List<Radar> radars = rows.stream().map(MatchRow::radar).filter(Objects::nonNull).toList();
         return new Radar(
                 averageInt(radars, Radar::attack),
                 averageInt(radars, Radar::defense),

@@ -69,15 +69,6 @@ const groupOf = (match: Match, status?: AnalysisStatus): Group => {
   return 'ANALYZED';
 };
 
-const playersOf = (match: Match) => {
-  const upperIsB = match.upperPlayer === 'PLAYER_B';
-  return {
-    upper: upperIsB ? match.playerBName : match.playerAName,
-    lower: upperIsB ? match.playerAName : match.playerBName,
-    upperSlot: upperIsB ? 'B' : 'A',
-  } as const;
-};
-
 const thumbOf = (match: Match) =>
   match.thumbnailUrl || (match.youtubeVideoId ? `https://img.youtube.com/vi/${match.youtubeVideoId}/mqdefault.jpg` : null);
 
@@ -180,7 +171,7 @@ const Thumb: React.FC<{ match: Match; className: string }> = ({ match, className
   const thumb = thumbOf(match);
   return (
     <div className={`overflow-hidden bg-ink ${className}`}>
-      {thumb ? <img src={thumb} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" /> : <CourtPlaceholder />}
+      {thumb ? <img src={thumb} alt="" width={320} height={180} loading="lazy" className="absolute inset-0 w-full h-full object-cover" /> : <CourtPlaceholder />}
     </div>
   );
 };
@@ -216,20 +207,16 @@ const ScoreLine: React.FC<{ name: string; dot: string; scores: number[]; won: bo
   </div>
 );
 
+/** Player A first, as in the match title ("A gặp B"). */
 const Scoreboard: React.FC<{ match: Match }> = ({ match }) => {
-  const { upper, lower, upperSlot } = playersOf(match);
   const games = match.result?.games ?? [];
   const a = games.map((g) => g.scoreA);
   const b = games.map((g) => g.scoreB);
-  const upperScores = upperSlot === 'A' ? a : b;
-  const lowerScores = upperSlot === 'A' ? b : a;
   const winner = match.result?.winner;
-  const upperWon = !!winner && (winner === 'PLAYER_A') === (upperSlot === 'A');
-  const lowerWon = !!winner && !upperWon;
   return (
     <div className="space-y-0.5">
-      <ScoreLine name={upper} dot="bg-pa" scores={upperScores} won={upperWon} lostGames={upperScores.map((s, i) => s < lowerScores[i])} />
-      <ScoreLine name={lower} dot="bg-pb" scores={lowerScores} won={lowerWon} lostGames={lowerScores.map((s, i) => s < upperScores[i])} />
+      <ScoreLine name={match.playerAName} dot="bg-pa" scores={a} won={winner === 'PLAYER_A'} lostGames={a.map((s, i) => s < b[i])} />
+      <ScoreLine name={match.playerBName} dot="bg-pb" scores={b} won={winner === 'PLAYER_B'} lostGames={b.map((s, i) => s < a[i])} />
     </div>
   );
 };
@@ -237,7 +224,6 @@ const Scoreboard: React.FC<{ match: Match }> = ({ match }) => {
 /* ------------------------------------------------------- live analysis panel */
 
 const LiveAnalysisCard: React.FC<{ match: Match; status?: AnalysisStatus }> = ({ match, status }) => {
-  const { upper, lower } = playersOf(match);
   const percent = status?.progressPercent ?? 0;
   const phase = phaseOf(status);
   const eta = etaOf(status);
@@ -256,7 +242,7 @@ const LiveAnalysisCard: React.FC<{ match: Match; status?: AnalysisStatus }> = ({
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
           <div className="min-w-0">
             <p className="font-semibold text-ink truncate">
-              {upper} <span className="text-ink/50 font-normal">gặp</span> {lower}
+              {match.playerAName} <span className="text-ink/50 font-normal">gặp</span> {match.playerBName}
             </p>
             <p className="text-sm text-ink/70 flex items-center gap-1.5">
               <Cpu className="w-3.5 h-3.5 text-pb shrink-0" aria-hidden />
@@ -605,9 +591,9 @@ export const MyMatchesPage: React.FC = () => {
                       : 'text-ink/70 hover:text-ink'
                   }`}
                 >
-                  {tab.label}
+                  {tab.label}{' '}
                   <span
-                    className={`ml-1.5 inline-flex min-w-[1.25rem] justify-center rounded-full px-1.5 text-xs tabular-nums ${
+                    className={`ml-1 inline-flex min-w-[1.25rem] justify-center rounded-full px-1.5 text-xs tabular-nums ${
                       tab.id === 'FAILED' ? 'bg-loss/10 text-loss' : active ? 'bg-pitch-soft text-pitch-deep' : 'bg-ink/5 text-ink/65'
                     }`}
                   >
@@ -646,7 +632,7 @@ export const MyMatchesPage: React.FC = () => {
             <label className="relative">
               <span className="sr-only">Sắp xếp</span>
               <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/45 pointer-events-none" aria-hidden />
-              <select
+              <select name="sort"
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortId)}
                 className="h-10 rounded-md border border-ink/15 bg-sheet pl-9 pr-8 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-pitch/40"

@@ -276,4 +276,37 @@ class HighlightSelectorTest {
 
         assertThat(games.values()).noneMatch(HighlightSelector.GameContext::beforeMatch);
     }
+
+    /** Match 308 as stored: the AI's count per court side, with a few misread rallies. */
+    private static final int[][] MATCH_308 = {{1, 0, 1, 1}, {2, 1, 1, 2}, {3, 1, 1, 2}, {4, 0, 2, 2}, {5, 1, 2, 3}, {6, 1, 2, 3}, {7, 1, 2, 4}, {8, 0, 3, 4}, {9, 1, 3, 5}, {10, 0, 4, 5}, {11, 0, 5, 5}, {12, 2, 5, 5}, {13, 1, 5, 6}, {14, 1, 5, 7}, {15, 0, 6, 7}, {16, 0, 6, 7}, {17, 1, 6, 8}, {18, 1, 6, 9}, {19, 0, 7, 8}, {20, 1, 8, 9}, {21, 1, 8, 11}, {22, 1, 8, 12}, {23, 0, 9, 12}, {24, 0, 10, 12}, {25, 1, 10, 13}, {26, 0, 11, 13}, {27, 0, 12, 13}, {28, 1, 12, 14}, {29, 1, 12, 15}, {30, 1, 12, 16}, {31, 1, 12, 17}, {32, 1, 12, 18}, {33, 0, 13, 19}, {34, 1, 13, 20}, {35, 0, 14, 20}, {36, 0, 15, 20}, {37, 0, 1, 0}, {38, 0, 1, 0}, {39, 1, 1, 1}, {40, 0, 2, 1}, {41, 1, 1, 2}, {42, 0, 2, 2}, {43, 1, 2, 3}, {44, 1, 2, 4}, {45, 0, 3, 4}, {46, 0, 4, 5}, {47, 2, 4, 5}, {48, 1, 4, 6}, {49, 0, 5, 6}, {50, 0, 6, 6}, {51, 0, 7, 6}, {52, 1, 8, 7}, {53, 1, 8, 8}, {54, 1, 8, 9}, {55, 1, 8, 10}, {56, 1, 8, 11}, {57, 1, 8, 12}, {58, 0, 9, 11}, {59, 1, 9, 12}, {60, 0, 10, 12}, {61, 1, 10, 13}, {62, 0, 11, 13}, {63, 1, 11, 14}, {64, 0, 12, 14}, {65, 0, 13, 14}, {66, 1, 12, 15}, {67, 1, 12, 16}, {68, 0, 13, 16}, {69, 1, 13, 17}, {70, 1, 13, 17}, {71, 0, 14, 17}, {72, 0, 15, 17}, {73, 1, 15, 18}, {74, 1, 15, 19}, {75, 1, 15, 20}, {76, 0, 16, 19}, {77, 0, 17, 19}, {78, 1, 17, 20}, {79, 0, 18, 20}, {80, 1, 18, 21}, {81, 0, 19, 20}, {82, 1, 19, 21}, {83, 0, 20, 20}, {84, 0, 21, 20}, {85, 1, 21, 21}, {86, 1, 21, 22}, {87, 0, 22, 22}, {88, 0, 23, 22}, {89, 0, 24, 22}, {90, 2, 24, 22}, {91, 0, 22, 22}, {92, 2, 22, 22}, {93, 1, 22, 23}, {94, 0, 23, 22}, {95, 0, 24, 22}, {96, 2, 0, 0}};
+
+    @Test
+    void misreadCountsDoNotMakeScoresGoBackOrInventAGame() {
+        String[] sides = {"UPPER", "LOWER", "UNKNOWN"};
+        List<RallyFacts> rallies = new ArrayList<>();
+        for (int[] r : MATCH_308) {
+            rallies.add(rally(r[0], r[0] * 30.0, 4, sides[r[1]], r[2], r[3], null, null));
+        }
+
+        // Han Yue (player B) starts on the upper half.
+        Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies, false);
+
+        HighlightSelector.GameContext previous = null;
+        for (RallyFacts r : rallies) {
+            HighlightSelector.GameContext g = games.get(r.rallyId());
+            if (g.outsideMatch()) continue;
+            assertThat(g.game()).as("rally %d", r.rallyNumber()).isLessThanOrEqualTo(2);
+            if (previous != null && previous.game() == g.game()) {
+                assertThat(g.aAfter()).as("rally %d", r.rallyNumber()).isGreaterThanOrEqualTo(previous.aAfter());
+                assertThat(g.bAfter()).as("rally %d", r.rallyNumber()).isGreaterThanOrEqualTo(previous.bAfter());
+            }
+            previous = g;
+        }
+        // Game 2 went to deuce and ended 24-22, not at a misread 18-21 followed by a made-up game 3.
+        HighlightSelector.GameContext end = games.get(95L);
+        assertThat(end.game()).isEqualTo(2);
+        assertThat(Math.max(end.aAfter(), end.bAfter())).isEqualTo(24);
+        assertThat(Math.min(end.aAfter(), end.bAfter())).isEqualTo(22);
+        assertThat(games.get(96L).afterMatch()).isTrue();
+    }
 }

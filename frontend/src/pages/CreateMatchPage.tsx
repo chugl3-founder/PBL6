@@ -38,6 +38,10 @@ export const CreateMatchPage: React.FC = () => {
       setError('Hãy nhập tên cả hai vận động viên.');
       return;
     }
+    if (upper.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') === lower.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')) {
+      setError('Hai vận động viên đang trùng tên. Hãy nhập tên của từng người.');
+      return;
+    }
 
     setLoading(true);
     try {
