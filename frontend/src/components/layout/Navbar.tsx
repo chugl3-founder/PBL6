@@ -87,7 +87,11 @@ export const Navbar: React.FC = () => {
       {/* Same outer padding and inner width as the page body, so the logo lines up with the content */}
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto h-14 flex items-center gap-6">
-        <Link to="/" className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40" aria-label="BadmintonAI, trang chủ">
+        <Link
+          to="/"
+          // Already on the landing page: the route does not change, so bring the reader back to the top.
+          onClick={() => location.pathname === '/' && window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40" aria-label="BadmintonAI, trang chủ">
           <BrandLogo />
         </Link>
 
@@ -135,11 +139,6 @@ export const Navbar: React.FC = () => {
                 </span>
               )}
             </Link>
-          )}
-          {!token && (
-            <a href="/#features" className={navLink(false)}>
-              Tính năng
-            </a>
           )}
           {isAdmin && (
             <Link to="/admin" className={navLink(location.pathname.startsWith('/admin'))}>
