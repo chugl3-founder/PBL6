@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { AdminAnalysis, DashboardMetrics, UserAccount } from '../types/admin';
+import type { AdminAnalysis, AdminHighlight, AdminSharedReport, DashboardMetrics, UserAccount } from '../types/admin';
 import type { Match, Paged } from '../types/match';
 
 /** Admin APIs: overview numbers, every match, user accounts and the AI analysis monitor. */
@@ -48,3 +48,20 @@ export const listAnalyses = async (status: string, size: number) => {
 
 export const retryAnalysisAsAdmin = async (id: number) =>
   (await apiClient.post<{ analysisId: number; message?: string }>(`/admin/ai-analyses/${id}/retry`)).data;
+
+/** Scouting reports that are open to anyone with the link. */
+export const listSharedReports = async (size: number) =>
+  (await apiClient.get<Paged<AdminSharedReport>>('/admin/content/shared-reports', { params: { page: 0, size } })).data;
+
+/** Turns the link off; the report stays with its owner. */
+export const revokeSharedReport = async (id: number) => {
+  await apiClient.post(`/admin/content/shared-reports/${id}/revoke`);
+};
+
+/** status: ALL, ACTIVE (queued or rendering), COMPLETED or FAILED. */
+export const listAdminHighlights = async (status: string, size: number) =>
+  (await apiClient.get<Paged<AdminHighlight>>('/admin/content/highlights', { params: { status, page: 0, size } })).data;
+
+export const deleteHighlightAsAdmin = async (id: number) => {
+  await apiClient.delete(`/admin/content/highlights/${id}`);
+};

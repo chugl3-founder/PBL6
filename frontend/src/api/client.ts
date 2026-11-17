@@ -68,6 +68,11 @@ apiClient.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    // An admin locked this account while it was signed in: end the session and say why on the login page.
+    if (error.response?.status === 403 && error.response.data?.code === 'ERR_ACCOUNT_LOCKED') {
+      clearSession();
+      window.location.href = '/login?locked=1';
+    }
     return Promise.reject(error);
   }
 );

@@ -6,6 +6,7 @@ import { HighlightJobsProvider } from '../highlight/HighlightJobsContext';
 import { HighlightTray } from '../highlight/HighlightTray';
 import { ChatWidget } from '../chat/ChatWidget';
 import { GuestCoachTeaser } from '../chat/GuestCoachTeaser';
+import { Toaster } from '../ui/Toast';
 import { getAccessToken } from '../../auth/session';
 
 // Pages in the light "court" identity: every client page (landing, library, players, scouting,
@@ -42,6 +43,7 @@ export const MainLayout: React.FC = () => {
       {location.pathname === '/' && <Footer />}
       {/* Highlight renders keep running on the server; the tray follows them on every page. */}
       <HighlightTray />
+      <Toaster />
       {/* The AI Coach is for signed-in users only; the backend also requires a token on /api/coach. */}
       {getAccessToken() ? <ChatWidget /> : <GuestCoachTeaser />}
     </div>

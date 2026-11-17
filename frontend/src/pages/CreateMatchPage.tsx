@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, ArrowUpDown, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown } from 'lucide-react';
+import { Notice } from '../components/ui/Notice';
 import { CameraCourt } from '../components/court/CameraCourt';
 import { StepIndicator } from '../components/match/StepIndicator';
 import { createMatch } from '../api/matches';
@@ -71,10 +72,7 @@ export const CreateMatchPage: React.FC = () => {
       </header>
 
       {error && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-md bg-loss/10 text-loss text-sm" role="alert">
-          <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-          <span>{error}</span>
-        </div>
+        <Notice tone="error" onClose={() => setError(null)}>{error}</Notice>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">

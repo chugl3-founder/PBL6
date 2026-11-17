@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Play, AlertCircle, Target, Eye, BarChart3 } from 'lucide-react';
 import { focusAnalysis } from '../api/analysis';
 import { isSignedIn } from '../auth/session';
@@ -83,6 +83,15 @@ export const MatchReplayPage: React.FC = () => {
     match, video, events, selectedEvent, setSelectedEvent, rallies, selectedRally, setSelectedRally,
     statistics, analysisLive, isAnalysisLive, loading, error,
   } = useReplayData(id, isPublic, () => showOsd('AI đã phân tích xong toàn trận'));
+
+  // Links to a match (from the AI Coach, shared rallies) use the public replay. A signed-in owner's own,
+  // unpublished match is not there: open their replay of it instead, keeping the time to start at.
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (isPublic && !loading && error && id && isSignedIn()) {
+      navigate(`/matches/${id}/replay${location.search}`, { replace: true });
+    }
+  }, [isPublic, loading, error, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [activeTab, setActiveTab] = useState<ReplaySideTab>('RALLIES');
   // Danh sách phát: xem liền các pha cầu của một nhóm "Vì sao mất điểm"

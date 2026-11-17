@@ -10,6 +10,7 @@ export const LoginPage: React.FC = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const isRegisteredSuccess = queryParams.get('registered') === 'true';
+  const wasLocked = queryParams.get('locked') === '1';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,6 +55,9 @@ export const LoginPage: React.FC = () => {
       }
     >
       {isRegisteredSuccess && <AuthAlert tone="success">Tài khoản đã sẵn sàng. Mời bạn đăng nhập.</AuthAlert>}
+      {wasLocked && !error && (
+        <AuthAlert tone="error">Tài khoản của bạn đã bị quản trị viên khóa. Liên hệ quản trị viên để được mở lại.</AuthAlert>
+      )}
       {error && <AuthAlert tone="error">{error}</AuthAlert>}
 
       <form onSubmit={handleSubmit} className="space-y-5">

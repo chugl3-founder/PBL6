@@ -39,6 +39,7 @@ export const AppRouter: React.FC = () => {
         <Route path="matches" element={<AdminDashboardPage />} />
         <Route path="users" element={<AdminDashboardPage />} />
         <Route path="ai-monitor" element={<AdminDashboardPage />} />
+        <Route path="content" element={<AdminDashboardPage />} />
       </Route>
 
       {/* GIAO DIỆN NGƯỜI DÙNG & KHÁCH (CLIENT PORTAL) */}

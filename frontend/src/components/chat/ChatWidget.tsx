@@ -120,6 +120,8 @@ export const ChatWidget: React.FC = () => {
 
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Set once the user starts or continues a conversation: a restore still loading must not replace it.
+  const userActedRef = useRef(false);
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
   // Nhận diện matchId từ URL (ví dụ: /matches/2 hoặc /public-matches/2/replay)
@@ -140,7 +142,9 @@ export const ChatWidget: React.FC = () => {
     currentUserId = 'guest';
   }
 
-  const storageKey = `badminton_chat_session_${currentUserId}_${currentMatchId || 'global'}`;
+  // One conversation per user, kept while moving between pages; the match being viewed goes with each
+  // question (match_id) instead of opening a separate conversation per page.
+  const storageKey = `badminton_chat_session_${currentUserId}`;
 
   // Kiểm tra hỗ trợ Web Speech API trên trình duyệt
   useEffect(() => {
@@ -267,7 +271,7 @@ export const ChatWidget: React.FC = () => {
   };
 
   // Tải chi tiết tin nhắn của một Session cụ thể (bảo vệ quyền riêng tư qua browserKey và JWT)
-  const loadSessionMessages = useCallback(async (sid: string) => {
+  const loadSessionMessages = useCallback(async (sid: string, restoring = false) => {
     try {
       const token = localStorage.getItem('access_token');
       const headers: Record<string, string> = {};
@@ -284,6 +288,7 @@ export const ChatWidget: React.FC = () => {
         return;
       }
       const data = await res.json();
+      if (restoring && userActedRef.current) return; // the user moved on while this was loading
       if (data && data.messages && data.messages.length > 0) {
         const loaded: Message[] = data.messages.map((m: any) => ({
           id: m.id,
@@ -308,10 +313,7 @@ export const ChatWidget: React.FC = () => {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const queryParams = new URLSearchParams({
-        browser_key: browserKey,
-        ...(currentMatchId ? { match_id: currentMatchId.toString() } : {})
-      });
+      const queryParams = new URLSearchParams({ browser_key: browserKey });
 
       const res = await fetch(`${COACH_API_URL}/sessions?${queryParams.toString()}`, { headers });
       const data = await res.json();
@@ -323,7 +325,7 @@ export const ChatWidget: React.FC = () => {
       console.warn('Lỗi lấy danh sách session:', err);
     }
     return [];
-  }, [currentMatchId, browserKey]);
+  }, [browserKey]);
 
   // 1. Tự động khôi phục lịch sử chat từ Database Supabase khi load trang
   useEffect(() => {
@@ -337,9 +339,10 @@ export const ChatWidget: React.FC = () => {
         }
       }
 
+      if (userActedRef.current) return;
       if (activeId) {
         setSessionId(activeId);
-        await loadSessionMessages(activeId);
+        await loadSessionMessages(activeId, true);
       } else {
         setSessionId(null);
         setMessages([WELCOME_MESSAGE]);
@@ -347,7 +350,7 @@ export const ChatWidget: React.FC = () => {
     };
 
     initChat();
-  }, [currentMatchId, storageKey, fetchSessions, loadSessionMessages]);
+  }, [storageKey, fetchSessions, loadSessionMessages]);
 
   // 2. Bấm ra ngoài hoặc bấm Escape thì tự động ẩn khung chat
   useEffect(() => {
@@ -422,6 +425,7 @@ export const ChatWidget: React.FC = () => {
 
   // Tạo cuộc trò chuyện mới
   const handleNewChat = () => {
+    userActedRef.current = true;
     localStorage.removeItem(storageKey);
     setSessionId(null);
     setMessages([WELCOME_MESSAGE]);
@@ -440,6 +444,7 @@ export const ChatWidget: React.FC = () => {
 
   // Gửi tin nhắn với cơ chế STREAMING
   const handleSendMessage = async (textToSend?: string) => {
+    userActedRef.current = true;
     const query = textToSend || input;
     if (!query.trim() || loading) return;
 

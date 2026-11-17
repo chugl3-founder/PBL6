@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, User, Plus, ChevronDown, Lock } from 'lucide-react';
 import apiClient from '../../api/client';
 import { BrandLogo } from '../brand/BrandLogo';
+import { GlobalSearch } from '../search/GlobalSearch';
 import { useHighlightJobs } from '../highlight/useHighlightJobs';
 import { isRendering } from '../../api/highlights';
 import { logout } from '../../api/auth';
@@ -155,6 +156,7 @@ export const Navbar: React.FC = () => {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <GlobalSearch />
           {token ? (
             <>
               <Link

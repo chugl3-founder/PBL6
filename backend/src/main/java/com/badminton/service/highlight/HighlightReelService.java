@@ -5,6 +5,8 @@ import com.badminton.common.dto.ErrorType;
 import com.badminton.common.exception.ApiException;
 import com.badminton.config.RabbitMQConfig;
 import com.badminton.config.S3Properties;
+import com.badminton.dto.admin.AdminHighlightResponse;
+import com.badminton.dto.admin.PagedResponse;
 import com.badminton.dto.highlight.HighlightReelRequest;
 import com.badminton.dto.highlight.HighlightReelResponse;
 import com.badminton.dto.highlight.HighlightSuggestionsResponse;
@@ -17,6 +19,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -173,7 +178,33 @@ public class HighlightReelService {
     @Transactional
     public void delete(Long matchId, Long reelId, String email) {
         matchAccess.requireOwner(matchId, email);
-        HighlightReel reel = reel(matchId, reelId);
+        remove(reel(matchId, reelId));
+    }
+
+    /** Every reel in the system, newest first. status: ALL, ACTIVE (queued or rendering), COMPLETED or FAILED. */
+    @Transactional(readOnly = true)
+    public PagedResponse<AdminHighlightResponse> listForAdmin(String status, int page, int size) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        String key = status == null ? "ALL" : status.trim().toUpperCase();
+        Page<HighlightReel> reels = switch (key) {
+            case "ALL" -> highlightReelRepository.findAllBy(pageable);
+            case "ACTIVE" -> highlightReelRepository.findByStatusIn(ACTIVE_STATUSES, pageable);
+            case "COMPLETED", "FAILED" -> highlightReelRepository.findByStatusIn(Set.of(key), pageable);
+            default -> throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_INVALID_STATUS",
+                    "Trạng thái không hợp lệ. Chỉ chấp nhận ALL, ACTIVE, COMPLETED hoặc FAILED.");
+        };
+        return PagedResponse.of(reels, r -> new AdminHighlightResponse(toResponse(r), r.getOwner().getEmail()));
+    }
+
+    /** Removes any user's reel and its file. */
+    @Transactional
+    public void deleteForAdmin(Long reelId) {
+        remove(highlightReelRepository.findById(reelId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.SYSTEM, "ERR_REEL_NOT_FOUND",
+                        "Không tìm thấy video highlight")));
+    }
+
+    private void remove(HighlightReel reel) {
         highlightReelRepository.delete(reel);
         if (reel.getStoragePath() != null) {
             try {

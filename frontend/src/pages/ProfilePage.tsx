@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { Camera, Save, User as UserIcon, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Camera, Save, User as UserIcon } from 'lucide-react';
+import { Notice } from '../components/ui/Notice';
+import { toast } from '../components/ui/toastBus';
 import { getMyProfile, updateMyProfile, uploadAvatar } from '../api/auth';
 import { errorMessage, errorStatus } from '../api/errors';
 import { updateSessionUser } from '../auth/session';
@@ -14,6 +16,7 @@ const LEVELS = [
 ];
 
 export const ProfilePage: React.FC = () => {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<UserAccount | null>(null);
   const [fullName, setFullName] = useState('');
   const [age, setAge] = useState<number | ''>('');
@@ -24,7 +27,6 @@ export const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +59,6 @@ export const ProfilePage: React.FC = () => {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSuccessMsg(null);
     setErrorMsg(null);
     setSaving(true);
 
@@ -70,7 +71,7 @@ export const ProfilePage: React.FC = () => {
       });
       setProfile(saved);
       updateSessionUser(saved);
-      setSuccessMsg('Đã lưu hồ sơ.');
+      toast.success('Đã lưu hồ sơ.');
     } catch (err) {
       setErrorMsg(errorMessage(err, 'Cập nhật thất bại. Vui lòng thử lại.'));
     } finally {
@@ -89,13 +90,12 @@ export const ProfilePage: React.FC = () => {
 
     setUploadingAvatar(true);
     setErrorMsg(null);
-    setSuccessMsg(null);
 
     try {
       const { avatarUrl: uploaded } = await uploadAvatar(file);
       setAvatarUrl(uploaded);
       updateSessionUser({ avatarUrl: uploaded });
-      setSuccessMsg('Đã đổi ảnh đại diện.');
+      toast.success('Đã đổi ảnh đại diện.');
     } catch (err) {
       setErrorMsg(errorMessage(err, 'Không tải được ảnh lên. Thử lại với ảnh PNG, JPG hoặc WebP dưới 2 MB.'));
     } finally {
@@ -180,25 +180,14 @@ export const ProfilePage: React.FC = () => {
         </div>
       </section>
 
-      {successMsg && (
-        <div role="status" className="flex items-center gap-2.5 rounded-md bg-pitch-soft text-pitch-deep px-4 py-3 text-sm animate-fade-in">
-          <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
       {errorMsg && (
-        <div role="alert" className="flex items-center justify-between gap-3 rounded-md bg-loss/10 text-loss px-4 py-3 text-sm animate-fade-in">
-          <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0" aria-hidden />
-            <span>{errorMsg}</span>
-          </div>
-          {errorMsg.includes('hết hạn') && (
-            <Link to="/login" className="shrink-0 font-semibold underline">
-              Đăng nhập lại
-            </Link>
-          )}
-        </div>
+        <Notice
+          tone="error"
+          action={errorMsg.includes('hết hạn') ? { label: 'Đăng nhập lại', onClick: () => navigate('/login') } : undefined}
+          onClose={() => setErrorMsg(null)}
+        >
+          {errorMsg}
+        </Notice>
       )}
 
       {/* Edit form */}

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Download, Film, Loader2, Play, Trash2, X } from 'lucide-react';
 import { HighlightReel, isRendering } from '../api/highlights';
 import { useHighlightJobs } from '../components/highlight/useHighlightJobs';
+import { EmptyState } from '../components/ui/EmptyState';
 
 const formatDuration = (seconds: number) => {
   const s = Math.max(0, Math.round(seconds));
@@ -60,19 +61,12 @@ export const HighlightsPage: React.FC = () => {
           <Loader2 className="w-4 h-4 animate-spin text-pitch" /> Đang tải…
         </p>
       ) : reels.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-ink/20 bg-sheet px-6 py-12 text-center">
-          <Film className="mx-auto w-8 h-8 text-ink/30" />
-          <p className="mt-3 font-medium text-ink">Chưa có video highlight nào</p>
-          <p className="mt-1 text-sm text-ink/70">
-            Mở một trận đã phân tích, bấm <strong>Tạo video highlight</strong> ở đầu trang xem lại.
-          </p>
-          <Link
-            to="/my-matches"
-            className="mt-4 inline-flex items-center px-4 h-9 rounded-md text-sm font-medium bg-pitch hover:bg-pitch-deep text-white"
-          >
-            Đến Trận của tôi
-          </Link>
-        </div>
+        <EmptyState
+          icon={Film}
+          title="Chưa có video highlight nào"
+          description={<>Mở một trận đã phân tích, bấm <strong>Tạo video highlight</strong> ở đầu trang xem lại.</>}
+          action={{ label: 'Đến Trận của tôi', to: '/my-matches' }}
+        />
       ) : (
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {reels.map(reel => (

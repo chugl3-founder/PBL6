@@ -30,5 +30,9 @@ public class AdminDashboardResponse {
 
     private Map<String, Long> matchStatusBreakdown;
     private Map<String, Long> aiStatusBreakdown;
+
+    /** Scouting reports open to anyone with the link. */
+    private long sharedReports;
+    private long highlightReels;
 }
 
