@@ -22,7 +22,7 @@ export const playstyleLabel = (label?: string | null) =>
 export const playstyleTone = (label?: string | null) =>
   (label && PLAYSTYLES[label]?.tone) || 'bg-ink/[0.05] text-ink/70 border-ink/15';
 
-export const hasRadar = (radar?: PlayerRadar | null) =>
+export const hasRadar = (radar?: PlayerRadar | null): radar is PlayerRadar =>
   Boolean(radar && RADAR_AXES.some(axis => radar[axis.key] != null));
 
 /** Share of decided rallies won, 0..100, or null when no rally has a known winner. */

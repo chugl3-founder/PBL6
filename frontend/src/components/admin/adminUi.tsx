@@ -55,7 +55,10 @@ export const FilterTabs: React.FC<{
       >
         {tab.label}
         {tab.count !== undefined && tab.count > 0 && (
-          <span className="ml-1.5 text-xs tabular-nums text-ink/60">{tab.count}</span>
+          <>
+            {' '}
+            <span className="ml-1 text-xs tabular-nums text-ink/60">{tab.count}</span>
+          </>
         )}
       </button>
     ))}

@@ -290,7 +290,7 @@ export const HighlightReelDialog: React.FC<HighlightReelDialogProps> = ({
 
               <label className="block">
                 <span className="text-sm font-semibold text-ink/70">Tiêu đề video</span>
-                <input
+                <input name="reel-title"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   maxLength={200}

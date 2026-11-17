@@ -164,23 +164,23 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
     <div className="flex-1 flex flex-col min-h-0">
       <div className="space-y-2 pb-3 mb-1 border-b border-ink/10">
         <div className="grid grid-cols-2 gap-1.5">
-          <select value={winner} onChange={e => setWinner(e.target.value as typeof winner)} aria-label="Người ghi điểm" className={selectClass}>
+          <select name="rally-winner" value={winner} onChange={e => setWinner(e.target.value as typeof winner)} aria-label="Người ghi điểm" className={selectClass}>
             <option value="ALL">Người thắng: bất kỳ</option>
             <option value="UPPER">{getPlayerNameBySide('UPPER')} ghi điểm</option>
             <option value="LOWER">{getPlayerNameBySide('LOWER')} ghi điểm</option>
           </select>
-          <select value={length} onChange={e => setLength(e.target.value as LengthFilter)} aria-label="Độ dài pha cầu" className={selectClass}>
+          <select name="rally-length" value={length} onChange={e => setLength(e.target.value as LengthFilter)} aria-label="Độ dài pha cầu" className={selectClass}>
             {(Object.keys(LENGTHS) as LengthFilter[]).map(k => (
               <option key={k} value={k}>{LENGTHS[k].label}</option>
             ))}
           </select>
-          <select value={lastStroke} onChange={e => setLastStroke(e.target.value)} aria-label="Cú cuối pha" className={selectClass}>
+          <select name="rally-last-stroke" value={lastStroke} onChange={e => setLastStroke(e.target.value)} aria-label="Cú cuối pha" className={selectClass}>
             <option value="ALL">Cú cuối: bất kỳ</option>
             {strokeOptions.map(([code, n]) => (
               <option key={code} value={code}>Cú cuối: {strokeLabelLower(code)} ({n})</option>
             ))}
           </select>
-          <select value={tactic} onChange={e => setTactic(e.target.value)} aria-label="Chiến thuật" className={selectClass} disabled={tacticOptions.length === 0}>
+          <select name="rally-tactic" value={tactic} onChange={e => setTactic(e.target.value)} aria-label="Chiến thuật" className={selectClass} disabled={tacticOptions.length === 0}>
             <option value="ALL">Chiến thuật: bất kỳ</option>
             {tacticOptions.map(([code, n]) => (
               <option key={code} value={code}>{tacticLabel(code)} ({n})</option>
@@ -278,7 +278,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                 ) : (
                   <span className="font-score text-lg font-semibold tabular-nums text-ink shrink-0" title={scoreTooltip}>
                     {multiGame && rally.gameNumber != null && (
-                      <span className="mr-1 text-xs font-medium text-ink/50">V{rally.gameNumber}</span>
+                      <span className="text-xs font-medium text-ink/50"><span className="sr-only">Ván </span>V{rally.gameNumber} </span>
                     )}
                     {rallyScoreText(rally)}
                   </span>

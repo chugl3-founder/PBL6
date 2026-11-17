@@ -63,12 +63,23 @@ public class MatchResultService {
         List<MatchResult.GameScore> scores = new ArrayList<>();
         int wonA = 0;
         int wonB = 0;
+        int gameIndex = 0;
         for (HighlightSelector.GameContext g : lastOfGame.values()) {
             boolean finished = (g.aWon() && HighlightSelector.winsGame(g.aAfter(), g.bAfter()))
                     || (g.bWon() && HighlightSelector.winsGame(g.bAfter(), g.aAfter()));
-            scores.add(new MatchResult.GameScore(g.aAfter(), g.bAfter(), finished));
-            if (finished && g.aAfter() > g.bAfter()) wonA++;
-            if (finished && g.bAfter() > g.aAfter()) wonB++;
+            int a = g.aAfter();
+            int b = g.bAfter();
+            // A later game exists, so this one ended: the AI missed its last rally (20-15 is no final score).
+            // The leader won it; at game point that rally is the one missing point.
+            boolean later = ++gameIndex < lastOfGame.size();
+            if (!finished && later && a != b) {
+                if (a > b && HighlightSelector.hasGamePoint(a, b)) a++;
+                else if (b > a && HighlightSelector.hasGamePoint(b, a)) b++;
+                finished = true;
+            }
+            scores.add(new MatchResult.GameScore(a, b, finished));
+            if (finished && a > b) wonA++;
+            if (finished && b > a) wonB++;
         }
         // Broadcasts often cut to a close-up during the match point, so its rally is not seen and the
         // last game stops one short (20-12). A match does not end on match point: when the leader of
@@ -87,6 +98,12 @@ public class MatchResultService {
             }
         }
         String winner = wonA >= 2 ? "PLAYER_A" : wonB >= 2 ? "PLAYER_B" : null;
-        return new MatchResult(scores, winner);
+        // The same rallies the Replay lists: in the match, won by a known side or not decided yet.
+        int matchRallies = (int) facts.stream()
+                .filter(r -> games.get(r.rallyId()) != null && !games.get(r.rallyId()).outsideMatch())
+                .filter(r -> r.winnerSide() == null || r.winnerSide().isBlank()
+                        || "UPPER".equalsIgnoreCase(r.winnerSide()) || "LOWER".equalsIgnoreCase(r.winnerSide()))
+                .count();
+        return new MatchResult(scores, winner, matchRallies);
     }
 }

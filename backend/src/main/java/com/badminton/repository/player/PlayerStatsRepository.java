@@ -2,6 +2,7 @@ package com.badminton.repository.player;
 
 import com.badminton.dto.player.PlayerProfileResponse.LabelCount;
 import com.badminton.dto.player.PlayerProfileResponse.Radar;
+import com.badminton.util.PlayerKey;
 import com.badminton.dto.player.PlayerProfileResponse.RallyLengthStat;
 import com.badminton.dto.player.PlayerProfileResponse.StrokeStat;
 import com.badminton.dto.player.PlayerProfileResponse.ZoneCell;
@@ -40,17 +41,17 @@ public class PlayerStatsRepository {
             WITH pm AS (
               SELECT m.id AS match_id, m.title, m.match_date, m.status AS match_status,
                      (m.owner_id = :viewerId) AS owned, a.id AS analysis_id,
-                     CASE WHEN (lower(trim(m.player_a_name)) = :key) = (m.upper_player = 'PLAYER_A')
+                     CASE WHEN (regexp_replace(lower(m.player_a_name), '[^[:alnum:]]+', '', 'g') = :key) = (m.upper_player = 'PLAYER_A')
                           THEN 'UPPER' ELSE 'LOWER' END AS side,
-                     CASE WHEN lower(trim(m.player_a_name)) = :key
+                     CASE WHEN regexp_replace(lower(m.player_a_name), '[^[:alnum:]]+', '', 'g') = :key
                           THEN trim(m.player_a_name) ELSE trim(m.player_b_name) END AS player_name,
-                     CASE WHEN lower(trim(m.player_a_name)) = :key
+                     CASE WHEN regexp_replace(lower(m.player_a_name), '[^[:alnum:]]+', '', 'g') = :key
                           THEN trim(m.player_b_name) ELSE trim(m.player_a_name) END AS opponent
               FROM matches m
               LEFT JOIN ai_analyses a ON a.match_id = m.id AND a.is_current AND a.status = 'COMPLETED'
               WHERE m.deleted_at IS NULL
                 AND (m.status = 'PUBLISHED' OR m.owner_id = :viewerId)
-                AND :key IN (lower(trim(m.player_a_name)), lower(trim(m.player_b_name)))
+                AND :key IN (regexp_replace(lower(m.player_a_name), '[^[:alnum:]]+', '', 'g'), regexp_replace(lower(m.player_b_name), '[^[:alnum:]]+', '', 'g'))
             )
             """;
 
@@ -112,6 +113,7 @@ public class PlayerStatsRepository {
         String sql = """
                 WITH v AS (
                   SELECT m.id AS match_id, m.match_date, a.id AS analysis_id, x.name,
+                         regexp_replace(lower(x.name), '[^[:alnum:]]+', '', 'g') AS name_key,
                          CASE WHEN x.is_a = (m.upper_player = 'PLAYER_A') THEN 'UPPER' ELSE 'LOWER' END AS side
                   FROM matches m
                   CROSS JOIN LATERAL (VALUES (trim(m.player_a_name), true), (trim(m.player_b_name), false)) AS x(name, is_a)
@@ -152,8 +154,9 @@ public class PlayerStatsRepository {
                       THEN (CASE v.side WHEN 'UPPER' THEN 'LOWER' ELSE 'UPPER' END) ELSE v.side END
                 ) es ON true
                 LEFT JOIN player_analysis_profiles p ON p.analysis_id = v.analysis_id AND p.player_side = v.side
-                WHERE lower(v.name) LIKE :search
-                GROUP BY lower(v.name)
+                WHERE lower(v.name) LIKE :search AND length(v.name_key) > 1
+                GROUP BY v.name_key
+                HAVING count(DISTINCT v.analysis_id) > 0 AND coalesce(sum(es.shots), 0) > 0
                 ORDER BY count(DISTINCT v.analysis_id) DESC, count(DISTINCT v.match_id) DESC, display_name
                 LIMIT :limit
                 """.formatted(SCORED);
@@ -170,8 +173,8 @@ public class PlayerStatsRepository {
                 rs.getInt("won"),
                 rs.getInt("lost"),
                 rs.getInt("shots"),
-                radar(rs),
-                rs.getString("playstyle")
+                styleRadar(rs, rs.getInt("shots")),
+                playstyle(styleRadar(rs, rs.getInt("shots")))
         ));
     }
 
@@ -206,8 +209,8 @@ public class PlayerStatsRepository {
                 rs.getInt("won"),
                 rs.getInt("lost"),
                 decimal(rs, "avg_distance"),
-                rs.getString("playstyle"),
-                radar(rs)
+                playstyle(styleRadar(rs, rs.getInt("shots"))),
+                styleRadar(rs, rs.getInt("shots"))
         ));
     }
 
@@ -349,7 +352,8 @@ public class PlayerStatsRepository {
     }
 
     private static MapSqlParameterSource params(long viewerId, String key) {
-        return new MapSqlParameterSource().addValue("viewerId", viewerId).addValue("key", key);
+        // Callers pass the lower-cased name; the queries compare spelling-free keys (PlayerKey).
+        return new MapSqlParameterSource().addValue("viewerId", viewerId).addValue("key", key == null ? null : PlayerKey.of(key));
     }
 
     /** params plus the rally sides of the player's matches, for queries built on PLAYER_PLAY. */
@@ -372,7 +376,7 @@ public class PlayerStatsRepository {
                 JOIN ai_analyses a ON a.match_id = m.id AND a.is_current AND a.status = 'COMPLETED'
                 JOIN rallies r ON r.analysis_id = a.id
                 WHERE m.deleted_at IS NULL AND (m.status = 'PUBLISHED' OR m.owner_id = :viewerId)
-                """ + (key == null ? "" : "  AND :key IN (lower(trim(m.player_a_name)), lower(trim(m.player_b_name)))\n") + """
+                """ + (key == null ? "" : "  AND :key IN (regexp_replace(lower(m.player_a_name), '[^[:alnum:]]+', '', 'g'), regexp_replace(lower(m.player_b_name), '[^[:alnum:]]+', '', 'g'))\n") + """
                 ORDER BY a.id, r.rally_number
                 """;
         Map<Long, List<Object[]>> byAnalysis = new LinkedHashMap<>();
@@ -420,6 +424,17 @@ public class PlayerStatsRepository {
 
     private static Integer number(Object value) {
         return value == null ? null : ((Number) value).intValue();
+    }
+
+    /** Fewer strokes than this say nothing about a style: no radar and no style label. */
+    static final int MIN_STYLE_SHOTS = 30;
+
+    private static Radar styleRadar(ResultSet rs, int shots) throws SQLException {
+        return shots >= MIN_STYLE_SHOTS ? radar(rs) : null;
+    }
+
+    private static String playstyle(Radar radar) {
+        return radar == null ? null : radar.playstyle();
     }
 
     private static Radar radar(ResultSet rs) throws SQLException {

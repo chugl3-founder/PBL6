@@ -1,5 +1,6 @@
 package com.badminton.service.match;
 
+import com.badminton.util.PlayerKey;
 import com.badminton.service.storage.StorageUrls;
 import com.badminton.common.dto.ErrorType;
 import com.badminton.common.dto.MessageResponse;
@@ -75,6 +76,7 @@ public class MatchService {
                     "Vị trí sân trên và sân dưới không được trùng nhau."
             );
         }
+        requireDifferentPlayers(request.getPlayerAName(), request.getPlayerBName());
 
         LocalDate matchDate = request.getMatchDate() != null ? request.getMatchDate() : LocalDate.now();
 
@@ -142,6 +144,11 @@ public class MatchService {
     public MatchResponse updateMatch(Long id, UpdateMatchRequest request, String userEmail) {
         Match match = matchAccess.requireOwnerOrAdmin(id, userEmail);
 
+        String nameA = request.getPlayerAName() != null && !request.getPlayerAName().isBlank()
+                ? request.getPlayerAName() : match.getPlayerAName();
+        String nameB = request.getPlayerBName() != null && !request.getPlayerBName().isBlank()
+                ? request.getPlayerBName() : match.getPlayerBName();
+        requireDifferentPlayers(nameA, nameB);
         if (request.getPlayerAName() != null && !request.getPlayerAName().isBlank()) {
             match.setPlayerAName(request.getPlayerAName().trim());
         }
@@ -286,13 +293,20 @@ public class MatchService {
                                      MatchResult result) {
         String youtubeVideoId = video != null ? video.getYoutubeVideoId() : null;
         BigDecimal durationSeconds = video != null ? video.getDurationSeconds() : null;
+        // A YouTube part analysed without probing the whole video: its length is the part's.
+        if (durationSeconds == null && video != null && video.getSegmentStartSeconds() != null
+                && video.getSegmentEndSeconds() != null) {
+            durationSeconds = video.getSegmentEndSeconds().subtract(video.getSegmentStartSeconds()).max(BigDecimal.ZERO);
+        }
         String thumbnailUrl = youtubeVideoId != null && !youtubeVideoId.isBlank()
                 ? "https://img.youtube.com/vi/" + youtubeVideoId + "/hqdefault.jpg"
                 : video != null && video.getThumbnailPath() != null
                         ? storageUrls.presignedGet(video.getThumbnailPath(), THUMBNAIL_URL_TTL)
                         : null;
         Integer totalStrokes = totals != null ? totals.getTotalStrokes() : null;
-        Integer totalRallies = totals != null ? totals.getTotalRallies() : null;
+        // The analysis counts every rally it found, warm-up and after the match too; cards count the match's.
+        Integer totalRallies = result != null ? Integer.valueOf(result.matchRallies())
+                : totals != null ? totals.getTotalRallies() : null;
 
         return MatchResponse.builder()
                 .id(match.getId())
@@ -345,6 +359,17 @@ public class MatchService {
                     ErrorType.VALIDATION,
                     "ERR_MATCH_NOT_ANALYZED",
                     "Trận đấu chưa hoàn tất phân tích AI. Chỉ có thể xuất bản các trận đấu đã có dữ liệu phân tích."
+            );
+        }
+
+        // An analysis that found no rally has nothing to show in the public library.
+        MatchResult result = matchResultService.resultsFor(List.of(match)).get(id);
+        if (result == null || result.matchRallies() == 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    ErrorType.VALIDATION,
+                    "ERR_MATCH_EMPTY",
+                    "AI không tìm thấy pha cầu nào trong trận này, nên chưa thể công khai."
             );
         }
 
@@ -456,5 +481,13 @@ public class MatchService {
                 .pagination(pagination)
                 .build();
     }
-}
 
+    /** Both names spell the same player (PlayerKey): a match needs two players. */
+    private static void requireDifferentPlayers(String playerA, String playerB) {
+        if (playerA != null && playerB != null && !PlayerKey.of(playerA).isEmpty()
+                && PlayerKey.of(playerA).equals(PlayerKey.of(playerB))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorType.VALIDATION, "ERR_SAME_PLAYERS",
+                    "Hai vận động viên không được trùng tên.");
+        }
+    }
+}

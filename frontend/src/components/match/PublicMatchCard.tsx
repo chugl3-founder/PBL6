@@ -65,7 +65,7 @@ export const PublicMatchCard: React.FC<{ match: Match }> = ({ match }) => {
     >
       <div className="relative aspect-video bg-ink flex items-center justify-center overflow-hidden">
         {match.thumbnailUrl ? (
-          <img src={match.thumbnailUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+          <img src={match.thumbnailUrl} alt="" width={480} height={270} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <Video className="h-9 w-9 text-white/25" aria-hidden />
         )}

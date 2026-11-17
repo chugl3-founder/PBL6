@@ -178,7 +178,8 @@ public final class HighlightSelector {
         return trackGames(ordered, upperIsPlayerA, Start.NONE);
     }
 
-    public static Map<Long, GameContext> trackGames(List<RallyFacts> ordered, boolean upperIsPlayerA, Start start) {
+    public static Map<Long, GameContext> trackGames(List<RallyFacts> rallies, boolean upperIsPlayerA, Start start) {
+        List<RallyFacts> ordered = smoothMisreads(rallies);
         Map<Long, GameContext> out = new HashMap<>();
         int game = start.game();
         int offUpper = 0, offLower = 0;   // side counts when the game started
@@ -279,6 +280,49 @@ public final class HighlightSelector {
                 aOnUpper = !aOnUpper;
                 switchedAt11 = true;
             }
+        }
+        return out;
+    }
+
+    /** Rallies ahead that can show a side's count was misread. */
+    static final int MISREAD_LOOKAHEAD = 3;
+    /** A count dropping by at most this much within a game is a misread; a larger drop is a new game. */
+    static final int MISREAD_MAX_DROP = 2;
+
+    /**
+     * Within a game a side's count never goes down. When a reading is followed, within a few rallies, by a
+     * slightly lower one (18-21 then 19-20), the higher reading was misread: it is lowered to the later value,
+     * so the score neither jumps back nor ends a game early (a misread 21 ended game 2 of match 308 at 18-21
+     * and made up a game 3). A large drop is the count restarting for the next game and is left alone, as
+     * are the first few points of the video, where a drop is the first scoreboard reading after warm-up.
+     */
+    static List<RallyFacts> smoothMisreads(List<RallyFacts> ordered) {
+        List<RallyFacts> out = new ArrayList<>(ordered.size());
+        boolean restarted = false; // the count has restarted once: warm-up is over
+        for (int i = 0; i < ordered.size(); i++) {
+            RallyFacts r = ordered.get(i);
+            if (i > 0 && (r.scoreUpper() < ordered.get(i - 1).scoreUpper() - MISREAD_MAX_DROP
+                    || r.scoreLower() < ordered.get(i - 1).scoreLower() - MISREAD_MAX_DROP)) {
+                restarted = true;
+            }
+            if (!restarted && r.scoreUpper() + r.scoreLower() <= MAX_WARM_UP_POINTS) {
+                out.add(r);
+                continue;
+            }
+            int upper = r.scoreUpper();
+            int lower = r.scoreLower();
+            for (int j = i + 1; j < ordered.size() && j <= i + MISREAD_LOOKAHEAD; j++) {
+                RallyFacts next = ordered.get(j);
+                if (next.scoreUpper() < r.scoreUpper() - MISREAD_MAX_DROP
+                        || next.scoreLower() < r.scoreLower() - MISREAD_MAX_DROP) {
+                    break; // the count restarted: what follows belongs to another game
+                }
+                upper = Math.min(upper, next.scoreUpper());
+                lower = Math.min(lower, next.scoreLower());
+            }
+            out.add(upper == r.scoreUpper() && lower == r.scoreLower() ? r
+                    : new RallyFacts(r.rallyId(), r.rallyNumber(), r.startTime(), r.endTime(), r.totalStrokes(),
+                            r.winnerSide(), upper, lower, r.endStroke(), r.endHitterSide(), r.complete()));
         }
         return out;
     }

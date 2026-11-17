@@ -618,12 +618,12 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
     ? [
         `Phân tích trận đấu số ${currentMatchId} cho tôi?`,
         '🎯 Gợi ý trận đấu phù hợp theo sở thích',
-        'So sánh phong độ trận này với trận #287',
+        'So sánh trận này với trận trước đó của cùng vận động viên',
         'Các pha cầu giằng co dài nhất trận này?'
       ]
     : [
         '🎯 Gợi ý trận đấu phù hợp theo sở thích',
-        'So sánh phong độ giữa trận 294 và trận 287',
+        'So sánh phong độ hai trận gần nhất trong thư viện',
         'Luật giao cầu BWF mới nhất cao tối đa bao nhiêu?',
         'Chiến thuật khắc chế đối thủ hay đập cầu?'
       ];
@@ -795,7 +795,8 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
         <button
           onClick={() => setIsOpen(true)}
           className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl shadow-emerald-900/20 border-2 border-white hover:border-emerald-200 transition-all duration-300 hover:scale-110 active:scale-95"
-          aria-label="Mở trợ lý ảo AI"
+          aria-label="Trợ lý AI Coach"
+          title="Trợ lý AI Coach"
         >
           <Bot className="w-7 h-7" />
           <span className="absolute top-1 right-1 w-3 h-3 bg-amber-400 rounded-full border-2 border-white animate-pulse" />
@@ -1350,6 +1351,8 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
                   <button
                     type="submit"
                     disabled={!input.trim() || loading}
+                    aria-label="Gửi tin nhắn"
+                    title="Gửi tin nhắn"
                     className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white transition-colors shrink-0 shadow-2xs"
                   >
                     <Send className="w-4 h-4" />

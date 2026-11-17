@@ -63,10 +63,15 @@ export const ReplayScoreboard: React.FC<ReplayScoreboardProps> = ({
   const liveGame = (finishedRally ?? firstRally)?.gameNumber;
   const finalScore = lastRally ? scoreAfter(lastRally) : null;
   // Result of each game seen in the video: the score after its last rally.
-  const gameResults = [...new Set(scoredRallies.map(r => r.gameNumber).filter((g): g is number => g != null))].map(game => {
+  // The match result fills in a game point the AI did not see (a game that stopped at 20-15 ended 21-15).
+  const fromRallies = [...new Set(scoredRallies.map(r => r.gameNumber).filter((g): g is number => g != null))].map(game => {
     const inGame = scoredRallies.filter(r => r.gameNumber === game);
     return { game, ...scoreAfter(inGame[inGame.length - 1]) };
   });
+  const resultGames = match.result?.games ?? [];
+  const gameResults = resultGames.length === fromRallies.length
+    ? resultGames.map((g, i) => ({ game: fromRallies[i].game, playerA: g.scoreA, playerB: g.scoreB }))
+    : fromRallies;
 
   return (
     <header className="space-y-3">

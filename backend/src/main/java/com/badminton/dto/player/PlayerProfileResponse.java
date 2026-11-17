@@ -32,6 +32,19 @@ public record PlayerProfileResponse(
     /** Average of the per-match style scores (0..100); null fields have no data. */
     public record Radar(Integer attack, Integer defense, Integer netControl,
                         Integer shotVariety, Integer consistency, Integer pace) {
+
+        /**
+         * The style the radar shows: the highest of attack, defence and net control, so the label never
+         * contradicts the chart next to it. Null without those scores.
+         */
+        public String playstyle() {
+            String style = null;
+            int best = Integer.MIN_VALUE;
+            if (attack != null && attack > best) { best = attack; style = "Attack-oriented segment"; }
+            if (defense != null && defense > best) { best = defense; style = "Defence-oriented segment"; }
+            if (netControl != null && netControl > best) { style = "Net-oriented segment"; }
+            return style;
+        }
     }
 
     public record LabelCount(String label, int count) {

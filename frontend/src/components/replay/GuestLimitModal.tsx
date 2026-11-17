@@ -18,7 +18,7 @@ export const GuestLimitModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
         <div className="space-y-2">
           <h3 className="font-heading text-xl font-bold text-ink">Hết Thời Lượng Xem Thử</h3>
           <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-            Khách vãng lai được xem trước tối đa <strong>5 phút (300 giây)</strong> trận đấu công khai. Vui lòng đăng nhập hoặc đăng ký tài khoản để tiếp tục xem toàn bộ video và trải nghiệm telemetry phân tích không giới hạn.
+            Khách vãng lai được xem <strong>5 phút đầu trận</strong> (tính từ pha cầu đầu tiên) của trận đấu công khai. Vui lòng đăng nhập hoặc đăng ký tài khoản để tiếp tục xem toàn bộ video và trải nghiệm telemetry phân tích không giới hạn.
           </p>
         </div>
 
