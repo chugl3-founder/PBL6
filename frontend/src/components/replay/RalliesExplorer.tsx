@@ -3,7 +3,7 @@ import { Play, PlayCircle, X } from 'lucide-react';
 import { strokeLabelLower } from '../../utils/strokeLabels';
 import { TacticRally, tacticLabel, tacticsOf } from '../../utils/tactics';
 import { PlaylistClip, toPlaylist } from '../../utils/pointLoss';
-import { winnerByStartingSide, rallyScoreText } from '../../utils/rallies';
+import { winnerByStartingSide, rallyScoreText, isShownRally } from '../../utils/rallies';
 import { RallyData } from '../../types/replay';
 
 interface RalliesExplorerProps {
@@ -33,7 +33,7 @@ const selectClass =
   'h-8 w-full min-w-0 rounded-md border border-ink/15 bg-sheet px-2 text-xs font-medium text-ink disabled:opacity-50';
 
 export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
-  rallies,
+  rallies: allRallies,
   currentTimeSeconds,
   selectedRallyId,
   playerAName,
@@ -44,6 +44,8 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
   onPlayPlaylist,
 }) => {
   const activeRallyRef = useRef<HTMLButtonElement>(null);
+  // Only points are listed: warm-up, post-match play and lets are left out (they score nothing).
+  const rallies = useMemo(() => allRallies.filter(isShownRally), [allRallies]);
   const [winner, setWinner] = useState<'ALL' | 'UPPER' | 'LOWER'>('ALL');
   const [length, setLength] = useState<LengthFilter>('ALL');
   const [lastStroke, setLastStroke] = useState('ALL');

@@ -14,3 +14,13 @@ export const rallyScoreText = (rally: RallyData) =>
   rally.scoreA != null && rally.scoreB != null
     ? `${rally.scoreA}-${rally.scoreB}`
     : rally.scoreText || `${rally.scoreUpper}-${rally.scoreLower}`;
+
+/**
+ * True for a rally shown as a point: not warm-up or post-match play the AI picked up, and not a let
+ * (the AI saw no point won). A rally still waiting for its winner while the AI streams is kept.
+ */
+export const isShownRally = (rally: RallyData): boolean => {
+  if (rally.afterMatch || rally.beforeMatch) return false;
+  const side = rally.winnerSide;
+  return !side || side === 'UPPER' || side === 'LOWER' || Boolean(rally.winnerPlayer);
+};
