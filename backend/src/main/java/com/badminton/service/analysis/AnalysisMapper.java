@@ -147,6 +147,7 @@ public class AnalysisMapper {
                 .winnerPlayer(game.aWon() ? "PLAYER_A" : game.bWon() ? "PLAYER_B" : null)
                 .upperPlayer(game.aOnUpper() ? "PLAYER_A" : "PLAYER_B")
                 .afterMatch(game.afterMatch())
+                .beforeMatch(game.beforeMatch())
                 .strokeSequence(jsonList(r.getStrokeSequence(), String.class))
                 .isComplete(r.getIsComplete())
                 .partialStart(r.getPartialStart())

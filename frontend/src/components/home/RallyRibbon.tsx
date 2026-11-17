@@ -28,7 +28,7 @@ export const RallyRibbon: React.FC<{ matchId: number }> = ({ matchId }) => {
       .then(([m, r]) => {
         if (cancelled) return;
         setMatch(m);
-        setRallies(r.filter((x) => !x.afterMatch && (x.winnerPlayer === 'PLAYER_A' || x.winnerPlayer === 'PLAYER_B')));
+        setRallies(r.filter((x) => !x.afterMatch && !x.beforeMatch && (x.winnerPlayer === 'PLAYER_A' || x.winnerPlayer === 'PLAYER_B')));
       })
       .catch(() => undefined);
     return () => {

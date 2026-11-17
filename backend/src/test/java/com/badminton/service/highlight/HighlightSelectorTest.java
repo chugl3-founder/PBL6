@@ -207,4 +207,40 @@ class HighlightSelectorTest {
 
         assertThat(ranked).isEmpty();
     }
+
+    @Test
+    void warmUpRalliesBeforeTheFirstScoreboardReadingAreMarkedBeforeTheMatch() {
+        // Match 330: the AI counted two warm-up rallies (1-0, 1-1), then read the scoreboard at 1-0.
+        List<RallyFacts> rallies = List.of(
+                rally(1, 270, 4, "UPPER", 1, 0, null, null),
+                rally(2, 289, 1, "LOWER", 1, 1, null, null),
+                rally(3, 380, 14, "UPPER", 1, 0, null, null),
+                rally(4, 406, 4, "LOWER", 1, 1, null, null),
+                rally(5, 426, 11, "LOWER", 1, 2, null, null));
+
+        Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies, true);
+
+        assertThat(games.get(1L).beforeMatch()).isTrue();
+        assertThat(games.get(2L).beforeMatch()).isTrue();
+        assertThat(games.get(1L).aWon() || games.get(1L).bWon()).isFalse();
+        assertThat(games.get(3L).beforeMatch()).isFalse();
+        assertThat(games.get(3L).aAfter()).isEqualTo(1);
+        assertThat(games.get(3L).bAfter()).isEqualTo(0);
+        assertThat(games.get(5L).aAfter()).isEqualTo(1);
+        assertThat(games.get(5L).bAfter()).isEqualTo(2);
+    }
+
+    @Test
+    void aCountThatDropsAfterTheVideoStartsMidGameMarksNothing() {
+        // The owner gave a starting score: the count is not from 0-0, so no rally is taken as warm-up.
+        List<RallyFacts> rallies = List.of(
+                rally(1, 10, 4, "UPPER", 1, 0, null, null),
+                rally(2, 30, 4, "LOWER", 1, 1, null, null),
+                rally(3, 50, 4, "UPPER", 1, 0, null, null));
+
+        Map<Long, HighlightSelector.GameContext> games =
+                HighlightSelector.trackGames(rallies, true, new HighlightSelector.Start(1, 5, 4));
+
+        assertThat(games.values()).noneMatch(HighlightSelector.GameContext::beforeMatch);
+    }
 }
