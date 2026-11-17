@@ -310,13 +310,14 @@ export const GlobalSearch: React.FC = () => {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 h-9 rounded-md bg-white/10 hover:bg-white/15 px-2.5 text-sm text-white/75 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+        className="group flex items-center gap-2 h-9 w-9 justify-center xl:w-48 2xl:w-64 xl:justify-start rounded-lg border border-white/15 bg-white/[0.06] hover:bg-white/10 hover:border-white/25 xl:pl-3 xl:pr-1.5 text-sm text-white/55 hover:text-white/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
         aria-label="Tìm kiếm (Ctrl+K)"
         title="Tìm vận động viên, trận đấu, báo cáo (Ctrl+K)"
       >
-        <Search className="h-4 w-4" aria-hidden />
-        <span className="hidden xl:inline whitespace-nowrap">Tìm kiếm</span>
-        <kbd className="hidden 2xl:inline whitespace-nowrap rounded border border-white/20 px-1.5 text-[11px] font-sans text-white/60">Ctrl K</kbd>
+        <Search className="h-4 w-4 shrink-0 text-white/70 group-hover:text-white" aria-hidden />
+        <span className="hidden xl:inline 2xl:hidden whitespace-nowrap">Tìm kiếm…</span>
+        <span className="hidden 2xl:inline whitespace-nowrap">Tìm VĐV, trận đấu…</span>
+        <kbd className="hidden xl:inline-flex items-center ml-auto h-6 whitespace-nowrap rounded-md border border-white/15 bg-white/[0.06] px-1.5 text-[11px] font-sans font-medium text-white/50">Ctrl K</kbd>
       </button>
 
       {open && (
