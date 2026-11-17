@@ -24,8 +24,12 @@ export const LoginPage: React.FC = () => {
     try {
       const user = await login(email, password);
 
+      // A guest sent here by the route guard goes back to the page they asked for.
+      const from = (location.state as { from?: { pathname: string; search?: string } } | null)?.from;
       if (user.role === 'ROLE_ADMIN') {
         navigate('/admin');
+      } else if (from && from.pathname !== '/login') {
+        navigate(from.pathname + (from.search ?? ''), { replace: true });
       } else {
         navigate('/my-matches');
       }
