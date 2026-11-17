@@ -154,21 +154,24 @@ export const MatchReplayPage: React.FC = () => {
 
   // ------------------------------------------------------------------ player
   // One set of operations for both players: the YouTube IFrame API or the <video> element of an MP4.
-  const hasPlayer = () => (isYouTube ? Boolean(ytPlayerRef.current) : Boolean(videoRef.current));
+  // The YouTube player object exists as soon as it is created, but its methods only after onReady:
+  // calling one earlier throws, so every call checks for the method.
+  const hasPlayer = () =>
+    isYouTube ? typeof ytPlayerRef.current?.seekTo === 'function' : Boolean(videoRef.current);
   const seekPlayer = (seconds: number) => {
-    if (isYouTube) ytPlayerRef.current?.seekTo(seconds, true);
+    if (isYouTube) ytPlayerRef.current?.seekTo?.(seconds, true);
     else if (videoRef.current) videoRef.current.currentTime = seconds;
   };
   const playPlayer = () => {
-    if (isYouTube) ytPlayerRef.current?.playVideo();
+    if (isYouTube) ytPlayerRef.current?.playVideo?.();
     else videoRef.current?.play();
   };
   const pausePlayer = () => {
-    if (isYouTube) ytPlayerRef.current?.pauseVideo();
+    if (isYouTube) ytPlayerRef.current?.pauseVideo?.();
     else videoRef.current?.pause();
   };
   const setPlayerRate = (rate: number) => {
-    if (isYouTube) ytPlayerRef.current?.setPlaybackRate(rate);
+    if (isYouTube) ytPlayerRef.current?.setPlaybackRate?.(rate);
     else if (videoRef.current) videoRef.current.playbackRate = rate;
   };
   /** Starts playback unless already playing. */
@@ -196,6 +199,8 @@ export const MatchReplayPage: React.FC = () => {
 
   /** Seeks, follows the stroke at that time and (unless play is false) plays. False when no player yet. */
   const jumpTo = (seconds: number, { play = true, osd }: { play?: boolean; osd?: string } = {}) => {
+    // A guest jumping past the preview is stopped here, before the player has to report the new time.
+    if (stopAtGuestLimit(seconds)) return true;
     if (!hasPlayer()) return false;
     seekPlayer(seconds);
     setCurrentTime(seconds);
@@ -510,6 +515,7 @@ export const MatchReplayPage: React.FC = () => {
   };
 
   const handleSeekToEvent = (event: AiEventData) => {
+    if (stopAtGuestLimit(event.timeSeconds)) return;
     if (!hasPlayer()) return;
     seekPlayer(event.timeSeconds);
     setCurrentTime(event.timeSeconds);
@@ -633,6 +639,7 @@ export const MatchReplayPage: React.FC = () => {
 
   // Phát lại chậm 0.5x cho cú đánh được chọn
   const handlePlaySlow = (timeSeconds: number) => {
+    if (stopAtGuestLimit(timeSeconds)) return;
     if (!hasPlayer()) return;
     const startSec = Math.max(0, timeSeconds - 0.3);
     seekPlayer(startSec);

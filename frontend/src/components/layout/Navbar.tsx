@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, User, Plus, ChevronDown } from 'lucide-react';
+import { LogOut, User, Plus, ChevronDown, Lock } from 'lucide-react';
 import apiClient from '../../api/client';
 import { BrandLogo } from '../brand/BrandLogo';
 import { useHighlightJobs } from '../highlight/useHighlightJobs';
@@ -120,15 +120,23 @@ export const Navbar: React.FC = () => {
           <Link to="/players" className={navLink(location.pathname.startsWith('/players'))}>
             Vận động viên
           </Link>
-          {token && (
-            <Link to="/scouting" className={navLink(location.pathname.startsWith('/scouting'))}>
-              Trinh sát
-            </Link>
-          )}
-          {token && (
-            <Link to="/highlights" className={navLink(location.pathname.startsWith('/highlights'))}>
+          {/* Guests see the signed-in tools too, marked with a lock; the route guard sends them to sign in. */}
+          <Link
+            to="/scouting"
+            className={navLink(location.pathname.startsWith('/scouting'))}
+            title={token ? undefined : 'Đăng nhập để dùng'}
+          >
+            Trinh sát
+            {!token && <Lock className="h-3.5 w-3.5 opacity-60" aria-label="cần đăng nhập" />}
+          </Link>
+          <Link
+            to="/highlights"
+            className={navLink(location.pathname.startsWith('/highlights'))}
+            title={token ? undefined : 'Đăng nhập để dùng'}
+          >
               Highlight
-              {renderingCount > 0 && (
+              {!token && <Lock className="h-3.5 w-3.5 opacity-60" aria-label="cần đăng nhập" />}
+              {token && renderingCount > 0 && (
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-pb px-1.5 h-5 text-xs font-semibold text-white tabular-nums"
                   title={`${renderingCount} video đang dựng`}
@@ -138,8 +146,7 @@ export const Navbar: React.FC = () => {
                   <span className="sr-only"> video đang dựng</span>
                 </span>
               )}
-            </Link>
-          )}
+          </Link>
           {isAdmin && (
             <Link to="/admin" className={navLink(location.pathname.startsWith('/admin'))}>
               Quản trị

@@ -70,6 +70,7 @@ export const GuestCoachTeaser: React.FC = () => {
           <div className="mt-5 flex gap-2">
             <Link
               to="/login"
+              state={{ from: location }}
               className="flex-1 text-center rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-2 text-sm font-semibold text-white"
             >
               Đăng nhập để dùng

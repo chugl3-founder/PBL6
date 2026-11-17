@@ -4,8 +4,13 @@ import { Clock, LogIn, UserPlus } from 'lucide-react';
 
 /** Guests may watch the first 5 minutes of a public match; then this asks them to sign in. */
 export const GuestLimitModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/[0.04] p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-md from-[#14233c] to-[#0d1627] border border-ink/15 rounded-xl p-6 sm:p-7 text-ink space-y-6 text-center">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Hết thời lượng xem thử"
+    >
+      <div className="w-full max-w-md bg-white border border-ink/10 rounded-xl shadow-2xl p-6 sm:p-7 text-ink space-y-6 text-center">
         <div className="w-16 h-16 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-700 mx-auto flex items-center justify-center">
           <Clock className="w-8 h-8" />
         </div>

@@ -24,13 +24,11 @@ test('WT-01 Tạo trận đấu mới với thông tin hợp lệ', async ({ pag
   await page.getByPlaceholder('VD: Nguyễn Tiến Minh').fill(PLAYER_A);
   await page.getByPlaceholder('VD: Lee Chong Wei').fill(PLAYER_B);
   await page.locator('input[type="date"]').fill('2026-11-01');
-  await page.getByRole('button', { name: /Sân trên \(Xa\)/ }).first().click();
-  await page.getByRole('button', { name: 'Tạo Trận Đấu & Tiếp Tục' }).click();
+  await page.getByRole('button', { name: 'Tiếp tục: tải video' }).click();
 
   await expect(page).toHaveURL(/\/matches\/\d+$/);
   writeState({ matchId: Number(page.url().split('/').pop()) });
-  await expect(page.getByText('Bản nháp (Chờ tải video)')).toBeVisible();
-  await expect(page.getByText(`Trận đấu: ${PLAYER_A} vs ${PLAYER_B}`).first()).toBeVisible();
+  await expect(page.getByText('MP4, tối đa 500 MB').first()).toBeVisible();
   await expect(page.getByText(PLAYER_A).first()).toBeVisible();
   await expect(page.getByText(PLAYER_B).first()).toBeVisible();
 });
@@ -42,13 +40,13 @@ test('WT-02 Không cho tạo trận khi thiếu tên vận động viên', async
   await page.goto('/matches/create');
   const playerA = page.getByPlaceholder('VD: Nguyễn Tiến Minh');
   await page.getByPlaceholder('VD: Lee Chong Wei').fill(PLAYER_B);
-  await page.getByRole('button', { name: 'Tạo Trận Đấu & Tiếp Tục' }).click();
+  await page.getByRole('button', { name: 'Tiếp tục: tải video' }).click();
   expect(await playerA.evaluate((el: HTMLInputElement) => el.validity.valueMissing)).toBe(true);
   await expect(page).toHaveURL(/\/matches\/create$/);
 
   await playerA.fill('   ');
-  await page.getByRole('button', { name: 'Tạo Trận Đấu & Tiếp Tục' }).click();
-  await expect(page.getByText('Vui lòng nhập họ tên của cả 2 vận động viên.')).toBeVisible();
+  await page.getByRole('button', { name: 'Tiếp tục: tải video' }).click();
+  await expect(page.getByText('Hãy nhập tên cả hai vận động viên.')).toBeVisible();
 
   const after = (await (await api.get('/api/matches', { params: { page: 0, size: 100 } })).json()).data.length;
   expect(after).toBe(before);
@@ -80,13 +78,11 @@ test('WT-04 Báo lỗi khi tải video sai định dạng hoặc quá dung lư�
   await page.goto(`/matches/${draftId}`);
   const fileInput = page.locator('input[type="file"]');
   await fileInput.setInputFiles(big);
-  await expect(page.getByText('Dung lượng file vượt quá giới hạn tối đa 500MB.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Bắt đầu tải lên MinIO' })).toBeDisabled();
+  await expect(page.getByText('Video lớn hơn 500 MB. Hãy cắt ngắn hoặc giảm độ phân giải rồi chọn lại.')).toBeVisible();
 
   await fileInput.setInputFiles({ name: 'sample.avi', mimeType: 'video/x-msvideo', buffer: Buffer.alloc(1024 * 1024) });
-  await page.getByRole('button', { name: 'Bắt đầu tải lên MinIO' }).click();
-  await expect(page.getByText('Định dạng video không được hỗ trợ. Vui lòng chọn file MP4.')).toBeVisible();
-  await expect(page.getByText('Bản nháp (Chờ tải video)')).toBeVisible();
+  await expect(page.getByText('Chỉ nhận video MP4. Hãy chuyển định dạng rồi chọn lại.')).toBeVisible();
+  await expect(page.getByText('MP4, tối đa 500 MB').first()).toBeVisible();
   fs.unlinkSync(big);
 });
 
