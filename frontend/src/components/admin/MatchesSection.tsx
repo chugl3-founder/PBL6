@@ -187,7 +187,7 @@ export const MatchesSection: React.FC<AdminOutletContext> = ({ metrics, refreshM
                   const title = m.title && m.title !== players(m) ? m.title : null;
                   return (
                     <tr key={m.id} className={rowClass}>
-                      <td className={`${tdClass} max-w-[22rem]`}>
+                      <td className={`${tdClass} max-w-[18rem]`}>
                         <span className="flex items-center gap-2 font-medium text-ink">
                           <span className="w-2 h-2 rounded-full bg-pa shrink-0" aria-hidden />
                           <span className="truncate">{m.playerAName}</span>
@@ -201,7 +201,7 @@ export const MatchesSection: React.FC<AdminOutletContext> = ({ metrics, refreshM
                           {title && <> · {title}</>}
                         </span>
                       </td>
-                      <td className={`${tdClass} text-ink/70 max-w-[14rem] truncate`}>{m.ownerEmail || `Người dùng #${m.ownerId}`}</td>
+                      <td className={`${tdClass} text-ink/70 max-w-[11rem] truncate`}>{m.ownerEmail || `Người dùng #${m.ownerId}`}</td>
                       <td className={`${tdClass} whitespace-nowrap text-ink/70`}>
                         <span className="flex items-center gap-1.5">
                           {m.youtubeVideoId && <Youtube className="w-4 h-4 text-ink/50" aria-label="YouTube" />}
