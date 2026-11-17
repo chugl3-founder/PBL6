@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
 import {
-  ArrowLeft, ArrowUpRight, Crosshair, Flame, GraduationCap, History, Lightbulb, Map as MapIcon,
-  PlayCircle, Radar as RadarIcon, ShieldAlert, Swords, Timer, TrendingUp, Users, Zap,
+  ArrowLeft, ArrowUpRight, Crosshair, Flame, History, Lightbulb, Map as MapIcon,
+  PlayCircle, Radar as RadarIcon, ShieldAlert, Swords, Target, Timer, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import { fetchPlayerProfile, playerPath, replayPath, type PlayerProfile } from '../api/players';
 import { PlayerMonogram } from '../components/player/PlayerMonogram';
@@ -113,7 +113,7 @@ const TABS: Array<{ key: Tab; label: string; hint: string; icon: React.FC<{ clas
   { key: 'STROKES', label: 'Cú đánh', hint: 'Dùng cú gì, ghi điểm bằng gì', icon: Swords },
   { key: 'COURT', label: 'Vị trí trên sân', hint: 'Đứng đâu, đánh vào đâu', icon: MapIcon },
   { key: 'MATCHES', label: 'Trận đấu', hint: 'Phong độ, đối thủ, lịch sử', icon: History },
-  { key: 'TRAINING', label: 'Tập luyện', hint: 'Điểm yếu cần sửa, tiến bộ', icon: GraduationCap },
+  { key: 'TRAINING', label: 'Điểm yếu', hint: 'Mất điểm thế nào', icon: Target },
 ];
 
 /** Strengths first, then what to watch, then trends: at most four, so the overview stays readable. */
@@ -535,9 +535,9 @@ export const PlayerProfilePage: React.FC = () => {
           {/* ---------------- TRAINING FOCUS ---------------- */}
           {tab === 'TRAINING' && (
           <Section
-            icon={GraduationCap}
-            title="Trọng tâm tập luyện"
-            subtitle="Những cách mất điểm thường gặp nhất và thay đổi qua từng trận"
+            icon={Target}
+            title="Điểm yếu qua các trận"
+            subtitle="Những cách mất điểm thường gặp nhất, thay đổi qua từng trận và clip làm bằng chứng"
           >
             <TrainingFocusPanel name={profile.name} />
           </Section>

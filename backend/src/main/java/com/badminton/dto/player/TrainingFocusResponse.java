@@ -4,8 +4,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * What a player should train first: the ways they lose points most often across the matches the viewer may
- * see, and how each one moved from match to match, so a coach can check whether training is paying off.
+ * A player's weaknesses: the ways they lose points most often across the matches the viewer may
+ * see, and how each one moved from match to match, so whoever prepares to face the player (or follows their form) sees which weaknesses persist.
  */
 public record TrainingFocusResponse(
         String player,

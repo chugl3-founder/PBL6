@@ -24,8 +24,11 @@ export const playRallies = (rallies: PlayRalliesDetail['rallies'], title: string
   window.dispatchEvent(new CustomEvent<PlayRalliesDetail>(PLAY_RALLIES_EVENT, { detail: { rallies, title } }));
 };
 
-/** The question behind "Nhờ HLV AI lập giáo án": the coach looks the player up across their matches. */
-export const trainingPlanPrompt = (player: string, matchId?: number) =>
-  `Lập giáo án tập luyện 1 tuần cho ${player} dựa trên điểm yếu qua các trận đã phân tích`
+/**
+ * The question behind "Hỏi HLV AI cách khai thác": the coach looks the player up across their matches and
+ * answers how an opponent should play against those weaknesses (the matches are broadcast pro matches).
+ */
+export const exploitWeaknessPrompt = (player: string, matchId?: number) =>
+  `Phân tích điểm yếu của ${player} qua các trận đã phân tích`
   + (matchId ? ` (đang xem trận #${matchId})` : '')
-  + '. Cho biết điểm yếu nào đã tiến bộ hay sa sút, và đặt chỉ số cần đạt ở trận tới.';
+  + `, điểm yếu nào đang lộ rõ hơn ở trận gần đây, và đối thủ nên đánh thế nào để khai thác chúng.`;
