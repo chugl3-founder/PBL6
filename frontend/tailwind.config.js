@@ -85,6 +85,11 @@ export default {
           from: { opacity: '0', transform: 'scale(0.4)' },
           to: { opacity: '1', transform: 'scale(1)' },
         },
+        // A running analysis: light sweeps along the progress bar.
+        shimmer: {
+          from: { backgroundPosition: '-40% 0' },
+          to: { backgroundPosition: '140% 0' },
+        },
       },
       animation: {
         trace: 'trace 560ms cubic-bezier(0.45, 0, 0.55, 1) both',

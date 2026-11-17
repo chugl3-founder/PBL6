@@ -12,6 +12,8 @@ export interface AnalysisStatus {
   modelVersion?: string;
   errorCode?: string | null;
   errorMessage?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
   /** Streaming results: how far the GPU worker has analysed, as one end time or several ranges. */
   analyzedUntilSeconds?: number | null;
   videoDurationSeconds?: number | null;

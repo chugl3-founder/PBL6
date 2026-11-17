@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, X, Play, Video } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { listPublicMatches } from '../api/matches';
 import { isSignedIn } from '../auth/session';
 import { PublicMatchCard, ScoreRows } from '../components/match/PublicMatchCard';
@@ -71,7 +71,11 @@ const FeaturedMatch: React.FC<{ match: Match }> = ({ match }) => {
 export const PublicMatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  // ?q= opens the page already searched (from the site search's 'Xem tất cả').
+  const [searchParams] = useSearchParams();
+  const queryParam = searchParams.get('q') ?? '';
+  const [search, setSearch] = useState(queryParam);
+  useEffect(() => setSearch(queryParam), [queryParam]);
   const [player, setPlayer] = useState<string | null>(null);
   const isLoggedIn = isSignedIn();
 

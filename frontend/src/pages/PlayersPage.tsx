@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Search, Users, X } from 'lucide-react';
 import { fetchPlayers, playerPath, type PlayerSummary } from '../api/players';
 import { PlayerMonogram } from '../components/player/PlayerMonogram';
@@ -71,7 +71,11 @@ export const PlayersPage: React.FC = () => {
   const [players, setPlayers] = useState<PlayerSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [search, setSearch] = useState('');
+  // ?q= opens the page already searched (from the site search's 'Xem tất cả').
+  const [searchParams] = useSearchParams();
+  const queryParam = searchParams.get('q') ?? '';
+  const [search, setSearch] = useState(queryParam);
+  useEffect(() => setSearch(queryParam), [queryParam]);
   const isLoggedIn = isSignedIn();
 
   useEffect(() => {
