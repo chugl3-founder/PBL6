@@ -771,6 +771,24 @@ export const MatchDetailPage: React.FC = () => {
               </li>
             ))}
           </ul>
+          {/* Scores are attributed to players when read, so fixing the sides needs no new analysis */}
+          {!analyzing && (
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={handleSwapSides}
+                disabled={swappingSides}
+                className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 bg-sheet px-3 h-8 text-sm font-medium text-ink hover:border-pitch hover:text-pitch-deep transition-colors disabled:opacity-50"
+              >
+                <ArrowUpDown className="w-4 h-4" aria-hidden />
+                {swappingSides ? 'Đang đổi…' : 'Đổi sân hai người'}
+              </button>
+              <p className="text-xs text-ink/60">
+                Tên bị ngược so với bảng điểm trong video? Đổi sân là tỉ số và thống kê tự tính lại, không cần phân tích lại.
+              </p>
+              {swapError && <p className="text-sm text-loss" role="alert">{swapError}</p>}
+            </div>
+          )}
           {match.description && (
             <p className="text-sm text-ink/70 leading-relaxed border-t border-ink/10 pt-4">{match.description}</p>
           )}

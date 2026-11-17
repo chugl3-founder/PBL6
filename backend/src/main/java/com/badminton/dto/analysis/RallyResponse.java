@@ -36,6 +36,7 @@ public class RallyResponse {
     private String winnerPlayer; // PLAYER_A, PLAYER_B, or null when nobody won the point
     private String upperPlayer; // who was on the upper half during this rally
     private Boolean afterMatch; // played after a player had already won the match (AI picked up post-match play)
+    private Boolean beforeMatch; // picked up before the match started (warm-up, introductions); not a point
     private List<String> strokeSequence;
     private Boolean isComplete;
     private Boolean partialStart;

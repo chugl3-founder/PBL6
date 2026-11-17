@@ -56,7 +56,7 @@ public class MatchResultService {
         Map<Integer, HighlightSelector.GameContext> lastOfGame = new LinkedHashMap<>();
         for (HighlightSelector.RallyFacts r : facts) {
             HighlightSelector.GameContext g = games.get(r.rallyId());
-            if (g != null && !g.afterMatch()) {
+            if (g != null && !g.outsideMatch()) {
                 lastOfGame.put(g.game(), g);
             }
         }

@@ -69,6 +69,8 @@ export interface RallyData {
   upperPlayer?: string;
   /** Played after a player had already won the match: the AI picked up post-match play. */
   afterMatch?: boolean;
+  /** Picked up before the match started (warm-up, introductions): not a point. */
+  beforeMatch?: boolean;
   strokeSequence: string[];
   isComplete: boolean;
 }

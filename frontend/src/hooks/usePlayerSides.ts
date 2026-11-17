@@ -26,9 +26,9 @@ export const usePlayerSides = (
 ) => {
   const startingUpper = match?.upperPlayer ?? 'PLAYER_A';
   const upperAt = useMemo(() => upperPlayerLookup(rallies, startingUpper), [rallies, startingUpper]);
-  const inMatchRallies = useMemo(() => rallies.filter(r => !r.afterMatch), [rallies]);
+  const inMatchRallies = useMemo(() => rallies.filter(r => !r.afterMatch && !r.beforeMatch), [rallies]);
   const ralliesFromStart = useMemo(() => ralliesFromStartingEnds(rallies, startingUpper), [rallies, startingUpper]);
-  const playerRallies = useMemo(() => ralliesFromStart.filter(r => !r.afterMatch), [ralliesFromStart]);
+  const playerRallies = useMemo(() => ralliesFromStart.filter(r => !r.afterMatch && !r.beforeMatch), [ralliesFromStart]);
   const playerEvents = useMemo(() => {
     const end = matchEndTime(rallies);
     const inMatch = end == null ? events : events.filter(e => e.timeSeconds < end - 0.05);

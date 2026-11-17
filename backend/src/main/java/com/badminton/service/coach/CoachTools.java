@@ -301,7 +301,7 @@ public class CoachTools {
 
     /** Rallies of the match itself, without play the AI picked up after it was won. */
     private static List<RallyResponse> inMatch(List<RallyResponse> rallies) {
-        return rallies.stream().filter(r -> !Boolean.TRUE.equals(r.getAfterMatch())).toList();
+        return rallies.stream().filter(r -> !Boolean.TRUE.equals(r.getAfterMatch()) && !Boolean.TRUE.equals(r.getBeforeMatch())).toList();
     }
 
     /** score_by_game and winner, from the same result as the match cards. */

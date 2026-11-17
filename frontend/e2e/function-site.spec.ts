@@ -258,6 +258,10 @@ test.describe('Người dùng đã đăng nhập', () => {
       await input.fill('Một ván đấu đơn kết thúc ở bao nhiêu điểm?');
       await input.press('Enter');
       await expect(page.getByText(/21/).last()).toBeVisible({ timeout: 90_000 });
+      // The stream must also end cleanly: a broken end (e.g. the ASYNC dispatch denied) replaces the answer.
+      await expect(page.getByTitle('Bắt đầu cuộc trò chuyện mới (+)')).toBeEnabled();
+      await page.waitForTimeout(5_000);
+      await expect(page.getByText(/Không kết nối được tới Huấn luyện viên AI/)).toHaveCount(0);
 
       await page.getByTitle('Xem lịch sử hội thoại').click();
       await expect(page.getByRole('heading', { name: 'Lịch sử hội thoại' })).toBeVisible();

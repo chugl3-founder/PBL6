@@ -84,10 +84,16 @@ public final class HighlightSelector {
      * Where the rally stands in the match: game number, the per-player score before and after it, who won it
      * and whether player A was on the upper half of the court while it was played. afterMatch marks a rally
      * played once a player had already won two games: the AI picked up play after the match (warm-down,
-     * replays), so it belongs to no game.
+     * replays), so it belongs to no game. beforeMatch marks a rally the AI picked up before play started
+     * (warm-up, introductions): the first scoreboard reading showed fewer points than rallies counted so far.
      */
     public record GameContext(int game, int aBefore, int bBefore, int aAfter, int bAfter, boolean aWon, boolean bWon,
-                              boolean aOnUpper, boolean afterMatch) {
+                              boolean aOnUpper, boolean afterMatch, boolean beforeMatch) {
+
+        /** True when the rally is not part of the match score: picked up before or after the match. */
+        public boolean outsideMatch() {
+            return afterMatch || beforeMatch;
+        }
     }
 
     /**
@@ -124,7 +130,7 @@ public final class HighlightSelector {
         for (RallyFacts r : ordered) {
             double length = r.endTime() - r.startTime();
             GameContext game = games.get(r.rallyId());
-            if (!r.complete() || game.afterMatch() || length < MIN_RALLY_SECONDS || length > MAX_RALLY_SECONDS) {
+            if (!r.complete() || game.outsideMatch() || length < MIN_RALLY_SECONDS || length > MAX_RALLY_SECONDS) {
                 continue;
             }
             scored.add(score(r, game, videoDuration));
@@ -178,13 +184,33 @@ public final class HighlightSelector {
         int gamesA = 0, gamesB = 0;       // games won in this video; earlier games are unknown
         boolean matchOver = false;
         GameContext last = null;
+        List<RallyFacts> counted = new ArrayList<>(); // rallies of the first game so far, until a game ends
+        int prevTotal = -1;                           // the previous rally's raw upper + lower count
+        boolean anchored = false;                     // the first drop (first scoreboard reading) was handled
 
         for (RallyFacts r : ordered) {
             if (matchOver) {
                 // Keeps the final score of the match, so a scoreboard following the video does not jump.
                 out.put(r.rallyId(), new GameContext(game, last.aAfter(), last.bAfter(), last.aAfter(), last.bAfter(),
-                        false, false, last.aOnUpper(), true));
+                        false, false, last.aOnUpper(), true, false));
                 continue;
+            }
+            // Warm-up before the match: the AI counts from 0-0 until it reads the scoreboard. When the count
+            // then drops in the first game (no game ended yet, video starting at 0-0) and the scoreboard shows
+            // fewer points played than rallies counted, the extra rallies at the start were not points.
+            int total = r.scoreUpper() + r.scoreLower();
+            boolean firstGame = gamesA + gamesB == 0 && start.equals(Start.NONE);
+            if (firstGame && !anchored && prevTotal >= 0 && total < prevTotal) {
+                anchored = true;
+                int extra = counted.size() - Math.max(0, total - 1);
+                for (int i = 0; i < extra; i++) {
+                    out.put(counted.get(i).rallyId(), new GameContext(game, start.scoreA(), start.scoreB(),
+                            start.scoreA(), start.scoreB(), false, false, aOnUpper, false, true));
+                }
+            }
+            prevTotal = total;
+            if (gamesA + gamesB == 0) {
+                counted.add(r);
             }
             int upper = r.scoreUpper() - offUpper;
             int lower = r.scoreLower() - offLower;
@@ -200,7 +226,7 @@ public final class HighlightSelector {
             boolean aWon = ("UPPER".equals(winner) && aOnUpper) || ("LOWER".equals(winner) && !aOnUpper);
             boolean bWon = ("UPPER".equals(winner) && !aOnUpper) || ("LOWER".equals(winner) && aOnUpper);
             last = new GameContext(game, Math.max(0, a - (aWon ? 1 : 0)), Math.max(0, b - (bWon ? 1 : 0)),
-                    Math.max(0, a), Math.max(0, b), aWon, bWon, aOnUpper, false);
+                    Math.max(0, a), Math.max(0, b), aWon, bWon, aOnUpper, false, false);
             out.put(r.rallyId(), last);
 
             if ((aWon && winsGame(a, b)) || (bWon && winsGame(b, a))) {

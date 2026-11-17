@@ -3,6 +3,7 @@ package com.badminton.config;
 import com.badminton.common.dto.ErrorResponse;
 import com.badminton.common.dto.ErrorType;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpMethod;
@@ -41,6 +42,10 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // The AI Coach streams (SseEmitter): when the stream ends Spring re-dispatches the request
+                // as ASYNC without the JWT filter, so it must pass here; the original request was already
+                // checked. Without this every answer ends in AccessDenied and the chat shows a lost connection.
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                 // Endpoint sức khỏe hệ thống & tài liệu
                 .requestMatchers("/api/health", "/actuator/**", "/error").permitAll()
                 // Xác thực & Quên mật khẩu
