@@ -208,7 +208,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+      <div className="relative flex-1 overflow-y-auto pr-1 scrollbar-thin">
       {scoring ? (
         <p className="text-xs text-ink/70 px-1 pb-2">
           AI đang phân tích: người ghi điểm và tỉ số hiện khi phân tích xong.
