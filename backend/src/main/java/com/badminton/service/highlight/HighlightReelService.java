@@ -259,7 +259,7 @@ public class HighlightReelService {
         List<HighlightSelector.RallyFacts> facts = loaded.rallies().stream()
                 .map(r -> new HighlightSelector.RallyFacts(r.id(), r.rallyNumber(), r.startTime(), r.endTime(),
                         r.totalStrokes(), r.winnerSide(), r.scoreUpper(), r.scoreLower(), r.endStroke(),
-                        r.endHitterSide(), r.complete()))
+                        r.endHitterSide(), r.complete(), r.winReason()))
                 .toList();
         BigDecimal duration = ctx.analysisVideoDuration() != null ? ctx.analysisVideoDuration() : ctx.videoDuration();
         // upper_player is who stood on the upper half when the video starts.

@@ -41,7 +41,7 @@ public class HighlightQueryRepository {
             WHERE m.id = ? AND m.deleted_at IS NULL;
 
             SELECT r.id, r.rally_number, r.start_time, r.end_time, r.total_strokes, r.winner_side,
-                   r.score_upper, r.score_lower, r.is_complete, e.stroke, e.player_side
+                   r.score_upper, r.score_lower, r.is_complete, e.stroke, e.player_side, r.win_reason
             FROM rallies r
             JOIN ai_analyses a ON a.id = r.analysis_id AND a.is_current
             LEFT JOIN ai_events e ON e.id = r.end_event_id
@@ -69,7 +69,7 @@ public class HighlightQueryRepository {
     /** One rally with its last hit, as the highlight selector reads it. */
     public record RallyRow(long id, int rallyNumber, double startTime, double endTime, int totalStrokes,
                            String winnerSide, int scoreUpper, int scoreLower, boolean complete,
-                           String endStroke, String endHitterSide) {
+                           String endStroke, String endHitterSide, String winReason) {
     }
 
     public record Loaded(Context context, List<RallyRow> rallies) {
@@ -129,6 +129,6 @@ public class HighlightQueryRepository {
                 row.getLong(1), row.getInt(2), row.getDouble(3), row.getDouble(4), row.getInt(5),
                 row.getString(6), row.getInt(7), row.getInt(8),
                 !Boolean.FALSE.equals(row.getObject(9)),
-                row.getString(10), row.getString(11));
+                row.getString(10), row.getString(11), row.getString(12));
     }
 }

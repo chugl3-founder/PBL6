@@ -250,6 +250,62 @@ class HighlightSelectorTest {
         assertThat(games.get(36L).bAfter()).isEqualTo(1); // B is on the upper half now and won it
     }
 
+    /** Game 1 at 14-20 (A upper - B lower), then a last rally the AI gave to A, then game 2 starts. */
+    private static List<RallyFacts> gameEndingOnGuessedRally(String lastReason) {
+        List<RallyFacts> rallies = new ArrayList<>();
+        int[] count = {0, 0};
+        run(rallies, "LOWER", 20, count);
+        run(rallies, "UPPER", 14, count);
+        rallies.add(new RallyFacts(35, 35, 1400, 1407, 6, "UPPER", 15, 20, "NET_ATTACK", "UPPER", true,
+                lastReason));
+        rallies.add(rally(36, 2000, 4, "UPPER", 1, 0, null, null));
+        return rallies;
+    }
+
+    @Test
+    void theLastRallyOfAGameGoesToThePlayerWithGamePoint() {
+        // Match 308: at 14-20 the AI read a net shot that touched the net as a winner and gave the rally to
+        // its hitter (15-20), yet the next rally starts game 2: B won it, 21-14.
+        Map<Long, HighlightSelector.GameContext> games =
+                HighlightSelector.trackGames(gameEndingOnGuessedRally("winner_net_attack"), true);
+
+        HighlightSelector.GameContext last = games.get(35L);
+        assertThat(last.bWon()).isTrue();
+        assertThat(last.aWon()).isFalse();
+        assertThat(last.aBefore()).isEqualTo(14);
+        assertThat(last.bBefore()).isEqualTo(20);
+        assertThat(last.aAfter()).isEqualTo(14);
+        assertThat(last.bAfter()).isEqualTo(21);
+        assertThat(games.get(36L).game()).isEqualTo(2);
+    }
+
+    @Test
+    void aScoreboardConfirmedLastRallyIsKept() {
+        Map<Long, HighlightSelector.GameContext> games =
+                HighlightSelector.trackGames(gameEndingOnGuessedRally("ocr_confirmed_upper"), true);
+
+        HighlightSelector.GameContext last = games.get(35L);
+        assertThat(last.aWon()).isTrue();
+        assertThat(last.aAfter()).isEqualTo(15);
+        assertThat(last.bAfter()).isEqualTo(20);
+    }
+
+    @Test
+    void aGameEndingWithoutGamePointKeepsTheLastRally() {
+        // 15-9 and the count restarts: no rally decides who won, so the guessed winner stays.
+        List<RallyFacts> rallies = new ArrayList<>();
+        int[] count = {0, 0};
+        run(rallies, "LOWER", 9, count);
+        run(rallies, "UPPER", 14, count);
+        rallies.add(rally(24, 1500, 6, "UPPER", 15, 9, null, null)); // 24 rallies, but the count ends at 15-9
+        rallies.add(rally(25, 2000, 4, "UPPER", 0, 1, null, null));
+
+        Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies, true);
+
+        assertThat(games.get(24L).aWon()).isTrue();
+        assertThat(games.get(24L).aAfter()).isEqualTo(15);
+    }
+
     @Test
     void aGameEndedByTheRulesIsNotEndedAgainWhenTheCountRestarts() {
         List<RallyFacts> rallies = new ArrayList<>();

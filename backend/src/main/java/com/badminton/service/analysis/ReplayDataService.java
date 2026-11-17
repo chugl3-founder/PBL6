@@ -96,7 +96,7 @@ public class ReplayDataService {
         Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies.stream()
                         .map(r -> new HighlightSelector.RallyFacts(r.getId(), r.getRallyNumber(), 0, 0, 0, r.getWinnerSide(),
                                 r.getScoreUpper() != null ? r.getScoreUpper() : 0,
-                                r.getScoreLower() != null ? r.getScoreLower() : 0, null, null, true))
+                                r.getScoreLower() != null ? r.getScoreLower() : 0, null, null, true, r.getWinReason()))
                         .toList(),
                 !"PLAYER_B".equalsIgnoreCase(match.getUpperPlayer()),
                 HighlightSelector.Start.of(match.getStartGame(), match.getStartScoreA(), match.getStartScoreB()));

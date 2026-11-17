@@ -21,6 +21,7 @@ class MatchResultServiceTest {
         public Integer getScoreUpper() { return scoreUpper; }
         public Integer getScoreLower() { return scoreLower; }
         public Boolean getPartialVideo() { return partialVideo; }
+        public String getWinReason() { return null; }
     }
 
     /** The same rallies from an analysis of only part of a YouTube video, ending before the video does. */
@@ -94,6 +95,21 @@ class MatchResultServiceTest {
         assertThat(result.games()).containsExactly(
                 new MatchResult.GameScore(21, 15, true),
                 new MatchResult.GameScore(20, 12, false));
+    }
+
+    @Test
+    void gameEndingOnAGuessedRallyGoesToThePlayerWithGamePoint() {
+        // Match 308: at 14-20 the AI gave the last rally of game 1 to the wrong player (15-20), then game 2
+        // started. B had game point, so B won that rally: 21-14, not 21-15.
+        int[] count = {0, 0};
+        List<RallyRepository.RallyScore> rallies = new ArrayList<>();
+        run(rallies, "LOWER", 20, count);  // game 1: B (lower) 20 points
+        run(rallies, "UPPER", 15, count);  // A (upper) 15, the last one guessed wrong
+        run(rallies, "UPPER", 1, new int[]{0, 0}); // the count restarts for game 2
+
+        MatchResult result = MatchResultService.resultOf(match(), rallies);
+
+        assertThat(result.games().get(0)).isEqualTo(new MatchResult.GameScore(14, 21, true));
     }
 
     @Test

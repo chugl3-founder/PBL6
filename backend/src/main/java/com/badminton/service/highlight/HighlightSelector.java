@@ -58,8 +58,20 @@ public final class HighlightSelector {
             int scoreLower,
             String endStroke,
             String endHitterSide,
-            boolean complete
+            boolean complete,
+            String winReason
     ) {
+        public RallyFacts(long rallyId, int rallyNumber, double startTime, double endTime, int totalStrokes,
+                          String winnerSide, int scoreUpper, int scoreLower, String endStroke, String endHitterSide,
+                          boolean complete) {
+            this(rallyId, rallyNumber, startTime, endTime, totalStrokes, winnerSide, scoreUpper, scoreLower,
+                    endStroke, endHitterSide, complete, null);
+        }
+
+        /** The scoreboard showed who won this rally, so the winner is not a guess from the last stroke. */
+        boolean scoreboardConfirmed() {
+            return winReason != null && winReason.toLowerCase(java.util.Locale.ROOT).startsWith("ocr_confirmed");
+        }
     }
 
     /** Scores are per player (A and B of the match) within the game, before the rally was played. */
@@ -190,6 +202,7 @@ public final class HighlightSelector {
         int gamesA = 0, gamesB = 0;       // games won in this video; earlier games are unknown
         boolean matchOver = false;
         GameContext last = null;
+        RallyFacts lastFacts = null;      // the rally last holds
         List<RallyFacts> counted = new ArrayList<>(); // rallies of the first game so far, until a game ends
         int prevTotal = -1;                           // the previous rally's raw upper + lower count
         boolean anchored = false;                     // the first drop (first scoreboard reading) was handled
@@ -224,6 +237,11 @@ public final class HighlightSelector {
             // (last.game() == game: a game that already ended by the rules has moved on and is not ended twice.)
             if (drop && last != null && last.game() == game && total <= RESTARTED_COUNT_POINTS
                     && last.aAfter() + last.bAfter() >= MIN_GAME_POINTS_BEFORE_RESTART) {
+                GameContext decided = lastRallyOfGame(last, lastFacts);
+                if (decided != last) {
+                    last = decided;
+                    out.put(lastFacts.rallyId(), last);
+                }
                 if (last.aAfter() > last.bAfter()) gamesA++;
                 else if (last.bAfter() > last.aAfter()) gamesB++;
                 matchOver = gamesA >= 2 || gamesB >= 2 || game >= 3;
@@ -257,6 +275,7 @@ public final class HighlightSelector {
             boolean bWon = ("UPPER".equals(winner) && !aOnUpper) || ("LOWER".equals(winner) && aOnUpper);
             last = new GameContext(game, Math.max(0, a - (aWon ? 1 : 0)), Math.max(0, b - (bWon ? 1 : 0)),
                     Math.max(0, a), Math.max(0, b), aWon, bWon, aOnUpper, false, false);
+            lastFacts = r;
             out.put(r.rallyId(), last);
 
             if ((aWon && winsGame(a, b)) || (bWon && winsGame(b, a))) {
@@ -282,6 +301,30 @@ public final class HighlightSelector {
             }
         }
         return out;
+    }
+
+    /**
+     * The last rally of a game that ended without reaching a winning score in the AI's count. Broadcasts cut
+     * away after the game's last point, so its winner is often a guess from the last stroke, and a net shot
+     * that touched the net reads as a winner for its hitter (match 308: 14-20, then 15-20 and a new game).
+     * The game did end on this rally, so when only one player had game point before it, that player won it.
+     * A winner the scoreboard confirmed is kept.
+     */
+    static GameContext lastRallyOfGame(GameContext g, RallyFacts r) {
+        if (r == null || r.scoreboardConfirmed()) {
+            return g;
+        }
+        boolean aGamePoint = hasGamePoint(g.aBefore(), g.bBefore());
+        boolean bGamePoint = hasGamePoint(g.bBefore(), g.aBefore());
+        if (aGamePoint && !bGamePoint && g.bWon()) {
+            return new GameContext(g.game(), g.aBefore(), g.bBefore(), g.aBefore() + 1, g.bBefore(), true, false,
+                    g.aOnUpper(), g.afterMatch(), g.beforeMatch());
+        }
+        if (bGamePoint && !aGamePoint && g.aWon()) {
+            return new GameContext(g.game(), g.aBefore(), g.bBefore(), g.aBefore(), g.bBefore() + 1, false, true,
+                    g.aOnUpper(), g.afterMatch(), g.beforeMatch());
+        }
+        return g;
     }
 
     /** Rallies ahead that can show a side's count was misread. */
@@ -322,7 +365,8 @@ public final class HighlightSelector {
             }
             out.add(upper == r.scoreUpper() && lower == r.scoreLower() ? r
                     : new RallyFacts(r.rallyId(), r.rallyNumber(), r.startTime(), r.endTime(), r.totalStrokes(),
-                            r.winnerSide(), upper, lower, r.endStroke(), r.endHitterSide(), r.complete()));
+                            r.winnerSide(), upper, lower, r.endStroke(), r.endHitterSide(), r.complete(),
+                            r.winReason()));
         }
         return out;
     }

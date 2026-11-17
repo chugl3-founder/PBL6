@@ -371,7 +371,7 @@ public class PlayerStatsRepository {
     private void addRallySides(MapSqlParameterSource params, long viewerId, String key) {
         String sql = """
                 SELECT a.id AS analysis_id, m.upper_player, m.start_game, m.start_score_a, m.start_score_b,
-                       r.id, r.rally_number, r.start_time, r.winner_side, r.score_upper, r.score_lower
+                       r.id, r.rally_number, r.start_time, r.winner_side, r.score_upper, r.score_lower, r.win_reason
                 FROM matches m
                 JOIN ai_analyses a ON a.match_id = m.id AND a.is_current AND a.status = 'COMPLETED'
                 JOIN rallies r ON r.analysis_id = a.id
@@ -387,7 +387,8 @@ public class PlayerStatsRepository {
                     rs.getObject("start_game"), rs.getObject("start_score_a"), rs.getObject("start_score_b")});
             byAnalysis.computeIfAbsent(analysisId, k -> new ArrayList<>()).add(new Object[]{
                     rs.getLong("id"), rs.getInt("rally_number"), rs.getBigDecimal("start_time"),
-                    rs.getString("winner_side"), rs.getInt("score_upper"), rs.getInt("score_lower")});
+                    rs.getString("winner_side"), rs.getInt("score_upper"), rs.getInt("score_lower"),
+                    rs.getString("win_reason")});
         });
 
         StringBuilder analyses = new StringBuilder(), numbers = new StringBuilder(), starts = new StringBuilder(),
@@ -398,7 +399,7 @@ public class PlayerStatsRepository {
             List<HighlightSelector.RallyFacts> facts = new ArrayList<>();
             for (Object[] r : entry.getValue()) {
                 facts.add(new HighlightSelector.RallyFacts((Long) r[0], (Integer) r[1], 0, 0, 0, (String) r[3],
-                        (Integer) r[4], (Integer) r[5], null, null, true));
+                        (Integer) r[4], (Integer) r[5], null, null, true, (String) r[6]));
             }
             Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(facts, upperIsA,
                     HighlightSelector.Start.of(number(match[1]), number(match[2]), number(match[3])));

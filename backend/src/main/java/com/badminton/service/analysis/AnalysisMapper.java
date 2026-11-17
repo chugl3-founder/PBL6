@@ -136,7 +136,7 @@ public class AnalysisMapper {
                 .totalStrokes(r.getTotalStrokes())
                 .boundaryType(r.getBoundaryType())
                 .serverSide(r.getServerSide())
-                .winnerSide(r.getWinnerSide())
+                .winnerSide(winnerSide(r, game))
                 .winReason(r.getWinReason())
                 .scoreUpper(r.getScoreUpper())
                 .scoreLower(r.getScoreLower())
@@ -153,6 +153,17 @@ public class AnalysisMapper {
                 .partialStart(r.getPartialStart())
                 .partialEnd(r.getPartialEnd())
                 .build();
+    }
+
+    /**
+     * The court half that won, as the game walk decided it: the walk can correct a guessed winner (the last
+     * rally of a game goes to the player who had game point), and the Replay reads the half.
+     */
+    private static String winnerSide(Rally r, HighlightSelector.GameContext game) {
+        if (game.aWon() || game.bWon()) {
+            return game.aWon() == game.aOnUpper() ? "UPPER" : "LOWER";
+        }
+        return r.getWinnerSide();
     }
 
     /** stats: the stored or freshly aggregated totals; events: for the per-stroke distribution. */
