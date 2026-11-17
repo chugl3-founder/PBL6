@@ -5,6 +5,7 @@ import {
   Mic, MicOff, Volume2, VolumeX, Scale, Loader2,
   Sparkles, CheckCircle2, Target, Shield, Zap
 } from 'lucide-react';
+import { ASK_COACH_EVENT, AskCoachDetail, playRallies } from '../../utils/coachEvents';
 
 interface Citation {
   rally_number: number;
@@ -556,6 +557,31 @@ export const ChatWidget: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Trang khác (hồ sơ VĐV, tab Vì sao mất điểm) nhờ Coach trả lời một câu hỏi: mở khung chat rồi gửi luôn
+  const sendRef = useRef(handleSendMessage);
+  sendRef.current = handleSendMessage;
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const message = (e as CustomEvent<AskCoachDetail>).detail?.message?.trim();
+      if (!message) return;
+      setIsOpen(true);
+      setShowHistory(false);
+      setShowCompareModal(false);
+      setShowRecommendModal(false);
+      if (loading) setInput(message);
+      else sendRef.current(message);
+    };
+    window.addEventListener(ASK_COACH_EVENT, onAsk);
+    return () => window.removeEventListener(ASK_COACH_EVENT, onAsk);
+  }, [loading]);
+
+  // Các pha cầu khác nhau mà câu trả lời đã nêu, theo thứ tự xuất hiện
+  const citedRallies = (msg: Message) => {
+    const seen = new Set<number>();
+    return (msg.video_citations ?? []).filter(c => !seen.has(c.rally_number) && seen.add(c.rally_number));
+  };
+  const onReplayPage = /\/(?:matches|public-matches)\/\d+\/replay/.test(location.pathname);
 
   // Kích hoạt so sánh phong độ 2 trận từ modal
   const handleExecuteComparison = () => {
@@ -1158,6 +1184,23 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
                             <span className="inline-block w-1.5 h-3.5 ml-1 bg-emerald-600 animate-pulse align-middle" />
                           )}
                         </div>
+                      )}
+
+                      {msg.role === 'assistant' && !msg.isStreaming && onReplayPage && citedRallies(msg).length >= 2 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cited = citedRallies(msg);
+                            playRallies(
+                              cited.map(c => ({ rallyNumber: c.rally_number, seconds: c.seconds })),
+                              `Coach AI · ${cited.length} pha`
+                            );
+                          }}
+                          className="mt-2 w-full h-8 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          Phát liên tục {citedRallies(msg).length} pha
+                        </button>
                       )}
 
                       <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-100/60 text-[10px]">

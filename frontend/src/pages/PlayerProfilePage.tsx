@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
 import {
-  ArrowLeft, ArrowUpRight, Crosshair, Flame, History, Lightbulb, Map as MapIcon,
+  ArrowLeft, ArrowUpRight, Crosshair, Flame, GraduationCap, History, Lightbulb, Map as MapIcon,
   PlayCircle, Radar as RadarIcon, ShieldAlert, Swords, Timer, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import { fetchPlayerProfile, playerPath, replayPath, type PlayerProfile } from '../api/players';
@@ -10,6 +10,7 @@ import { PlayerMonogram } from '../components/player/PlayerMonogram';
 import { PlayerRadarChart } from '../components/player/PlayerRadarChart';
 import { PlayerZoneCourt } from '../components/player/PlayerZoneCourt';
 import { PlayerFormChart } from '../components/player/PlayerFormChart';
+import { TrainingFocusPanel } from '../components/player/TrainingFocusPanel';
 import {
   RALLY_BUCKETS, buildInsights, formatDate, hasRadar, playstyleLabel, playstyleTone, winRate,
   type Insight,
@@ -105,13 +106,14 @@ const SplitBar: React.FC<{ won: number; lost: number; height?: string }> = ({ wo
   );
 };
 
-type Tab = 'OVERVIEW' | 'STROKES' | 'COURT' | 'MATCHES';
+type Tab = 'OVERVIEW' | 'STROKES' | 'COURT' | 'MATCHES' | 'TRAINING';
 
 const TABS: Array<{ key: Tab; label: string; hint: string; icon: React.FC<{ className?: string }> }> = [
   { key: 'OVERVIEW', label: 'Tổng quan', hint: 'Lối chơi và nhận định chính', icon: Lightbulb },
   { key: 'STROKES', label: 'Cú đánh', hint: 'Dùng cú gì, ghi điểm bằng gì', icon: Swords },
   { key: 'COURT', label: 'Vị trí trên sân', hint: 'Đứng đâu, đánh vào đâu', icon: MapIcon },
   { key: 'MATCHES', label: 'Trận đấu', hint: 'Phong độ, đối thủ, lịch sử', icon: History },
+  { key: 'TRAINING', label: 'Tập luyện', hint: 'Điểm yếu cần sửa, tiến bộ', icon: GraduationCap },
 ];
 
 /** Strengths first, then what to watch, then trends: at most four, so the overview stays readable. */
@@ -310,7 +312,7 @@ export const PlayerProfilePage: React.FC = () => {
 
       {!noAnalysis && (
         <nav className="sticky top-12 z-30 -mx-1 px-1 py-2 bg-ground/95 backdrop-blur" aria-label="Các phần của hồ sơ">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1.5 rounded-xl bg-sheet border border-ink/10" role="tablist">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1.5 rounded-xl bg-sheet border border-ink/10" role="tablist">
             {TABS.map(t => {
               const Icon = t.icon;
               const active = tab === t.key;
@@ -527,6 +529,17 @@ export const PlayerProfilePage: React.FC = () => {
           {tab === 'COURT' && (
           <Section icon={MapIcon} title="Bản đồ sân" subtitle="Gộp mọi trận đã phân tích, chia ô khoảng 1 m">
             <PlayerZoneCourt profile={profile} />
+          </Section>
+          )}
+
+          {/* ---------------- TRAINING FOCUS ---------------- */}
+          {tab === 'TRAINING' && (
+          <Section
+            icon={GraduationCap}
+            title="Trọng tâm tập luyện"
+            subtitle="Những cách mất điểm thường gặp nhất và thay đổi qua từng trận"
+          >
+            <TrainingFocusPanel name={profile.name} />
           </Section>
           )}
 

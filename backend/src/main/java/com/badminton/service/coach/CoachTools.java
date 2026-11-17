@@ -5,7 +5,12 @@ import com.badminton.service.match.MatchAccessService;
 import com.badminton.service.match.MatchResultService;
 import com.badminton.service.match.PublicReplayService;
 import com.badminton.common.exception.ApiException;
+import com.badminton.dto.analysis.AiEventResponse;
 import com.badminton.dto.analysis.MatchStatisticsResponse;
+import com.badminton.dto.player.PlayerSummaryResponse;
+import com.badminton.dto.player.TrainingFocusResponse;
+import com.badminton.repository.player.PlayerStatsRepository;
+import com.badminton.service.player.TrainingFocusService;
 import com.badminton.dto.analysis.RallyResponse;
 import com.badminton.dto.match.MatchResult;
 import com.badminton.entity.match.Match;
@@ -49,6 +54,8 @@ public class CoachTools {
     private final MatchResultService matchResultService;
     private final ScoutingReportRepository scoutingReportRepository;
     private final CoachQueryRepository coachQueryRepository;
+    private final PlayerStatsRepository playerStatsRepository;
+    private final TrainingFocusService trainingFocusService;
     private final GeminiClient gemini;
     private final ObjectMapper objectMapper;
 
@@ -68,6 +75,27 @@ public class CoachTools {
                 Map.of("match_id", prop("integer", "ID trận đấu"),
                         "limit", prop("integer", "Số pha tối đa, mặc định 60")),
                 List.of("match_id"));
+        declare(list, "find_rallies",
+                "Tìm các pha cầu của một trận theo điều kiện: ván, người thắng pha, cú đánh cuối (loại cú và ai đánh), "
+                        + "pha có chứa một loại cú, ăn điểm hay đánh hỏng, số cú tối thiểu/tối đa. Trả về từng pha kèm start_clock, "
+                        + "cú cuối, chuỗi cú đánh và thống kê theo cú cuối. Dùng khi người dùng muốn xem/lọc các pha cụ thể.",
+                Map.of("match_id", prop("integer", "ID trận đấu"),
+                        "game", prop("integer", "Tùy chọn: chỉ lấy pha của ván này"),
+                        "winner", prop("string", "Tùy chọn: tên tay vợt thắng pha"),
+                        "last_hitter", prop("string", "Tùy chọn: tên tay vợt đánh cú cuối của pha"),
+                        "last_stroke", prop("string", "Tùy chọn: loại cú cuối: SMASH, DROP, CLEAR, SERVE, LIFT, DRIVE, NET_SHOT, NET_ATTACK, PUSH"),
+                        "contains_stroke", prop("string", "Tùy chọn: pha có ít nhất một cú loại này (mã như last_stroke)"),
+                        "outcome", prop("string", "Tùy chọn: WINNER_SHOT (cú cuối là của người thắng pha, tức ăn điểm) hoặc ERROR (cú cuối của người thua pha, thường là cú hỏng)"),
+                        "min_strokes", prop("integer", "Tùy chọn: số cú tối thiểu trong pha"),
+                        "max_strokes", prop("integer", "Tùy chọn: số cú tối đa trong pha"),
+                        "limit", prop("integer", "Số pha tối đa trả về, mặc định 10")),
+                List.of("match_id"));
+        declare(list, "get_training_focus",
+                "Điểm yếu chính của một tay vợt qua mọi trận người dùng được xem: các kiểu mất điểm thường gặp nhất "
+                        + "(đánh hỏng bằng cú nào, bị đối thủ ăn điểm bằng cú nào), tỷ lệ theo từng trận và xu hướng tiến bộ/sa sút. "
+                        + "Dùng để lập giáo án tập luyện hoặc đánh giá tiến bộ.",
+                Map.of("player_name", prop("string", "Tên tay vợt (có thể chỉ một phần tên)")),
+                List.of("player_name"));
         declare(list, "compare_match_performances",
                 "So sánh hai trận: tỷ số, nhịp độ, số pha cầu dài, số điểm mỗi tay vợt giành được.",
                 Map.of("match_id_1", prop("integer", "ID trận thứ nhất"), "match_id_2", prop("integer", "ID trận thứ hai")),
@@ -93,6 +121,8 @@ public class CoachTools {
                 case "get_match_statistics" -> matchStatistics(args.path("match_id").asLong(), caller);
                 case "get_match_rallies" -> Map.of("rallies",
                         matchRallies(args.path("match_id").asLong(), args.path("limit").asInt(60), caller));
+                case "find_rallies" -> findRallies(args, caller);
+                case "get_training_focus" -> trainingFocus(text(args, "player_name"), caller);
                 case "compare_match_performances" ->
                         compare(args.path("match_id_1").asLong(), args.path("match_id_2").asLong(), caller);
                 case "get_scouting_report" -> scoutingReport(text(args, "opponent_name"), caller);
@@ -178,6 +208,88 @@ public class CoachTools {
             out.add(m);
         }
         return out;
+    }
+
+    private Object findRallies(JsonNode args, CoachCaller caller) {
+        Match match = visibleMatch(args.path("match_id").asLong(), caller);
+        String winner = text(args, "winner");
+        String lastHitter = text(args, "last_hitter");
+        String winnerKey = RallySearch.playerKey(match, winner);
+        String hitterKey = RallySearch.playerKey(match, lastHitter);
+        if ((winner != null && winnerKey == null) || (lastHitter != null && hitterKey == null)) {
+            return error("Không rõ tay vợt nào: trận này là " + match.getPlayerAName() + " gặp " + match.getPlayerBName() + ".");
+        }
+        String lastStroke = RallySearch.strokeCode(text(args, "last_stroke"));
+        String contains = RallySearch.strokeCode(text(args, "contains_stroke"));
+        if ((text(args, "last_stroke") != null && lastStroke == null) || (text(args, "contains_stroke") != null && contains == null)) {
+            return error("Không có loại cú này. Các loại cú: " + String.join(", ", RallySearch.STROKE_LABELS.keySet()));
+        }
+        String outcome = text(args, "outcome");
+        outcome = outcome == null ? null : outcome.toUpperCase(Locale.ROOT).contains("ERROR") ? "ERROR" : "WINNER_SHOT";
+        int limit = args.path("limit").asInt(RallySearch.DEFAULT_LIMIT);
+        RallySearch.Filter filter = new RallySearch.Filter(
+                optInt(args, "game"), winnerKey, hitterKey, lastStroke, contains, outcome,
+                optInt(args, "min_strokes"), optInt(args, "max_strokes"),
+                Math.max(1, Math.min(limit, RallySearch.MAX_LIMIT)));
+        return RallySearch.search(match, inMatch(rallies(match, caller)), events(match, caller), filter);
+    }
+
+    private Object trainingFocus(String playerName, CoachCaller caller) {
+        if (playerName == null) {
+            return error("Thiếu tên tay vợt.");
+        }
+        long viewerId = caller.userId() != null ? caller.userId() : -1L;
+        // The model often gives part of a name ("Axelsen"): pick the best-known player that matches.
+        List<PlayerSummaryResponse> candidates = playerStatsRepository.findPlayers(viewerId, playerName, 5);
+        if (candidates.isEmpty()) {
+            return Map.of("message", "Không tìm thấy tay vợt '" + playerName + "' trong các trận người dùng được xem.");
+        }
+        PlayerSummaryResponse player = candidates.stream()
+                .filter(c -> c.name().equalsIgnoreCase(playerName.trim()))
+                .findFirst().orElse(candidates.get(0));
+        TrainingFocusResponse focus = trainingFocusService.forViewerId(viewerId, player.name());
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("player", focus.player());
+        res.put("matches_analyzed", focus.matchesAnalyzed());
+        res.put("points_lost", focus.pointsLost());
+        if (player.radar() != null) {
+            res.put("style_scores_0_100", player.radar());
+        }
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (TrainingFocusResponse.Focus f : focus.focuses()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("weakness", "ERROR".equals(f.kind())
+                    ? focus.player() + " mất điểm sau cú " + RallySearch.label(f.stroke()) + " của chính mình (thường là cú hỏng)"
+                    : "Đối thủ ăn điểm " + focus.player() + " bằng cú " + RallySearch.label(f.stroke()));
+            m.put("count", f.count());
+            m.put("share_of_lost_points_percent", f.share());
+            m.put("trend", switch (f.trend()) {
+                case "IMPROVING" -> "tiến bộ (trận gần nhất ít hơn trước)";
+                case "WORSENING" -> "sa sút (trận gần nhất nhiều hơn trước)";
+                case "STABLE" -> "giữ nguyên";
+                default -> "chưa đủ trận để so sánh";
+            });
+            m.put("earlier_matches_rate_percent", f.baselineRate());
+            m.put("latest_match_rate_percent", f.latestRate());
+            m.put("per_match", f.matches().stream().map(p -> {
+                Map<String, Object> pm = new LinkedHashMap<>();
+                pm.put("match_id", p.matchId());
+                pm.put("date", p.matchDate() == null ? null : p.matchDate().toString());
+                pm.put("opponent", p.opponent());
+                pm.put("count", p.count());
+                pm.put("lost", p.lost());
+                pm.put("rate_percent", p.rate());
+                return pm;
+            }).toList());
+            items.add(m);
+        }
+        res.put("focuses", items);
+        if (items.isEmpty()) {
+            res.put("message", "Chưa đủ pha mất điểm đã xác định để rút ra điểm yếu.");
+        }
+        res.put("note", "Nhóm theo cú cuối do AI nhận diện; đây là xu hướng, cần xem clip để xác nhận.");
+        return res;
     }
 
     private Object compare(long id1, long id2, CoachCaller caller) {
@@ -286,6 +398,16 @@ public class CoachTools {
         return PUBLISHED.equals(match.getStatus())
                 ? publicReplayService.getRallies(match.getId())
                 : replayDataService.getRallies(match.getId(), caller.email());
+    }
+
+    private List<AiEventResponse> events(Match match, CoachCaller caller) {
+        try {
+            return PUBLISHED.equals(match.getStatus())
+                    ? publicReplayService.getEvents(match.getId())
+                    : replayDataService.getEvents(match.getId(), caller.email());
+        } catch (ApiException e) {
+            return List.of();
+        }
     }
 
     /** Statistics of the current analysis, or null when the match has none yet. */
@@ -413,6 +535,11 @@ public class CoachTools {
     private static String text(JsonNode args, String field) {
         JsonNode v = args.path(field);
         return v.isTextual() && !v.asText().isBlank() ? v.asText().trim() : null;
+    }
+
+    private static Integer optInt(JsonNode args, String field) {
+        JsonNode v = args.path(field);
+        return v.canConvertToInt() && !v.isNull() && !v.isMissingNode() ? v.asInt() : null;
     }
 
     private static String lower(String s) {

@@ -6,6 +6,7 @@ import com.badminton.dto.player.PlayerProfileResponse.RallyLengthStat;
 import com.badminton.dto.player.PlayerProfileResponse.StrokeStat;
 import com.badminton.dto.player.PlayerProfileResponse.ZoneCell;
 import com.badminton.dto.player.PlayerSummaryResponse;
+import com.badminton.service.highlight.HighlightSelector;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -17,15 +18,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 /**
  * Cross-match aggregates for one player. Players have no table of their own: a player is a name on
- * {@code matches} (compared trimmed and case-insensitively), and the court side they played on comes
- * from {@code matches.upper_player}. Only matches the viewer may see are counted: published ones and
- * the viewer's own (viewerId -1 for a guest).
+ * {@code matches} (compared trimmed and case-insensitively), and the court side they started on comes
+ * from {@code matches.upper_player}. Players change ends after every game (and at 11 in game 3), so every
+ * rally and stroke is attributed by the side the player stood on at that moment, from
+ * {@link HighlightSelector#trackGames}; warm-up and post-match play the AI picked up are left out. Only
+ * matches the viewer may see are counted: published ones and the viewer's own (viewerId -1 for a guest).
  */
 @Repository
 @RequiredArgsConstructor
@@ -52,6 +56,51 @@ public class PlayerStatsRepository {
 
     private static final String SCORED = "r.winner_side IN ('UPPER', 'LOWER')";
 
+    /**
+     * rs: one row per rally of the matches in play, from Java (see {@link #rallySides}): whether the players
+     * stand on the other ends than at the start of the video, and whether the rally counts in the match.
+     */
+    private static final String RALLY_SIDES = """
+            , rs AS (
+              SELECT * FROM unnest(
+                string_to_array(:rsAnalysis, ',')::bigint[], string_to_array(:rsNumber, ',')::int[],
+                string_to_array(:rsStart, ',')::numeric[], string_to_array(:rsSwitched, ',')::boolean[],
+                string_to_array(:rsCounts, ',')::boolean[]
+              ) AS t(analysis_id, rally_number, start_time, switched, counts)
+            )
+            """;
+
+    /** The player's side flipped: they stand there once the ends are switched. */
+    private static final String FLIPPED = "(CASE pm.side WHEN 'UPPER' THEN 'LOWER' ELSE 'UPPER' END)";
+
+    /**
+     * pr: the player's rallies that count, with ps, the half the player stood on during the rally.
+     * pe: every stroke in the player's matches, with ps, the player's half at that moment (from the latest
+     * rally started by then); strokes in play outside the match are left out.
+     */
+    private static final String PLAYER_PLAY = RALLY_SIDES + """
+            , pr AS (
+              SELECT pm.match_id, pm.match_date, pm.match_status, pm.opponent, r.analysis_id, r.rally_number,
+                     r.start_time, r.total_strokes, r.winner_side, r.end_event_id,
+                     CASE WHEN rs.switched THEN %1$s ELSE pm.side END AS ps
+              FROM pm
+              JOIN rallies r ON r.analysis_id = pm.analysis_id
+              JOIN rs ON rs.analysis_id = r.analysis_id AND rs.rally_number = r.rally_number AND rs.counts
+            ), pe AS (
+              SELECT pm.match_id, e.id, e.analysis_id, e.stroke, e.stroke_side, e.player_side,
+                     e.player_position_court, e.landing_position_court_proxy,
+                     CASE WHEN coalesce(sw.switched, false) THEN %1$s ELSE pm.side END AS ps
+              FROM pm
+              JOIN ai_events e ON e.analysis_id = pm.analysis_id
+              LEFT JOIN LATERAL (
+                SELECT rs.switched, rs.counts FROM rs
+                WHERE rs.analysis_id = e.analysis_id AND rs.start_time <= e.time_seconds + 0.05
+                ORDER BY rs.start_time DESC LIMIT 1
+              ) sw ON true
+              WHERE coalesce(sw.counts, true)
+            )
+            """.formatted(FLIPPED);
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public record MatchRow(Long matchId, String title, LocalDate matchDate, String status, boolean owned,
@@ -69,12 +118,13 @@ public class PlayerStatsRepository {
                   LEFT JOIN ai_analyses a ON a.match_id = m.id AND a.is_current AND a.status = 'COMPLETED'
                   WHERE m.deleted_at IS NULL AND (m.status = 'PUBLISHED' OR m.owner_id = :viewerId) AND x.name <> ''
                 )
+                """ + RALLY_SIDES + """
                 SELECT mode() WITHIN GROUP (ORDER BY v.name) AS display_name,
                   count(DISTINCT v.match_id) AS matches,
                   count(DISTINCT v.analysis_id) AS analyzed,
                   max(v.match_date) AS last_date,
-                  coalesce(sum(rs.won), 0) AS won,
-                  coalesce(sum(rs.lost), 0) AS lost,
+                  coalesce(sum(wl.won), 0) AS won,
+                  coalesce(sum(wl.lost), 0) AS lost,
                   coalesce(sum(es.shots), 0) AS shots,
                   round(avg(p.attack_score)) AS attack, round(avg(p.defense_score)) AS defense,
                   round(avg(p.net_control_score)) AS net_control, round(avg(p.shot_variety_score)) AS shot_variety,
@@ -82,13 +132,24 @@ public class PlayerStatsRepository {
                   mode() WITHIN GROUP (ORDER BY p.playstyle_label) AS playstyle
                 FROM v
                 LEFT JOIN LATERAL (
-                  SELECT count(*) FILTER (WHERE r.winner_side = v.side) AS won,
-                         count(*) FILTER (WHERE %s AND r.winner_side <> v.side) AS lost
-                  FROM rallies r WHERE r.analysis_id = v.analysis_id
-                ) rs ON true
+                  SELECT count(*) FILTER (WHERE r.winner_side = x.ps) AS won,
+                         count(*) FILTER (WHERE %s AND r.winner_side <> x.ps) AS lost
+                  FROM rallies r
+                  JOIN rs ON rs.analysis_id = r.analysis_id AND rs.rally_number = r.rally_number AND rs.counts
+                  CROSS JOIN LATERAL (SELECT CASE WHEN rs.switched
+                      THEN (CASE v.side WHEN 'UPPER' THEN 'LOWER' ELSE 'UPPER' END) ELSE v.side END AS ps) x
+                  WHERE r.analysis_id = v.analysis_id
+                ) wl ON true
                 LEFT JOIN LATERAL (
                   SELECT count(*) AS shots FROM ai_events e
-                  WHERE e.analysis_id = v.analysis_id AND e.player_side = v.side
+                  LEFT JOIN LATERAL (
+                    SELECT rs.switched, rs.counts FROM rs
+                    WHERE rs.analysis_id = e.analysis_id AND rs.start_time <= e.time_seconds + 0.05
+                    ORDER BY rs.start_time DESC LIMIT 1
+                  ) sw ON true
+                  WHERE e.analysis_id = v.analysis_id AND coalesce(sw.counts, true)
+                    AND e.player_side = CASE WHEN coalesce(sw.switched, false)
+                      THEN (CASE v.side WHEN 'UPPER' THEN 'LOWER' ELSE 'UPPER' END) ELSE v.side END
                 ) es ON true
                 LEFT JOIN player_analysis_profiles p ON p.analysis_id = v.analysis_id AND p.player_side = v.side
                 WHERE lower(v.name) LIKE :search
@@ -100,6 +161,7 @@ public class PlayerStatsRepository {
                 .addValue("viewerId", viewerId)
                 .addValue("search", "%" + escapeLike(search.toLowerCase()) + "%")
                 .addValue("limit", limit);
+        addRallySides(params, viewerId, null);
         return jdbc.query(sql, params, (rs, i) -> new PlayerSummaryResponse(
                 rs.getString("display_name"),
                 rs.getInt("matches"),
@@ -114,13 +176,15 @@ public class PlayerStatsRepository {
     }
 
     public List<MatchRow> findMatches(long viewerId, String key) {
-        String sql = PLAYER_MATCHES + """
+        String sql = PLAYER_MATCHES + PLAYER_PLAY + """
                 SELECT pm.*,
-                  (SELECT count(*) FROM ai_events e WHERE e.analysis_id = pm.analysis_id AND e.player_side = pm.side) AS shots,
-                  (SELECT count(*) FROM rallies r WHERE r.analysis_id = pm.analysis_id AND r.winner_side = pm.side) AS won,
-                  (SELECT count(*) FROM rallies r WHERE r.analysis_id = pm.analysis_id AND %s AND r.winner_side <> pm.side) AS lost,
-                  (SELECT avg(CASE WHEN pm.side = 'UPPER' THEN mm.upper_distance_meters ELSE mm.lower_distance_meters END)
-                     FROM rally_movement_metrics mm WHERE mm.analysis_id = pm.analysis_id) AS avg_distance,
+                  (SELECT count(*) FROM pe WHERE pe.match_id = pm.match_id AND pe.player_side = pe.ps) AS shots,
+                  (SELECT count(*) FROM pr r WHERE r.match_id = pm.match_id AND r.winner_side = r.ps) AS won,
+                  (SELECT count(*) FROM pr r WHERE r.match_id = pm.match_id AND %s AND r.winner_side <> r.ps) AS lost,
+                  (SELECT avg(CASE WHEN r.ps = 'UPPER' THEN mm.upper_distance_meters ELSE mm.lower_distance_meters END)
+                     FROM pr r JOIN rally_movement_metrics mm
+                       ON mm.analysis_id = r.analysis_id AND mm.rally_number = r.rally_number
+                     WHERE r.match_id = pm.match_id) AS avg_distance,
                   p.playstyle_label AS playstyle,
                   p.attack_score AS attack, p.defense_score AS defense, p.net_control_score AS net_control,
                   p.shot_variety_score AS shot_variety, p.consistency_score AS consistency, p.pace_score AS pace
@@ -128,7 +192,7 @@ public class PlayerStatsRepository {
                 LEFT JOIN player_analysis_profiles p ON p.analysis_id = pm.analysis_id AND p.player_side = pm.side
                 ORDER BY pm.match_date DESC, pm.match_id DESC
                 """.formatted(SCORED);
-        return jdbc.query(sql, params(viewerId, key), (rs, i) -> new MatchRow(
+        return jdbc.query(sql, playParams(viewerId, key), (rs, i) -> new MatchRow(
                 rs.getLong("match_id"),
                 rs.getString("title"),
                 localDate(rs, "match_date"),
@@ -149,57 +213,57 @@ public class PlayerStatsRepository {
 
     /** Every stroke class the player used, with how often it ended a rally they won or lost. */
     public List<StrokeStat> findStrokes(long viewerId, String key) {
-        String sql = PLAYER_MATCHES + """
+        String sql = PLAYER_MATCHES + PLAYER_PLAY + """
                 SELECT e.stroke, count(*) AS total,
-                  count(*) FILTER (WHERE r.winner_side = pm.side) AS winners,
-                  count(*) FILTER (WHERE %s AND r.winner_side <> pm.side) AS errors
-                FROM pm
-                JOIN ai_events e ON e.analysis_id = pm.analysis_id AND e.player_side = pm.side
-                LEFT JOIN rallies r ON r.analysis_id = e.analysis_id AND r.end_event_id = e.id
+                  count(*) FILTER (WHERE r.winner_side = r.ps) AS winners,
+                  count(*) FILTER (WHERE %s AND r.winner_side <> r.ps) AS errors
+                FROM pe e
+                LEFT JOIN pr r ON r.analysis_id = e.analysis_id AND r.end_event_id = e.id
+                WHERE e.player_side = e.ps
                 GROUP BY e.stroke
                 ORDER BY total DESC
                 """.formatted(SCORED);
-        return jdbc.query(sql, params(viewerId, key), (rs, i) -> new StrokeStat(
+        return jdbc.query(sql, playParams(viewerId, key), (rs, i) -> new StrokeStat(
                 rs.getString("stroke"), rs.getInt("total"), rs.getInt("winners"), rs.getInt("errors")));
     }
 
     public Map<String, Integer> findHandSides(long viewerId, String key) {
-        String sql = PLAYER_MATCHES + """
+        String sql = PLAYER_MATCHES + PLAYER_PLAY + """
                 SELECT e.stroke_side, count(*) AS total
-                FROM pm JOIN ai_events e ON e.analysis_id = pm.analysis_id AND e.player_side = pm.side
+                FROM pe e WHERE e.player_side = e.ps
                 GROUP BY e.stroke_side
                 """;
         Map<String, Integer> sides = new TreeMap<>();
-        jdbc.query(sql, params(viewerId, key), rs -> {
+        jdbc.query(sql, playParams(viewerId, key), rs -> {
             sides.put(rs.getString("stroke_side"), rs.getInt("total"));
         });
         return sides;
     }
 
     public List<RallyLengthStat> findRallyLengths(long viewerId, String key) {
-        String sql = PLAYER_MATCHES + """
+        String sql = PLAYER_MATCHES + PLAYER_PLAY + """
                 SELECT CASE WHEN r.total_strokes <= 4 THEN 'SHORT'
                             WHEN r.total_strokes <= 9 THEN 'MEDIUM' ELSE 'LONG' END AS bucket,
-                  count(*) FILTER (WHERE r.winner_side = pm.side) AS won,
-                  count(*) FILTER (WHERE r.winner_side <> pm.side) AS lost
-                FROM pm JOIN rallies r ON r.analysis_id = pm.analysis_id AND %s
+                  count(*) FILTER (WHERE r.winner_side = r.ps) AS won,
+                  count(*) FILTER (WHERE r.winner_side <> r.ps) AS lost
+                FROM pr r WHERE %s
                 GROUP BY 1
                 """.formatted(SCORED);
-        return jdbc.query(sql, params(viewerId, key), (rs, i) -> new RallyLengthStat(
+        return jdbc.query(sql, playParams(viewerId, key), (rs, i) -> new RallyLengthStat(
                 rs.getString("bucket"), rs.getInt("won"), rs.getInt("lost")));
     }
 
     /** The opponent's stroke that ended rallies the player lost. */
     public List<LabelCount> findConcededBy(long viewerId, String key) {
-        String sql = PLAYER_MATCHES + """
+        String sql = PLAYER_MATCHES + PLAYER_PLAY + """
                 SELECT e.stroke, count(*) AS total
-                FROM pm
-                JOIN rallies r ON r.analysis_id = pm.analysis_id AND %s AND r.winner_side <> pm.side
-                JOIN ai_events e ON e.id = r.end_event_id AND e.player_side <> pm.side
+                FROM pr r
+                JOIN ai_events e ON e.id = r.end_event_id AND e.player_side <> r.ps
+                WHERE %s AND r.winner_side <> r.ps
                 GROUP BY e.stroke
                 ORDER BY total DESC
                 """.formatted(SCORED);
-        return jdbc.query(sql, params(viewerId, key), (rs, i) -> new LabelCount(
+        return jdbc.query(sql, playParams(viewerId, key), (rs, i) -> new LabelCount(
                 rs.getString("stroke"), rs.getInt("total")));
     }
 
@@ -208,18 +272,18 @@ public class PlayerStatsRepository {
      * played on the upper side, so the player is always on the near half (along 6..11).
      */
     public Map<String, List<ZoneCell>> findZones(long viewerId, String key) {
-        String sql = PLAYER_MATCHES + """
+        String sql = PLAYER_MATCHES + PLAYER_PLAY + """
                 , pts AS (
-                  SELECT 'POSITION' AS layer, pm.side, e.player_position_court AS pt
-                  FROM pm JOIN ai_events e ON e.analysis_id = pm.analysis_id AND e.player_side = pm.side
+                  SELECT 'POSITION' AS layer, e.ps AS side, e.player_position_court AS pt
+                  FROM pe e WHERE e.player_side = e.ps
                   UNION ALL
-                  SELECT 'LANDING', pm.side, e.landing_position_court_proxy
-                  FROM pm JOIN ai_events e ON e.analysis_id = pm.analysis_id AND e.player_side = pm.side
+                  SELECT 'LANDING', e.ps, e.landing_position_court_proxy
+                  FROM pe e WHERE e.player_side = e.ps
                   UNION ALL
-                  SELECT 'CONCEDED', pm.side, e.landing_position_court_proxy
-                  FROM pm
-                  JOIN rallies r ON r.analysis_id = pm.analysis_id AND %s AND r.winner_side <> pm.side
-                  JOIN ai_events e ON e.id = r.end_event_id AND e.player_side <> pm.side
+                  SELECT 'CONCEDED', r.ps, e.landing_position_court_proxy
+                  FROM pr r
+                  JOIN ai_events e ON e.id = r.end_event_id AND e.player_side <> r.ps
+                  WHERE %s AND r.winner_side <> r.ps
                 ), norm AS (
                   SELECT layer,
                     CASE WHEN side = 'UPPER' THEN 1 - (pt->>0)::float ELSE (pt->>0)::float END AS x,
@@ -236,7 +300,7 @@ public class PlayerStatsRepository {
                 GROUP BY 1, 2, 3
                 """.formatted(SCORED);
         Map<String, List<ZoneCell>> layers = new TreeMap<>();
-        jdbc.query(sql, params(viewerId, key), rs -> {
+        jdbc.query(sql, playParams(viewerId, key), rs -> {
             layers.computeIfAbsent(rs.getString("layer"), k -> new ArrayList<>())
                     .add(new ZoneCell(rs.getInt("along"), rs.getInt("across"), rs.getInt("total")));
         });
@@ -252,25 +316,25 @@ public class PlayerStatsRepository {
     }
 
     public List<RallyEnd> findRallyEnds(long viewerId, String key) {
-        String sql = PLAYER_MATCHES + """
-                SELECT pm.match_id, (pm.match_status = 'PUBLISHED') AS published, pm.opponent,
+        String sql = PLAYER_MATCHES + PLAYER_PLAY + """
+                SELECT r.match_id, (r.match_status = 'PUBLISHED') AS published, r.opponent,
                   r.start_time, e.time_seconds, e.stroke,
-                  (e.player_side = pm.side) AS by_player,
-                  (r.winner_side = pm.side) AS player_won,
+                  (e.player_side = r.ps) AS by_player,
+                  (r.winner_side = r.ps) AS player_won,
                   CASE WHEN jsonb_typeof(e.landing_position_court_proxy->0) = 'number'
                             AND jsonb_typeof(e.landing_position_court_proxy->1) = 'number' THEN
-                    CASE WHEN pm.side = 'UPPER' THEN 1 - (e.landing_position_court_proxy->>0)::float
+                    CASE WHEN r.ps = 'UPPER' THEN 1 - (e.landing_position_court_proxy->>0)::float
                          ELSE (e.landing_position_court_proxy->>0)::float END END AS x,
                   CASE WHEN jsonb_typeof(e.landing_position_court_proxy->0) = 'number'
                             AND jsonb_typeof(e.landing_position_court_proxy->1) = 'number' THEN
-                    CASE WHEN pm.side = 'UPPER' THEN 1 - (e.landing_position_court_proxy->>1)::float
+                    CASE WHEN r.ps = 'UPPER' THEN 1 - (e.landing_position_court_proxy->>1)::float
                          ELSE (e.landing_position_court_proxy->>1)::float END END AS y
-                FROM pm
-                JOIN rallies r ON r.analysis_id = pm.analysis_id AND %s
+                FROM pr r
                 JOIN ai_events e ON e.id = r.end_event_id
-                ORDER BY pm.match_date DESC, pm.match_id DESC, r.start_time
+                WHERE %s
+                ORDER BY r.match_date DESC, r.match_id DESC, r.start_time
                 """.formatted(SCORED);
-        return jdbc.query(sql, params(viewerId, key), (rs, i) -> new RallyEnd(
+        return jdbc.query(sql, playParams(viewerId, key), (rs, i) -> new RallyEnd(
                 rs.getLong("match_id"),
                 rs.getBoolean("published"),
                 rs.getString("opponent"),
@@ -286,6 +350,76 @@ public class PlayerStatsRepository {
 
     private static MapSqlParameterSource params(long viewerId, String key) {
         return new MapSqlParameterSource().addValue("viewerId", viewerId).addValue("key", key);
+    }
+
+    /** params plus the rally sides of the player's matches, for queries built on PLAYER_PLAY. */
+    private MapSqlParameterSource playParams(long viewerId, String key) {
+        MapSqlParameterSource params = params(viewerId, key);
+        addRallySides(params, viewerId, key);
+        return params;
+    }
+
+    /**
+     * Fills the rs parameters: for every rally of the viewer's visible analysed matches (only the player's
+     * when key is set), whether the players had changed ends since the video started and whether the rally
+     * counts in the match. The same walk the replay scores with ({@link HighlightSelector#trackGames}).
+     */
+    private void addRallySides(MapSqlParameterSource params, long viewerId, String key) {
+        String sql = """
+                SELECT a.id AS analysis_id, m.upper_player, m.start_game, m.start_score_a, m.start_score_b,
+                       r.id, r.rally_number, r.start_time, r.winner_side, r.score_upper, r.score_lower
+                FROM matches m
+                JOIN ai_analyses a ON a.match_id = m.id AND a.is_current AND a.status = 'COMPLETED'
+                JOIN rallies r ON r.analysis_id = a.id
+                WHERE m.deleted_at IS NULL AND (m.status = 'PUBLISHED' OR m.owner_id = :viewerId)
+                """ + (key == null ? "" : "  AND :key IN (lower(trim(m.player_a_name)), lower(trim(m.player_b_name)))\n") + """
+                ORDER BY a.id, r.rally_number
+                """;
+        Map<Long, List<Object[]>> byAnalysis = new LinkedHashMap<>();
+        Map<Long, Object[]> matchOf = new LinkedHashMap<>();
+        jdbc.query(sql, params(viewerId, key), rs -> {
+            long analysisId = rs.getLong("analysis_id");
+            matchOf.putIfAbsent(analysisId, new Object[]{rs.getString("upper_player"),
+                    rs.getObject("start_game"), rs.getObject("start_score_a"), rs.getObject("start_score_b")});
+            byAnalysis.computeIfAbsent(analysisId, k -> new ArrayList<>()).add(new Object[]{
+                    rs.getLong("id"), rs.getInt("rally_number"), rs.getBigDecimal("start_time"),
+                    rs.getString("winner_side"), rs.getInt("score_upper"), rs.getInt("score_lower")});
+        });
+
+        StringBuilder analyses = new StringBuilder(), numbers = new StringBuilder(), starts = new StringBuilder(),
+                switched = new StringBuilder(), counts = new StringBuilder();
+        for (Map.Entry<Long, List<Object[]>> entry : byAnalysis.entrySet()) {
+            Object[] match = matchOf.get(entry.getKey());
+            boolean upperIsA = !"PLAYER_B".equalsIgnoreCase((String) match[0]);
+            List<HighlightSelector.RallyFacts> facts = new ArrayList<>();
+            for (Object[] r : entry.getValue()) {
+                facts.add(new HighlightSelector.RallyFacts((Long) r[0], (Integer) r[1], 0, 0, 0, (String) r[3],
+                        (Integer) r[4], (Integer) r[5], null, null, true));
+            }
+            Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(facts, upperIsA,
+                    HighlightSelector.Start.of(number(match[1]), number(match[2]), number(match[3])));
+            for (Object[] r : entry.getValue()) {
+                HighlightSelector.GameContext g = games.get((Long) r[0]);
+                separate(analyses).append(entry.getKey());
+                separate(numbers).append(r[1]);
+                separate(starts).append(((BigDecimal) r[2]).toPlainString());
+                separate(switched).append(g.aOnUpper() != upperIsA);
+                separate(counts).append(!g.outsideMatch());
+            }
+        }
+        params.addValue("rsAnalysis", analyses.toString())
+                .addValue("rsNumber", numbers.toString())
+                .addValue("rsStart", starts.toString())
+                .addValue("rsSwitched", switched.toString())
+                .addValue("rsCounts", counts.toString());
+    }
+
+    private static StringBuilder separate(StringBuilder list) {
+        return list.isEmpty() ? list : list.append(',');
+    }
+
+    private static Integer number(Object value) {
+        return value == null ? null : ((Number) value).intValue();
     }
 
     private static Radar radar(ResultSet rs) throws SQLException {

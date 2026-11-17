@@ -2,7 +2,9 @@ package com.badminton.controller.player;
 
 import com.badminton.dto.player.PlayerProfileResponse;
 import com.badminton.dto.player.PlayerSummaryResponse;
+import com.badminton.dto.player.TrainingFocusResponse;
 import com.badminton.service.player.PlayerProfileService;
+import com.badminton.service.player.TrainingFocusService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,6 +25,7 @@ import java.util.List;
 public class PlayerController {
 
     private final PlayerProfileService playerProfileService;
+    private final TrainingFocusService trainingFocusService;
 
     @GetMapping
     public ResponseEntity<List<PlayerSummaryResponse>> listPlayers(
@@ -39,6 +42,15 @@ public class PlayerController {
             @AuthenticationPrincipal Object principal
     ) {
         return ResponseEntity.ok(playerProfileService.getProfile(email(principal), name));
+    }
+
+    /** The ways the player loses points most often, and how each changed from match to match. */
+    @GetMapping("/training-focus")
+    public ResponseEntity<TrainingFocusResponse> getTrainingFocus(
+            @RequestParam String name,
+            @AuthenticationPrincipal Object principal
+    ) {
+        return ResponseEntity.ok(trainingFocusService.forViewer(email(principal), name));
     }
 
     private static String email(Object principal) {

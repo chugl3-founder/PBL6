@@ -88,6 +88,45 @@ export const fetchPlayerProfile = async (name: string): Promise<PlayerProfile> =
   return res.data;
 };
 
+export type TrainingTrend = 'IMPROVING' | 'WORSENING' | 'STABLE' | 'NOT_ENOUGH_DATA';
+
+export interface TrainingFocus {
+  key: string;
+  /** ERROR: the player's own last shot lost the point; CONCEDED: the opponent won it with this stroke. */
+  kind: 'ERROR' | 'CONCEDED';
+  stroke: string;
+  count: number;
+  /** Percent of all lost points. */
+  share: number;
+  trend: TrainingTrend;
+  baselineRate: number | null;
+  latestRate: number | null;
+  matches: Array<{
+    matchId: number;
+    title: string | null;
+    matchDate: string | null;
+    opponent: string;
+    owned: boolean;
+    lost: number;
+    count: number;
+    /** Percent of that match's lost points; null when too few points were lost to judge. */
+    rate: number | null;
+  }>;
+  clips: Array<{ matchId: number; owned: boolean; opponent: string; seconds: number }>;
+}
+
+export interface TrainingFocusData {
+  player: string;
+  matchesAnalyzed: number;
+  pointsLost: number;
+  focuses: TrainingFocus[];
+}
+
+export const fetchTrainingFocus = async (name: string): Promise<TrainingFocusData> => {
+  const res = await apiClient.get<TrainingFocusData>('/players/training-focus', { params: { name } });
+  return res.data;
+};
+
 /** Route of a player's profile page. */
 export const playerPath = (name: string) => `/players/${encodeURIComponent(name.trim())}`;
 

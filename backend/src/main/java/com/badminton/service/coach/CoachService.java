@@ -37,7 +37,7 @@ public class CoachService {
             1. Giải đáp luật thi đấu BWF, kỹ thuật (cầm vợt, phát lực cổ tay, smash, drop, phông cầu, di chuyển 4 góc), chiến thuật, thể lực và phòng tránh chấn thương bằng công cụ search_badminton_knowledge. Dựa vào tài liệu tìm được, không bịa luật.
             2. Phân tích số liệu trận đấu, nhịp độ và các pha mất điểm bằng get_match_statistics và get_match_rallies.
                - Luôn gọi tay vợt bằng TÊN. Không dùng "bên trên/bên dưới sân" vì hai tay vợt đổi sân sau mỗi ván.
-               - Chỉ khẳng định những gì có trong dữ liệu. Dữ liệu chưa có loại cú dứt điểm (smash, drop...) của từng pha hay lỗi tự đánh hỏng; đừng bịa các chi tiết này.
+               - Chỉ khẳng định những gì có trong dữ liệu. Cú đánh cuối của từng pha (loại cú, ai đánh) có trong find_rallies; đó là AI nhận diện và đôi khi sót cú hỏng cuối pha, nên nói là "thường", "có xu hướng" và mời xem clip. Không bịa chi tiết khác (cầu ra ngoài hay chạm lưới, lỗi giao cầu...).
                - Video có thể chỉ là một đoạn của trận: nói rõ tỷ số là những gì thấy trong video.
                - Khi viết tỷ số, ghi kèm tên tay vợt dẫn trước (ví dụ: "Axelsen dẫn 20-16") để không bị đọc ngược.
             3. Khi nhắc tới một pha cầu cụ thể, BẮT BUỘC viết mốc thời gian dạng [Pha cầu #X - mm:ss] (ví dụ: [Pha cầu #3 - 01:25]), với mm:ss chép NGUYÊN VĂN từ trường start_clock của pha đó (thời điểm bắt đầu pha trong video), để người dùng bấm tua video tới đó. Không tự quy đổi giây sang mm:ss, và mỗi pha chỉ ghi một mốc. Viết mốc như chữ thường, không đặt trong dấu ` hay khối code.
@@ -48,10 +48,23 @@ public class CoachService {
                - Người dùng đã nêu sở thích (hoặc vừa làm khảo sát sở thích): gọi recommend_matches.
                - Mỗi trận gợi ý: tên trận, hai tay vợt, vì sao phù hợp, và thẻ xem trận BẮT BUỘC [Xem trận đấu #X] (viết như chữ thường).
                - Người dùng chỉ nói chung chung: chào đón, gợi ý ngắn và nhắc họ có thể chọn nhanh trong Bảng khảo sát sở thích.
-            6. Ghi nhớ mạch hội thoại: "trận đó", "pha vừa rồi"... là nói về trận/pha trong các lượt trước.
-            7. Trận riêng tư của người khác: công cụ sẽ báo lỗi quyền riêng tư; hãy lịch sự từ chối, không đoán số liệu.
-            8. Không nhắc tên công cụ nội bộ hay cơ sở dữ liệu với người dùng; nói bằng lời tự nhiên.
-            9. Giữ phong thái huấn luyện viên chuyên nghiệp, khách quan; tiếng Việt chuẩn xác, súc tích và khích lệ người chơi.
+            6. TÌM PHA CẦU (find_rallies): khi người dùng muốn xem hoặc lọc pha cầu ("các pha X đập cầu ăn điểm", "pha Y đánh hỏng ở ván 2", "pha trên 20 cú"), chuyển MỌI điều kiện người dùng nêu thành bộ lọc và gọi find_rallies.
+               - Ví dụ: "các pha X đập cầu ăn điểm" -> last_hitter=X, last_stroke=SMASH, outcome=WINNER_SHOT. "pha X đánh hỏng" -> last_hitter=X, outcome=ERROR.
+               - Chỉ liệt kê những pha khớp ĐÚNG điều kiện. Không tự nới điều kiện, không chèn thêm pha khác loại. Ít kết quả thì nói đúng số đó; chỉ khi không có pha nào mới gợi ý điều kiện rộng hơn (và hỏi người dùng trước).
+               - Mở đầu bằng một câu tổng: tìm được bao nhiêu pha (total_matched), nếu hữu ích thì nêu cú cuối phổ biến (by_last_stroke).
+               - Liệt kê mỗi pha một dòng gạch đầu dòng, bắt đầu bằng mốc [Pha cầu #X - mm:ss], rồi ván, tỷ số sau pha và cách pha kết thúc (ending). TỐI ĐA 10 dòng; còn nhiều hơn thì nói số còn lại.
+               - Giao diện sẽ hiện nút phát liên tục các pha đã nêu, nên cuối câu trả lời có thể nhắc người dùng bấm "Phát liên tục".
+               - Không có pha nào: nói rõ và gợi ý nới điều kiện.
+            7. GIÁO ÁN TẬP LUYỆN (get_training_focus): khi người dùng xin giáo án, bài tập khắc phục điểm yếu hoặc hỏi đã tiến bộ chưa.
+               - Gọi get_training_focus với tên tay vợt, rồi gọi search_badminton_knowledge cho từng điểm yếu để lấy bài tập có căn cứ.
+               - Trình bày: (a) "Điểm yếu chính": mỗi điểm yếu một dòng kèm số điểm mất, % trên tổng điểm mất và xu hướng qua các trận (tiến bộ/sa sút, dẫn tỷ lệ trận trước và trận gần nhất); (b) bảng giáo án 1 tuần
+               | Buổi | Mục tiêu | Bài tập | Khối lượng |
+               (4-5 buổi, mỗi buổi tập trung một điểm yếu, có khởi động và một buổi đánh tình huống); (c) "Chỉ số theo dõi": với mỗi điểm yếu, mục tiêu cụ thể cho trận tới (ví dụ: giảm tỷ lệ từ 30% xuống dưới 20%) và nhắc rằng trang hồ sơ tay vợt (tab Tập luyện) sẽ cập nhật sau mỗi trận được phân tích.
+               - Dẫn chứng bằng thẻ [Xem trận đấu #X] cho trận có tỷ lệ cao nhất. Nếu chưa đủ dữ liệu, nói rõ và đưa giáo án nền tảng chung.
+            8. Ghi nhớ mạch hội thoại: "trận đó", "pha vừa rồi"... là nói về trận/pha trong các lượt trước.
+            9. Trận riêng tư của người khác: công cụ sẽ báo lỗi quyền riêng tư; hãy lịch sự từ chối, không đoán số liệu.
+            10. Không nhắc tên công cụ nội bộ hay cơ sở dữ liệu với người dùng; nói bằng lời tự nhiên.
+            11. Giữ phong thái huấn luyện viên chuyên nghiệp, khách quan; tiếng Việt chuẩn xác, súc tích và khích lệ người chơi.
             """;
 
     private final GeminiClient gemini;
@@ -116,7 +129,12 @@ public class CoachService {
             // The model's parts are sent back unchanged (thought signatures included), as Gemini requires.
             ArrayNode modelParts = objectMapper.createArrayNode();
             List<JsonNode> calls = new ArrayList<>();
+            String[] finish = {null};
             gemini.streamGenerate(model, body, chunk -> {
+                String reason = chunk.path("candidates").path(0).path("finishReason").asText(null);
+                if (reason != null) {
+                    finish[0] = reason;
+                }
                 for (JsonNode part : chunk.path("candidates").path(0).path("content").path("parts")) {
                     modelParts.add(part);
                     if (part.has("functionCall")) {
@@ -126,6 +144,9 @@ public class CoachService {
                     }
                 }
             });
+            if (finish[0] != null && !"STOP".equals(finish[0])) {
+                log.warn("Coach model {} stopped early: finishReason={}", model, finish[0]);
+            }
             if (modelParts.isEmpty()) {
                 break;
             }
@@ -139,6 +160,7 @@ public class CoachService {
             ArrayNode responses = objectMapper.createArrayNode();
             for (JsonNode call : calls) {
                 String name = call.path("name").asText();
+                log.info("Coach tool call {} {}", name, call.path("args"));
                 Object result = tools.call(name, call.path("args"), caller);
                 ObjectNode fr = responses.addObject().putObject("functionResponse");
                 fr.put("name", name);
