@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, LogOut, User } from 'lucide-react';
+import { Activity, ArrowLeft, ChevronDown, Film, LayoutDashboard, LogOut, Share2, User, Users } from 'lucide-react';
 import { logout } from '../../api/auth';
 import { getDashboardMetrics } from '../../api/admin';
 import { getSessionUser } from '../../auth/session';
@@ -21,9 +21,10 @@ export interface AdminOutletContext {
 }
 
 /**
- * The admin area wears the same ink scoreboard strip as the user pages, so moving between the two
- * feels like one product. A "Quản trị" tag beside the logo says where you are; the nav marks show
- * what needs attention (failed analyses in red, work in progress in orange).
+ * The admin console: a fixed ink sidebar (sections, what needs attention, the account) beside the
+ * work area, so every section is one click away however wide the content gets. Narrow screens get
+ * the ink strip with the sections scrolling sideways. The nav marks show what needs attention
+ * (failed analyses in red, work in progress in orange).
  */
 export const AdminLayout: React.FC = () => {
   const location = useLocation();
@@ -96,17 +97,19 @@ export const AdminLayout: React.FC = () => {
   const processing = metrics?.processingAiAnalyses ?? 0;
   const waitingPublish = metrics?.analyzedMatches ?? 0;
 
-  const navItems: { to: string; label: string; end?: boolean; mark?: React.ReactNode }[] = [
-    { to: '/admin', label: 'Tổng quan', end: true },
+  const navItems: { to: string; label: string; icon: React.FC<{ className?: string }>; end?: boolean; mark?: React.ReactNode }[] = [
+    { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard, end: true },
     {
       to: '/admin/matches',
       label: 'Trận đấu',
+      icon: Film,
       mark: waitingPublish > 0 && <NavMark tone="info" title={`${waitingPublish} trận đã phân tích, chưa công khai`}>{waitingPublish}</NavMark>,
     },
-    { to: '/admin/users', label: 'Người dùng' },
+    { to: '/admin/users', label: 'Người dùng', icon: Users },
     {
       to: '/admin/ai-monitor',
       label: 'Phân tích AI',
+      icon: Activity,
       mark:
         failed > 0 ? (
           <NavMark tone="loss" title={`${failed} phiên phân tích bị lỗi`}>{failed}</NavMark>
@@ -114,8 +117,15 @@ export const AdminLayout: React.FC = () => {
           <NavMark tone="progress" live title={`${processing} phiên đang chạy`}>{processing}</NavMark>
         ) : null,
     },
-    { to: '/admin/content', label: 'Chia sẻ' },
+    { to: '/admin/content', label: 'Chia sẻ & highlight', icon: Share2 },
   ];
+
+  const sideLink = ({ isActive }: { isActive: boolean }) =>
+    `relative flex items-center gap-3 h-10 px-3 rounded-md text-[15px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
+      isActive
+        ? 'bg-white/10 text-white font-semibold before:absolute before:left-0 before:inset-y-2 before:w-[3px] before:rounded-r before:bg-[#6FCF97]'
+        : 'text-white/70 hover:text-white hover:bg-white/5'
+    }`;
 
   const navLink = ({ isActive }: { isActive: boolean }) =>
     `relative flex items-center gap-1.5 h-14 px-3 text-[15px] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/40 ${
@@ -127,85 +137,101 @@ export const AdminLayout: React.FC = () => {
   const initial = user?.fullName ? user.fullName.charAt(0).toUpperCase() : null;
   const context: AdminOutletContext = { metrics, metricsLoading, metricsError, refreshMetrics };
 
+  const avatar = (
+    <span className="w-8 h-8 rounded-full overflow-hidden bg-white/15 flex items-center justify-center text-xs font-semibold text-white shrink-0">
+      {user?.avatarUrl ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" /> : initial ?? <User className="h-4 w-4" />}
+    </span>
+  );
+
   return (
-    <div className="flex flex-col min-h-screen font-vn text-ink">
-      <header className="sticky top-0 z-50 w-full bg-ink shadow-[inset_0_-1px_0_rgba(255,255,255,0.12)]">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-6xl mx-auto h-14 flex items-center gap-5">
-            <Link
-              to="/admin"
-              className="shrink-0 flex items-center gap-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-              aria-label="BadmintonAI, trang quản trị"
-            >
-              <BrandLogo />
-              <span className="rounded border border-white/25 px-1.5 py-0.5 text-xs font-semibold text-white/85">Quản trị</span>
-            </Link>
+    <div className="min-h-screen md:flex font-vn text-ink">
+      {/* Wide screens: the sections, what needs attention and the account down the left side. */}
+      <aside className="hidden md:flex sticky top-0 h-screen w-56 shrink-0 flex-col bg-ink text-white" aria-label="Quản trị">
+        <Link
+          to="/admin"
+          className="flex flex-col justify-center gap-0.5 h-16 px-4 border-b border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/40"
+          aria-label="BadmintonAI, trang quản trị"
+        >
+          <BrandLogo />
+          <span className="pl-9 text-[11px] font-semibold uppercase tracking-wider text-[#6FCF97]">Trang quản trị</span>
+        </Link>
 
-            <nav className="hidden md:flex items-center min-w-0" aria-label="Điều hướng quản trị">
-              {navItems.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.end} className={navLink}>
-                  {item.label}
-                  {item.mark}
-                </NavLink>
-              ))}
-            </nav>
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Điều hướng quản trị">
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end} className={sideLink}>
+              <item.icon className="h-[18px] w-[18px] shrink-0" />
+              <span className="flex-1 truncate">{item.label}</span>
+              {item.mark}
+            </NavLink>
+          ))}
+        </nav>
 
-            <div className="ml-auto flex items-center gap-2">
-              <Link
-                to="/"
-                title="Về trang người dùng"
-                className="hidden sm:flex items-center gap-1.5 h-9 px-2.5 rounded-md text-sm whitespace-nowrap text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                <span className="hidden xl:inline">Trang người dùng</span>
-                <span className="xl:hidden sr-only">Về trang người dùng</span>
-              </Link>
-              <div className="relative" ref={accountRef}>
-                <button
-                  type="button"
-                  onClick={() => setAccountOpen((open) => !open)}
-                  aria-haspopup="menu"
-                  aria-expanded={accountOpen}
-                  className="flex items-center gap-2 rounded-md px-1.5 h-9 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-                >
-                  <span className="w-7 h-7 rounded-full overflow-hidden bg-white/15 flex items-center justify-center text-xs font-semibold text-white shrink-0">
-                    {user?.avatarUrl ? (
-                      <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      initial ?? <User className="h-3.5 w-3.5" />
-                    )}
-                  </span>
-                  <span className="hidden 2xl:inline max-w-[10rem] truncate">{user?.fullName || 'Quản trị viên'}</span>
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {accountOpen && (
-                  <div role="menu" className="absolute right-0 mt-1.5 w-56 rounded-md bg-sheet border border-ink/10 shadow-lg py-1 text-sm text-ink">
-                    <div className="px-3 py-2 border-b border-ink/10">
-                      <p className="font-medium truncate">{user?.fullName || 'Quản trị viên'}</p>
-                      <p className="text-xs text-ink/60 truncate">{user?.email}</p>
-                    </div>
-                    <Link to="/profile" role="menuitem" className="flex items-center gap-2 px-3 py-2 hover:bg-ink/5">
-                      <User className="h-4 w-4 text-ink/70" />
-                      Hồ sơ cá nhân
-                    </Link>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-ink/5 text-loss"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Đăng xuất
-                    </button>
-                  </div>
-                )}
-              </div>
+        <div className="border-t border-white/10 p-3 space-y-1">
+          <Link
+            to="/"
+            className="flex items-center gap-3 h-10 px-3 rounded-md text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <ArrowLeft className="h-[18px] w-[18px]" aria-hidden />
+            Về trang người dùng
+          </Link>
+          <div className="flex items-center gap-2.5 px-3 pt-3">
+            {avatar}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user?.fullName || 'Quản trị viên'}</p>
+              <p className="text-xs text-white/55 truncate">{user?.email}</p>
             </div>
           </div>
+          <div className="flex gap-1 px-1.5 pt-1">
+            <Link
+              to="/profile"
+              className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md text-xs text-white/70 hover:text-white hover:bg-white/5"
+            >
+              <User className="h-3.5 w-3.5" /> Hồ sơ
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md text-xs text-white/70 hover:text-[#F2A7A7] hover:bg-white/5"
+            >
+              <LogOut className="h-3.5 w-3.5" /> Đăng xuất
+            </button>
+          </div>
         </div>
+      </aside>
 
-        {/* Narrow screens: the sections scroll sideways under the strip. */}
-        <nav className="md:hidden flex overflow-x-auto border-t border-white/10 px-2" aria-label="Điều hướng quản trị">
+      {/* Narrow screens: the ink strip, with the sections scrolling sideways under it. */}
+      <header className="md:hidden sticky top-0 z-50 bg-ink">
+        <div className="h-14 flex items-center gap-3 px-4">
+          <Link to="/admin" className="flex items-center gap-2" aria-label="BadmintonAI, trang quản trị">
+            <BrandLogo />
+          </Link>
+          <div className="ml-auto relative" ref={accountRef}>
+            <button
+              type="button"
+              onClick={() => setAccountOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+              className="flex items-center gap-1.5 rounded-md px-1.5 h-9 text-white/80 hover:bg-white/10"
+            >
+              {avatar}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {accountOpen && (
+              <div role="menu" className="absolute right-0 mt-1.5 w-52 rounded-md bg-sheet border border-ink/10 shadow-lg py-1 text-sm text-ink">
+                <Link to="/" role="menuitem" className="flex items-center gap-2 px-3 py-2 hover:bg-ink/5">
+                  <ArrowLeft className="h-4 w-4 text-ink/70" /> Về trang người dùng
+                </Link>
+                <Link to="/profile" role="menuitem" className="flex items-center gap-2 px-3 py-2 hover:bg-ink/5">
+                  <User className="h-4 w-4 text-ink/70" /> Hồ sơ cá nhân
+                </Link>
+                <button type="button" role="menuitem" onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-ink/5 text-loss">
+                  <LogOut className="h-4 w-4" /> Đăng xuất
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        <nav className="flex overflow-x-auto border-t border-white/10 px-2" aria-label="Điều hướng quản trị">
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={navLink}>
               {item.label}
@@ -215,8 +241,8 @@ export const AdminLayout: React.FC = () => {
         </nav>
       </header>
 
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="max-w-6xl mx-auto pt-4 pb-16 min-w-0">
+      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="max-w-7xl mx-auto pb-16 min-w-0">
           <Outlet context={context} />
         </div>
       </main>

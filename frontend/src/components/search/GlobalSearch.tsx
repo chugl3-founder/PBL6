@@ -168,13 +168,13 @@ export const GlobalSearch: React.FC = () => {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 h-9 rounded-md bg-white/10 hover:bg-white/15 px-2.5 lg:pr-2 text-sm text-white/75 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+        className="flex items-center gap-2 h-9 rounded-md bg-white/10 hover:bg-white/15 px-2.5 text-sm text-white/75 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
         aria-label="Tìm kiếm (Ctrl+K)"
         title="Tìm vận động viên, trận đấu, báo cáo (Ctrl+K)"
       >
         <Search className="h-4 w-4" aria-hidden />
-        <span className="hidden lg:inline">Tìm kiếm</span>
-        <kbd className="hidden lg:inline rounded border border-white/20 px-1.5 text-[11px] font-sans text-white/60">Ctrl K</kbd>
+        <span className="hidden xl:inline whitespace-nowrap">Tìm kiếm</span>
+        <kbd className="hidden 2xl:inline whitespace-nowrap rounded border border-white/20 px-1.5 text-[11px] font-sans text-white/60">Ctrl K</kbd>
       </button>
 
       {open && (

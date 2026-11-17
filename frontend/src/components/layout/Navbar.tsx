@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, User, Plus, ChevronDown, Lock } from 'lucide-react';
+import { LogOut, User, Plus, ChevronDown, Lock, LayoutDashboard } from 'lucide-react';
 import apiClient from '../../api/client';
 import { BrandLogo } from '../brand/BrandLogo';
 import { GlobalSearch } from '../search/GlobalSearch';
@@ -75,9 +75,9 @@ export const Navbar: React.FC = () => {
   };
 
   const navLink = (active: boolean) =>
-    `relative flex items-center gap-1.5 h-14 px-3 text-[15px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/40 ${
+    `relative flex items-center gap-1.5 h-14 px-2.5 xl:px-3 text-[15px] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/40 ${
       active
-        ? 'text-white font-semibold after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-[#6FCF97]'
+        ? 'text-white font-semibold after:absolute after:inset-x-2.5 xl:after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-[#6FCF97]'
         : 'text-white/75 hover:text-white'
     }`;
 
@@ -87,7 +87,7 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-50 w-full bg-ink font-vn print:hidden shadow-[inset_0_-1px_0_rgba(255,255,255,0.12)]">
       {/* Same outer padding and inner width as the page body, so the logo lines up with the content */}
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto h-14 flex items-center gap-6">
+      <div className="max-w-7xl mx-auto h-14 flex items-center gap-4 xl:gap-6">
         <Link
           to="/"
           // Already on the landing page: the route does not change, so bring the reader back to the top.
@@ -148,20 +148,15 @@ export const Navbar: React.FC = () => {
                 </span>
               )}
           </Link>
-          {isAdmin && (
-            <Link to="/admin" className={navLink(location.pathname.startsWith('/admin'))}>
-              Quản trị
-            </Link>
-          )}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 shrink-0">
           <GlobalSearch />
           {token ? (
             <>
               <Link
                 to="/matches/create"
-                className="flex items-center gap-1.5 rounded-md bg-pitch hover:bg-pitch-deep px-3.5 h-9 text-sm font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                className="flex items-center gap-1.5 rounded-md bg-pitch hover:bg-pitch-deep px-3.5 h-9 text-sm font-semibold text-white whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
               >
                 <Plus className="h-4 w-4" aria-hidden />
                 <span className="hidden sm:inline">Trận mới</span>
@@ -181,14 +176,21 @@ export const Navbar: React.FC = () => {
                       <User className="h-3.5 w-3.5" />
                     )}
                   </span>
-                  <span className="hidden lg:inline max-w-[10rem] truncate">{user?.fullName || 'Tài khoản'}</span>
+                  <span className="hidden xl:inline max-w-[10rem] truncate">{user?.fullName || 'Tài khoản'}</span>
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {accountOpen && (
                   <div
                     role="menu"
-                    className="absolute right-0 mt-1.5 w-48 rounded-md bg-sheet border border-ink/10 shadow-lg py-1 text-sm text-ink"
+                    className="absolute right-0 mt-1.5 w-52 rounded-md bg-sheet border border-ink/10 shadow-lg py-1 text-sm text-ink"
                   >
+                    {/* Admins reach the console from here: one item fewer in a header that is already full. */}
+                    {isAdmin && (
+                      <Link to="/admin" role="menuitem" className="flex items-center gap-2 px-3 py-2 font-semibold hover:bg-ink/5 border-b border-ink/10">
+                        <LayoutDashboard className="h-4 w-4 text-pitch" />
+                        Trang quản trị
+                      </Link>
+                    )}
                     <Link to="/profile" role="menuitem" className="flex items-center gap-2 px-3 py-2 hover:bg-ink/5">
                       <User className="h-4 w-4 text-ink/70" />
                       Hồ sơ cá nhân
