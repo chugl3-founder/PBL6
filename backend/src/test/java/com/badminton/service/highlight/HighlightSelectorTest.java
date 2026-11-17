@@ -231,6 +231,21 @@ class HighlightSelectorTest {
     }
 
     @Test
+    void aCountRestartingForTheNextGameIsNotWarmUp() {
+        // Match 308: the AI missed points, so game 1 ended at 20-15 in its count, then restarted at 1-0.
+        List<RallyFacts> rallies = new ArrayList<>();
+        int[] count = {0, 0};
+        run(rallies, "LOWER", 20, count);
+        run(rallies, "UPPER", 15, count);
+        rallies.add(rally(36, 2000, 4, "UPPER", 1, 0, null, null));
+        rallies.add(rally(37, 2030, 4, "LOWER", 1, 1, null, null));
+
+        Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies, true);
+
+        assertThat(games.values()).noneMatch(HighlightSelector.GameContext::beforeMatch);
+    }
+
+    @Test
     void aCountThatDropsAfterTheVideoStartsMidGameMarksNothing() {
         // The owner gave a starting score: the count is not from 0-0, so no rally is taken as warm-up.
         List<RallyFacts> rallies = List.of(

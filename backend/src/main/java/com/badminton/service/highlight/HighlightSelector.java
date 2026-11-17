@@ -22,6 +22,8 @@ public final class HighlightSelector {
 
     /** The default cut aims for a short reel; the owner can add rallies up to the hard limits. */
     static final double TARGET_REEL_SECONDS = 120.0;
+    /** The most points the AI may have counted from warm-up play before it first reads the scoreboard. */
+    static final int MAX_WARM_UP_POINTS = 6;
     static final int TARGET_CLIPS = 12;
     /** The reel must stay under the storage file cap (50 MB on Supabase); 3 minutes at 720p fits. */
     public static final double MAX_REEL_SECONDS = 180.0;
@@ -200,7 +202,9 @@ public final class HighlightSelector {
             // fewer points played than rallies counted, the extra rallies at the start were not points.
             int total = r.scoreUpper() + r.scoreLower();
             boolean firstGame = gamesA + gamesB == 0 && start.equals(Start.NONE);
-            if (firstGame && !anchored && prevTotal >= 0 && total < prevTotal) {
+            // Only a handful of warm-up rallies are plausible. A larger count that drops is the AI restarting
+            // its count for the next game (it missed a point, so the game never reached 21 here): not warm-up.
+            if (firstGame && !anchored && prevTotal >= 0 && prevTotal <= MAX_WARM_UP_POINTS && total < prevTotal) {
                 anchored = true;
                 int extra = counted.size() - Math.max(0, total - 1);
                 for (int i = 0; i < extra; i++) {

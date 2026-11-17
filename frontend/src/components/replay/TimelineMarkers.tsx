@@ -72,15 +72,22 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
         <div className="absolute inset-x-0 top-1.5 h-6 rounded-md bg-pitch overflow-hidden">
           {/* Rallies, coloured by who won the point */}
           {rallies.filter(rally => rally.endTime >= viewStart && rally.startTime <= viewEnd).map(rally => {
-            const won = rally.winnerSide === 'UPPER' ? 'bg-pa' : rally.winnerSide === 'LOWER' ? 'bg-pb' : 'bg-white/40';
-            const name = rally.winnerSide === 'UPPER' ? upperName : rally.winnerSide === 'LOWER' ? lowerName : 'chưa rõ';
+            // Warm-up, post-match play and lets (no point) stay grey: only points are coloured by their winner.
+            const counts = !rally.afterMatch && !rally.beforeMatch;
+            const side = counts ? rally.winnerSide : null;
+            const won = side === 'UPPER' ? 'bg-pa' : side === 'LOWER' ? 'bg-pb' : 'bg-white/40';
+            const label = side === 'UPPER' ? `${upperName} thắng điểm`
+              : side === 'LOWER' ? `${lowerName} thắng điểm`
+              : rally.beforeMatch ? 'trước trận, không tính điểm'
+              : rally.afterMatch ? 'sau trận, không tính điểm'
+              : rally.winnerSide ? 'không ai ghi điểm' : 'đang xác định người ghi điểm';
             return (
               <button
                 key={`rally-${rally.rallyNumber}-${rally.startTime}`}
                 type="button"
                 onClick={() => onSelectRally?.(rally)}
-                title={`Pha ${rally.rallyNumber}: ${name} thắng điểm (${clock(rally.startTime)})`}
-                aria-label={`Pha ${rally.rallyNumber}, ${name} thắng điểm`}
+                title={`Pha ${rally.rallyNumber}: ${label} (${clock(rally.startTime)})`}
+                aria-label={`Pha ${rally.rallyNumber}, ${label}`}
                 className={`absolute inset-y-0 ${won} opacity-90 hover:opacity-100 transition-opacity`}
                 style={{
                   left: `${pct(rally.startTime)}%`,

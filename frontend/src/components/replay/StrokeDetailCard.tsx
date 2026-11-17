@@ -5,6 +5,10 @@ import {
 } from 'lucide-react';
 import { AiEventData } from '../../types/replay';
 import { normalizeStrokeSide } from '../../utils/strokeSide';
+import { strokeLabel } from '../../utils/strokeLabels';
+
+/** A measured value, or a dash: no placeholder numbers when the AI did not measure it. */
+const measured = (value?: number | null) => (value != null && value >= 0.5 ? value.toFixed(0) : '—');
 
 interface StrokeDetailCardProps {
   event: AiEventData | null;
@@ -107,9 +111,9 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
   const getStrokeSideLabel = (side: string | undefined) => {
     switch (normalizeStrokeSide(side)) {
       case 'FOREHAND':
-        return 'Thuận tay (Forehand)';
+        return 'Thuận tay';
       case 'BACKHAND':
-        return 'Trái tay (Backhand)';
+        return 'Trái tay';
       default:
         return '';
     }
@@ -120,14 +124,14 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
       
       {/* 1. Header: Thứ tự, Tên cú đánh, Tay vợt & Vận động viên */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-pitch/20 border border-pitch/40 text-pitch flex items-center justify-center tabular-nums font-bold text-base">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 shrink-0 rounded-lg bg-pitch/20 border border-pitch/40 text-pitch flex items-center justify-center tabular-nums font-bold text-base">
             #{event.eventOrder}
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black border shadow-sm ${style.bg}`}>
-                {event.stroke}
+                {strokeLabel(event.stroke)}
               </span>
               {getStrokeSideLabel(event.strokeSide) && (
                 <span className="text-xs font-semibold text-ink/75">
@@ -135,13 +139,13 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 text-xs text-ink/70 mt-0.5">
-              <span className="flex items-center gap-1 font-medium text-ink/85">
-                <User className="w-3.5 h-3.5 text-ink/65" />
-                <span>{playerName}</span>
+            <div className="flex items-center gap-2 text-xs text-ink/70 mt-0.5 min-w-0">
+              <span className="flex items-center gap-1 font-medium text-ink/85 min-w-0">
+                <User className="w-3.5 h-3.5 text-ink/65 shrink-0" />
+                <span className="truncate">{playerName}</span>
               </span>
-              <span className="text-ink/40">•</span>
-              <span className="tabular-nums text-ink/70">{event.timeSeconds.toFixed(1)}s</span>
+              <span className="text-ink/40 shrink-0">•</span>
+              <span className="tabular-nums text-ink/70 shrink-0">{event.timeSeconds.toFixed(1)}s</span>
             </div>
           </div>
         </div>
@@ -177,12 +181,12 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
           <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center shrink-0 text-amber-700 mt-0.5">
             <AlertTriangle className="w-4 h-4" />
           </div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
+          <div className="space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-xs font-bold text-amber-700">
                 Sự kiện có độ tự tin thấp ({confidencePercent}%)
               </span>
-              <span className="px-2 py-0.2 rounded-full bg-amber-500/30 text-amber-700 text-[11px] font-black">
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-700 text-[11px] font-black whitespace-nowrap">
                 Cảnh báo AI
               </span>
             </div>
@@ -210,17 +214,18 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
       )}
 
       {/* 3. Grid Thông số Kỹ thuật & Telemetry */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+      <div className="grid grid-cols-2 gap-3 text-xs">
         
         {/* Tốc độ cầu */}
         <div className="p-3 rounded-lg bg-ink/[0.04] border border-ink/10 space-y-1">
           <div className="flex items-center gap-1.5 text-ink/70 text-[11px]">
             <Zap className="w-3.5 h-3.5 text-amber-700" />
-            <span>Vận tốc cầu</span>
+            <span>Tốc độ cầu</span>
           </div>
           <div className="text-base font-black tabular-nums text-ink flex items-baseline gap-1">
-            <span>{event.averageShuttleSpeedImagePerSecond ? `${event.averageShuttleSpeedImagePerSecond.toFixed(0)}` : '245'}</span>
-            <span className="text-[11px] font-normal text-ink/70">km/h</span>
+            {/* Measured in pixels per second of video, not km/h: the camera is not calibrated. */}
+            <span>{measured(event.averageShuttleSpeedImagePerSecond)}</span>
+            <span className="text-[11px] font-normal text-ink/70">px/s</span>
           </div>
         </div>
 
@@ -231,7 +236,7 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
             <span>Tốc độ cổ tay</span>
           </div>
           <div className="text-base font-black tabular-nums text-ink flex items-baseline gap-1">
-            <span>{event.averageWristSpeedImagePerSecond ? `${event.averageWristSpeedImagePerSecond.toFixed(0)}` : '112'}</span>
+            <span>{measured(event.averageWristSpeedImagePerSecond)}</span>
             <span className="text-[11px] font-normal text-ink/70">px/s</span>
           </div>
         </div>
@@ -242,8 +247,8 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
             <Sparkles className="w-3.5 h-3.5 text-purple-700" />
             <span>Chiến thuật</span>
           </div>
-          <div className="text-xs font-bold truncate">
-            <span className={`px-2 py-0.5 rounded-md border text-[11px] ${tactical.color}`}>
+          <div className="text-xs font-bold">
+            <span className={`inline-block px-2 py-0.5 rounded-md border text-[11px] leading-snug ${tactical.color}`}>
               {tactical.text}
             </span>
           </div>
@@ -264,20 +269,20 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
 
       {/* 4. Vùng Sân 3x3 (Vị trí tiếp xúc cầu & Điểm rơi dự kiến Proxy) */}
       <div className="rounded-lg bg-ink/[0.04] border border-ink/10 p-4 space-y-3">
-        <div className="flex items-center justify-between text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
           <span className="font-bold text-ink flex items-center gap-1.5">
             <Target className="w-3.5 h-3.5 text-pitch" />
             <span>Chỗ đánh và chỗ cầu rơi (sân chia 9 ô)</span>
           </span>
-          <span className="text-[11px] text-ink/70 tabular-nums">
+          <span className="text-[11px] text-ink/70 tabular-nums whitespace-nowrap">
             Ô {event.hittingArea3x3 ?? "?"} → ô {event.landingArea3x3Proxy ?? "?"}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+        <div className="flex flex-wrap gap-4 items-center">
           
           {/* Mini 3x3 Grid Sân */}
-          <div className="grid grid-cols-3 gap-1.5 max-w-[200px] mx-auto sm:mx-0 p-2 rounded-xl bg-ink/[0.04] border border-ink/10">
+          <div className="grid grid-cols-3 gap-1.5 w-[180px] shrink-0 p-2 rounded-xl bg-ink/[0.04] border border-ink/10">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((zone) => {
               const isHit = event.hittingArea3x3 === zone;
               const isLand = event.landingArea3x3Proxy === zone;
@@ -305,7 +310,7 @@ export const StrokeDetailCard: React.FC<StrokeDetailCardProps> = ({
           </div>
 
           {/* Chú giải chi tiết */}
-          <div className="space-y-2 text-[11px] text-ink/70">
+          <div className="space-y-2 text-[11px] text-ink/70 flex-1 min-w-[140px]">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-md bg-blue-500/40 border border-blue-400 shrink-0" />
               <span>Chỗ đánh: <strong>{event.hittingArea3x3 ? `ô ${event.hittingArea3x3}` : "chưa rõ"}</strong></span>
