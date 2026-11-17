@@ -86,7 +86,7 @@ export const StrokeList: React.FC<StrokeListProps> = ({
               key={evt.id}
               id={`stroke-item-${evt.id}`}
               onClick={() => handleSeekToEvent(evt)}
-              className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer flex items-center justify-between ${
+              className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer flex items-center justify-between gap-2 ${
                 isActive
                   ? 'bg-pitch/25 border-pitch ring-2 ring-pitch/30 scale-[1.01]'
                   : isLowConf
@@ -94,7 +94,7 @@ export const StrokeList: React.FC<StrokeListProps> = ({
                   : 'bg-ink/[0.04] border-ink/10 hover:bg-ink/[0.06] hover:border-ink/15'
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 {/* Số thứ tự & Indicator phát */}
                 <div
                   className={`w-7 h-7 rounded-xl flex items-center justify-center tabular-nums text-xs font-bold shrink-0 transition-transform ${
@@ -113,7 +113,7 @@ export const StrokeList: React.FC<StrokeListProps> = ({
                 </div>
 
                 {/* Thông tin cú đánh */}
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${badgeClass}`}>
                       {strokeLabel(evt.stroke)}
@@ -128,25 +128,25 @@ export const StrokeList: React.FC<StrokeListProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="text-[11px] text-ink/70 flex items-center gap-1.5">
+                  <div className="text-[11px] text-ink/70 flex items-center gap-1.5 min-w-0">
                     {/* The colour and name follow the player, not the half they stand on now. */}
-                    <span className={`w-1.5 h-1.5 rounded-full ${hitByStartingUpper(evt) ? 'bg-pa' : 'bg-amber-400'}`} />
-                    <span className="font-semibold">{hitByStartingUpper(evt) ? upperName : lowerName}</span>
-                    <span className="text-ink/40">•</span>
-                    <span className="tabular-nums text-ink/70">{evt.timeSeconds.toFixed(1)}s</span>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${hitByStartingUpper(evt) ? 'bg-pa' : 'bg-amber-400'}`} />
+                    <span className="font-semibold truncate">{hitByStartingUpper(evt) ? upperName : lowerName}</span>
+                    <span className="text-ink/40 shrink-0">•</span>
+                    <span className="tabular-nums text-ink/70 shrink-0">{evt.timeSeconds.toFixed(1)}s</span>
                   </div>
                 </div>
               </div>
 
               {/* Chỉ báo khi AI không chắc chắn; không hiện phần trăm hay vận tốc pixel */}
-              <div className="text-right flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {isLowConf && (
                   <span
                     title="AI không chắc chắn về cú này"
-                    className="text-[11px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30"
+                    className="text-[11px] text-amber-700 font-semibold flex items-center gap-1 whitespace-nowrap bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30"
                   >
                     <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
-                    cần xem lại
+                    Xem lại
                   </span>
                 )}
                 <ChevronRight className={`w-4 h-4 transition-transform ${isActive ? 'text-pitch translate-x-0.5' : 'text-ink/40'}`} />

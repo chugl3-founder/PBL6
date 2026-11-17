@@ -287,6 +287,9 @@ test.describe('Người dùng đã đăng nhập', () => {
       );
       await page.goto('/players');
       await page.getByRole('button', { name: 'Mở trợ lý ảo AI' }).click();
+      // The widget reopens the account's last conversation; start a fresh one so the reply is the mocked one.
+      await page.getByTitle('Bắt đầu cuộc trò chuyện mới (+)').click();
+      await expect(page.getByText(/Xin chào! Tôi là/).last()).toBeVisible();
       const input = page.getByPlaceholder(/Hỏi về luật BWF/);
       await input.fill('Luật giao cầu?');
       await input.press('Enter');

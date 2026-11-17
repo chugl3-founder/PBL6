@@ -225,6 +225,8 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
           const lastStroke = rally.strokeSequence?.[rally.strokeSequence.length - 1];
           const pending = isPending(rally);
           const outside = rally.afterMatch || rally.beforeMatch;
+          // A let or replayed rally: the AI saw no point won (winnerSide UNKNOWN).
+          const noPoint = !outside && !pending && winnerSide !== 'UPPER' && winnerSide !== 'LOWER';
 
           return (
             <li key={rally.id}>
@@ -238,14 +240,14 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                 }`}
               >
                 <span
-                  className={`w-1 self-stretch rounded-full ${outside || pending ? 'bg-ink/15' : winnerSide === 'UPPER' ? 'bg-pa' : 'bg-pb'}`}
+                  className={`w-1 self-stretch rounded-full ${outside || pending || noPoint ? 'bg-ink/15' : winnerSide === 'UPPER' ? 'bg-pa' : 'bg-pb'}`}
                   aria-hidden
                 />
                 <span className="flex-1 min-w-0">
                   <span className="flex items-baseline gap-2">
                     <span className="text-xs text-ink/65 tabular-nums w-10 shrink-0">Pha {rally.rallyNumber}</span>
                     <span className="text-sm font-semibold text-ink truncate">
-                      {outside ? 'Không tính điểm' : pending ? 'Đang xác định người ghi điểm' : `${winnerName} ghi điểm`}
+                      {outside ? 'Không tính điểm' : pending ? 'Đang xác định người ghi điểm' : noPoint ? 'Không ai ghi điểm' : `${winnerName} ghi điểm`}
                     </span>
                   </span>
                   <span className="flex items-baseline gap-2 text-xs text-ink/70">
