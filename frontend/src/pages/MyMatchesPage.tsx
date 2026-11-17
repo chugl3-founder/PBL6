@@ -175,10 +175,11 @@ const CourtPlaceholder: React.FC = () => (
   </svg>
 );
 
-const Thumb: React.FC<{ match: Match; className?: string }> = ({ match, className = '' }) => {
+/** className must set the position: "absolute inset-0" inside a sized box, or "relative aspect-video". */
+const Thumb: React.FC<{ match: Match; className: string }> = ({ match, className }) => {
   const thumb = thumbOf(match);
   return (
-    <div className={`relative overflow-hidden bg-ink ${className}`}>
+    <div className={`overflow-hidden bg-ink ${className}`}>
       {thumb ? <img src={thumb} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" /> : <CourtPlaceholder />}
     </div>
   );
@@ -245,7 +246,7 @@ const LiveAnalysisCard: React.FC<{ match: Match; status?: AnalysisStatus }> = ({
   return (
     <li className="rounded-xl bg-sheet border border-pb/25 shadow-sm p-4 flex flex-col sm:flex-row gap-4">
       <Link to={`/matches/${match.id}/replay`} className="relative shrink-0 sm:w-48 rounded-lg overflow-hidden" tabIndex={-1} aria-hidden>
-        <Thumb match={match} className="aspect-video" />
+        <Thumb match={match} className="relative aspect-video" />
         <span className="absolute inset-0 bg-ink/40 flex items-center justify-center">
           <span className="font-score text-3xl font-bold text-white tabular-nums drop-shadow">{percent}%</span>
         </span>
@@ -506,60 +507,38 @@ export const MyMatchesPage: React.FC = () => {
   }, [matchToDelete, isDeleting]);
 
   const hasMatches = matches.length > 0;
-  const stats = [
-    { label: 'Trận', value: numberFormat.format(totalOnServer), sub: counts.seconds ? `${humanMinutes(counts.seconds)} video` : null },
-    { label: 'Đã phân tích', value: numberFormat.format(counts.byGroup.ANALYZED), sub: hasMatches ? `${Math.round((counts.byGroup.ANALYZED * 100) / matches.length)}% số trận` : null },
-    { label: 'Pha cầu', value: numberFormat.format(counts.rallies), sub: null },
-    { label: 'Cú đánh', value: numberFormat.format(counts.strokes), sub: null },
-  ];
+  // One line of numbers under the title; zeros say nothing, so they are left out.
+  const summaryParts = [
+    `${numberFormat.format(totalOnServer)} trận`,
+    counts.seconds ? `${humanMinutes(counts.seconds)} video` : null,
+    counts.rallies ? `${numberFormat.format(counts.rallies)} pha cầu` : null,
+    counts.strokes ? `${numberFormat.format(counts.strokes)} cú đánh` : null,
+  ].filter(Boolean);
 
   /* ---- render */
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16 pt-4 font-vn">
-      {/* Hero: who we are looking at, the numbers, the one main action. */}
-      <header className="relative overflow-hidden rounded-2xl bg-mat text-white px-5 py-6 sm:px-8 sm:py-8">
-        <svg viewBox="0 0 600 200" className="absolute right-0 top-0 h-full opacity-[0.12] pointer-events-none" aria-hidden>
-          <rect x="180" y="20" width="400" height="160" fill="none" stroke="#fff" strokeWidth="3" />
-          <line x1="380" y1="20" x2="380" y2="180" stroke="#fff" strokeWidth="4" />
-          <line x1="180" y1="100" x2="580" y2="100" stroke="#fff" strokeWidth="2" />
-          <line x1="320" y1="20" x2="320" y2="180" stroke="#fff" strokeWidth="2" />
-          <line x1="440" y1="20" x2="440" y2="180" stroke="#fff" strokeWidth="2" />
-        </svg>
-        <div className="relative flex flex-wrap items-end gap-4">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/60">Thư viện của bạn</p>
-            <h1 className="text-2xl sm:text-3xl font-bold mt-1">Trận của tôi</h1>
-            <p className="text-sm text-white/75 mt-1 max-w-md">
-              Tải video trận đấu, để AI tìm từng cú đánh và pha cầu, rồi xem lại kèm thống kê.
-            </p>
-          </div>
-          <div className="ml-auto flex gap-2">
-            <button
-              type="button"
-              onClick={() => load(true)}
-              disabled={refreshing || loading}
-              className="inline-flex items-center gap-1.5 rounded-md px-3 h-10 text-sm font-medium bg-white/10 hover:bg-white/20 disabled:opacity-60"
-              title="Tải lại danh sách"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
-              <span className="hidden sm:inline">Làm mới</span>
-            </button>
-            <Link to="/matches/create" className="inline-flex items-center gap-1.5 rounded-md px-4 h-10 text-sm font-semibold bg-white text-mat hover:bg-pitch-soft">
-              <Plus className="w-4 h-4" aria-hidden /> Thêm trận
-            </Link>
-          </div>
+      <header className="flex flex-wrap items-end gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-ink">Trận của tôi</h1>
+          {!loading && hasMatches && <p className="text-sm text-ink/65 mt-1 tabular-nums">{summaryParts.join(' · ')}</p>}
         </div>
-
-        <dl className="relative grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-          {stats.map((s) => (
-            <div key={s.label} className="rounded-xl bg-white/[0.07] border border-white/10 px-4 py-3">
-              <dt className="text-xs text-white/65">{s.label}</dt>
-              <dd className="font-score text-3xl font-bold tabular-nums leading-tight">{loading ? '–' : s.value}</dd>
-              {s.sub && !loading && <dd className="text-xs text-white/55">{s.sub}</dd>}
-            </div>
-          ))}
-        </dl>
+        <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            onClick={() => load(true)}
+            disabled={refreshing || loading}
+            className="inline-flex items-center justify-center w-10 h-10 rounded-md border border-ink/15 text-ink/70 hover:text-ink hover:border-pitch/50 disabled:opacity-50"
+            title="Tải lại danh sách"
+            aria-label="Tải lại danh sách"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+          </button>
+          <Link to="/matches/create" className="inline-flex items-center gap-1.5 rounded-md px-4 h-10 text-sm font-semibold bg-pitch hover:bg-pitch-deep text-white">
+            <Plus className="w-4 h-4" aria-hidden /> Thêm trận
+          </Link>
+        </div>
       </header>
 
       {error && (
@@ -1007,7 +986,7 @@ const MatchRow: React.FC<ItemProps> = (props) => {
   return (
     <li className="flex items-center gap-4 p-3 hover:bg-ground/60 transition-colors">
       <Link to={step.to} className="relative shrink-0 w-32 rounded-md overflow-hidden" tabIndex={-1} aria-hidden>
-        <Thumb match={match} className="aspect-video" />
+        <Thumb match={match} className="relative aspect-video" />
         {duration && <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1 text-[11px] tabular-nums text-white">{duration}</span>}
       </Link>
       <Link to={step.to} className="flex-1 min-w-0 space-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pitch/40 rounded">
