@@ -2,10 +2,11 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from './types';
 import { PublicMatchesScreen } from '../screens/public/PublicMatchesScreen';
+import { PlayersScreen } from '../screens/players/PlayersScreen';
+import { CoachScreen } from '../screens/coach/CoachScreen';
 import { MyMatchesScreen } from '../screens/matches/MyMatchesScreen';
-import { CreateMatchScreen } from '../screens/matches/CreateMatchScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
-import { Globe, Video, PlusCircle, User } from 'lucide-react-native';
+import { Globe, Users, Bot, Video, User } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -14,27 +15,27 @@ export const BottomTabNavigator: React.FC = () => {
     <Tab.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#0b1424',
+          backgroundColor: '#ffffff',
           borderBottomWidth: 1,
-          borderBottomColor: '#1e3a5f',
+          borderBottomColor: '#e2e8f0',
         },
-        headerTintColor: '#ffffff',
+        headerTintColor: '#0f172a',
         headerTitleStyle: {
           fontWeight: '700',
-          fontSize: 17,
+          fontSize: 16,
         },
         tabBarStyle: {
-          backgroundColor: '#0b1424',
+          backgroundColor: '#ffffff',
           borderTopWidth: 1,
-          borderTopColor: '#1e3a5f',
+          borderTopColor: '#e2e8f0',
           height: 60,
           paddingBottom: 8,
           paddingTop: 6,
         },
-        tabBarActiveTintColor: '#38bdf8',
+        tabBarActiveTintColor: '#059669',
         tabBarInactiveTintColor: '#64748b',
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
         },
       }}
@@ -44,8 +45,27 @@ export const BottomTabNavigator: React.FC = () => {
         component={PublicMatchesScreen}
         options={{
           title: 'Khám phá',
-          headerTitle: 'Badminton AI Platform',
+          headerTitle: 'BadmintonAI Platform',
           tabBarIcon: ({ color, size }) => <Globe color={color} size={size - 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="Players"
+        component={PlayersScreen}
+        options={{
+          title: 'Tuyển thủ',
+          headerTitle: 'Vận Động Viên Hàng Đầu',
+          tabBarIcon: ({ color, size }) => <Users color={color} size={size - 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="Coach"
+        component={CoachScreen}
+        options={{
+          title: 'HLV AI',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => <Bot color={color} size={size} />,
+          tabBarActiveTintColor: '#059669',
         }}
       />
       <Tab.Screen
@@ -58,19 +78,10 @@ export const BottomTabNavigator: React.FC = () => {
         }}
       />
       <Tab.Screen
-        name="CreateMatchTab"
-        component={CreateMatchScreen}
-        options={{
-          title: 'Tạo mới',
-          headerTitle: 'Tạo Trận Đấu Mới',
-          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size - 2} />,
-        }}
-      />
-      <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
-          title: 'Hồ sơ',
+          title: 'Cá nhân',
           headerTitle: 'Hồ Sơ Của Bạn',
           tabBarIcon: ({ color, size }) => <User color={color} size={size - 2} />,
         }}
@@ -78,4 +89,3 @@ export const BottomTabNavigator: React.FC = () => {
     </Tab.Navigator>
   );
 };
-

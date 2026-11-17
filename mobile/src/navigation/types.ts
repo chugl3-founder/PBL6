@@ -2,8 +2,9 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type MainTabParamList = {
   PublicMatches: undefined;
+  Players: undefined;
+  Coach: undefined;
   MyMatches: undefined;
-  CreateMatchTab: undefined;
   Profile: undefined;
 };
 
@@ -22,6 +23,9 @@ export type RootStackParamList = {
     title?: string;
     playerAName?: string;
     playerBName?: string;
+  };
+  PlayerProfile: {
+    name: string;
   };
   CreateMatch: undefined;
 };

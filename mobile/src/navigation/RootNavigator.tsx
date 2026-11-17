@@ -7,6 +7,7 @@ import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { MatchReplayScreen } from '../screens/replay/MatchReplayScreen';
 import { MatchStatisticsScreen } from '../screens/stats/MatchStatisticsScreen';
 import { CreateMatchScreen } from '../screens/matches/CreateMatchScreen';
+import { PlayerProfileScreen } from '../screens/players/PlayerProfileScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -15,11 +16,11 @@ export const RootNavigator: React.FC = () => {
     <Stack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#0b1424',
+          backgroundColor: '#ffffff',
         },
-        headerTintColor: '#ffffff',
+        headerTintColor: '#0f172a',
         contentStyle: {
-          backgroundColor: '#0b1424',
+          backgroundColor: '#f8fafc',
         },
       }}
     >
@@ -55,14 +56,20 @@ export const RootNavigator: React.FC = () => {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="PlayerProfile"
+        component={PlayerProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="CreateMatch"
         component={CreateMatchScreen}
         options={{
           title: 'Tạo Trận Đấu Mới',
           headerBackTitle: 'Quay lại',
+          headerStyle: { backgroundColor: '#ffffff' },
+          headerTintColor: '#0f172a',
         }}
       />
     </Stack.Navigator>
   );
 };
-
