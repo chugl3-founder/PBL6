@@ -9,22 +9,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
-import { LogIn, Mail, Lock, Sparkles, ArrowRight } from 'lucide-react-native';
+import { Mail, Lock, Sparkles, ArrowRight, X, Eye, EyeOff, AlertCircle } from 'lucide-react-native';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
+  const insets = useSafeAreaInsets();
   const { login } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -42,7 +44,7 @@ export const LoginScreen: React.FC = () => {
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||
-        'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin!';
+        'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu!';
       setErrorMessage(msg);
     } finally {
       setSubmitting(false);
@@ -54,37 +56,60 @@ export const LoginScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* Header Logo */}
+      {/* Top Close Bar */}
+      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) }]}>
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <X color="#64748b" size={20} />
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle}>Đăng Nhập</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Brand Card */}
         <View style={styles.header}>
-          <View style={styles.iconCircle}>
-            <Sparkles color="#38bdf8" size={32} />
+          <View style={styles.logoBadge}>
+            <Sparkles color="#059669" size={28} />
           </View>
           <Text style={styles.title}>Badminton AI</Text>
-          <Text style={styles.subtitle}>Đăng nhập để xem trọn vẹn và phân tích trận đấu</Text>
+          <Text style={styles.subtitle}>
+            Xem lại các trận đã tải lên và từng pha cầu AI đã bóc tách chuyên sâu.
+          </Text>
         </View>
 
         {/* Error Alert */}
         {errorMessage ? (
           <View style={styles.errorBox}>
+            <AlertCircle color="#ef4444" size={18} style={{ marginRight: 8 }} />
             <Text style={styles.errorText}>{errorMessage}</Text>
           </View>
         ) : null}
 
-        {/* Form Fields */}
-        <View style={styles.form}>
+        {/* Form Container */}
+        <View style={styles.formCard}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email</Text>
             <View style={styles.inputWrapper}>
-              <Mail color="#94a3b8" size={18} style={styles.inputIcon} />
+              <Mail color="#64748b" size={18} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="tenban@example.com"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(val) => {
+                  setEmail(val);
+                  if (errorMessage) setErrorMessage(null);
+                }}
               />
             </View>
           </View>
@@ -92,15 +117,28 @@ export const LoginScreen: React.FC = () => {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Mật khẩu</Text>
             <View style={styles.inputWrapper}>
-              <Lock color="#94a3b8" size={18} style={styles.inputIcon} />
+              <Lock color="#64748b" size={18} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="••••••••"
-                placeholderTextColor="#64748b"
-                secureTextEntry
+                placeholderTextColor="#94a3b8"
+                secureTextEntry={!showPassword}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(val) => {
+                  setPassword(val);
+                  if (errorMessage) setErrorMessage(null);
+                }}
               />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                {showPassword ? (
+                  <EyeOff color="#94a3b8" size={18} />
+                ) : (
+                  <Eye color="#94a3b8" size={18} />
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -109,9 +147,10 @@ export const LoginScreen: React.FC = () => {
             style={[styles.submitButton, submitting && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={submitting}
+            activeOpacity={0.85}
           >
             {submitting ? (
-              <ActivityIndicator color="#ffffff" />
+              <ActivityIndicator color="#ffffff" size="small" />
             ) : (
               <>
                 <Text style={styles.submitButtonText}>Đăng Nhập</Text>
@@ -130,8 +169,12 @@ export const LoginScreen: React.FC = () => {
         </View>
 
         {/* Guest Return Button */}
-        <TouchableOpacity style={styles.guestButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.guestButtonText}>Tiếp tục với chế độ Khách vãng lai</Text>
+        <TouchableOpacity
+          style={styles.guestButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.guestButtonText}>Tiếp tục xem thử với chế độ Khách vãng lai</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -141,71 +184,106 @@ export const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0b1424',
+    backgroundColor: '#f8fafc',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingTop: 24,
     paddingBottom: 40,
-    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#13233e',
-    borderWidth: 1,
-    borderColor: '#1e3a5f',
+  logoBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1.5,
+    borderColor: '#a7f3d0',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: 0.5,
+    color: '#0f172a',
+    letterSpacing: 0.3,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#94a3b8',
+    fontSize: 13,
+    color: '#64748b',
     textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
-    paddingHorizontal: 12,
+    marginTop: 6,
+    lineHeight: 18,
+    paddingHorizontal: 16,
   },
   errorBox: {
-    backgroundColor: '#451a1a',
-    borderColor: '#f87171',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderColor: '#fca5a5',
     borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
   },
   errorText: {
-    color: '#fca5a5',
+    flex: 1,
+    color: '#b91c1c',
     fontSize: 13,
-    textAlign: 'center',
+    fontWeight: '500',
   },
-  form: {
-    gap: 18,
+  formCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 18,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 16,
   },
   inputGroup: {},
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#e2e8f0',
-    marginBottom: 8,
+    color: '#334155',
+    marginBottom: 6,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 14,
@@ -216,28 +294,28 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 15,
   },
   submitButton: {
-    backgroundColor: '#0284c7',
+    backgroundColor: '#059669',
     borderRadius: 12,
-    height: 50,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    shadowColor: '#0284c7',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 4,
+    marginTop: 6,
+    shadowColor: '#059669',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 2,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   submitButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   footer: {
@@ -246,17 +324,18 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 14,
   },
   footerLink: {
-    color: '#38bdf8',
+    color: '#059669',
     fontSize: 14,
     fontWeight: '700',
   },
   guestButton: {
-    marginTop: 20,
+    marginTop: 18,
     alignItems: 'center',
+    paddingVertical: 8,
   },
   guestButtonText: {
     color: '#64748b',
@@ -264,4 +343,3 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
 });
-

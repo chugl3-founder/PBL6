@@ -17,6 +17,9 @@ export interface RegisterRequest {
   fullName: string;
   email: string;
   password: string;
+  badmintonLevel?: string;
+  gender?: string;
+  age?: number;
 }
 
 export interface AuthResponse {

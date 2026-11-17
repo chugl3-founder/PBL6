@@ -20,7 +20,6 @@ import {
   Shield,
   Server,
   Sparkles,
-  Info,
 } from 'lucide-react-native';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -47,7 +46,7 @@ export const ProfileScreen: React.FC = () => {
       {/* Header Profile Card */}
       <View style={styles.profileCard}>
         <View style={styles.avatarCircle}>
-          <UserIcon color="#ffffff" size={36} />
+          <UserIcon color="#059669" size={36} />
         </View>
 
         {user ? (
@@ -55,7 +54,7 @@ export const ProfileScreen: React.FC = () => {
             <Text style={styles.userName}>{user.fullName}</Text>
             <Text style={styles.userEmail}>{user.email}</Text>
             <View style={styles.roleBadge}>
-              <Shield color="#38bdf8" size={12} />
+              <Shield color="#059669" size={12} />
               <Text style={styles.roleText}>{user.role || 'ROLE_USER'}</Text>
             </View>
           </>
@@ -63,8 +62,8 @@ export const ProfileScreen: React.FC = () => {
           <>
             <Text style={styles.userName}>Khách Vãng Lai</Text>
             <Text style={styles.userEmail}>Chưa đăng nhập</Text>
-            <View style={[styles.roleBadge, { backgroundColor: 'rgba(251, 191, 36, 0.15)' }]}>
-              <Text style={[styles.roleText, { color: '#fbbf24' }]}>Giới hạn 5 phút/trận</Text>
+            <View style={[styles.roleBadge, { backgroundColor: '#fef3c7', borderColor: '#fde68a' }]}>
+              <Text style={[styles.roleText, { color: '#b45309' }]}>Giới hạn 5 phút/trận</Text>
             </View>
           </>
         )}
@@ -91,14 +90,14 @@ export const ProfileScreen: React.FC = () => {
               style={styles.registerBtn}
               onPress={() => navigation.navigate('Register')}
             >
-              <UserPlus color="#38bdf8" size={16} />
+              <UserPlus color="#059669" size={16} />
               <Text style={styles.registerBtnText}>Đăng Ký</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <LogOut color="#ef4444" size={18} />
+          <LogOut color="#dc2626" size={18} />
           <Text style={styles.logoutText}>Đăng Xuất Tài Khoản</Text>
         </TouchableOpacity>
       )}
@@ -106,7 +105,7 @@ export const ProfileScreen: React.FC = () => {
       {/* Server & System Connection Info */}
       <View style={styles.infoCard}>
         <View style={styles.infoTitleRow}>
-          <Server color="#38bdf8" size={16} />
+          <Server color="#0284c7" size={16} />
           <Text style={styles.infoTitle}>Thông Tin Kết Nối Máy Chủ</Text>
         </View>
 
@@ -116,20 +115,20 @@ export const ProfileScreen: React.FC = () => {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>MinIO Storage:</Text>
-          <Text style={styles.infoValue}>{ENV.STORAGE_BASE_URL}</Text>
+          <Text style={styles.infoLabel}>AI Coach Service:</Text>
+          <Text style={styles.infoValue}>{ENV.COACH_API_URL}</Text>
         </View>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Phiên bản Mobile:</Text>
-          <Text style={styles.infoValue}>v1.0.0 (Expo SDK 52)</Text>
+          <Text style={styles.infoValue}>v1.0.0 (Expo SDK 58)</Text>
         </View>
       </View>
 
       {/* App Information */}
       <View style={styles.appInfoCard}>
         <View style={styles.infoTitleRow}>
-          <Sparkles color="#34d399" size={16} />
+          <Sparkles color="#d97706" size={16} />
           <Text style={styles.infoTitle}>Về Badminton AI Platform</Text>
         </View>
         <Text style={styles.appDesc}>
@@ -143,44 +142,52 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0b1424',
+    backgroundColor: '#f8fafc',
   },
   content: {
     padding: 16,
-    gap: 16,
+    gap: 14,
     paddingBottom: 40,
   },
   profileCard: {
-    backgroundColor: '#122340',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   avatarCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#0284c7',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
   userName: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 18,
     fontWeight: '800',
   },
   userEmail: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 13,
     marginTop: 4,
   },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+    borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -188,25 +195,29 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   roleText: {
-    color: '#38bdf8',
+    color: '#059669',
     fontSize: 11,
     fontWeight: '700',
   },
   guestActionBox: {
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
     borderRadius: 16,
     padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   guestActionTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 6,
   },
   guestActionDesc: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 12,
     lineHeight: 18,
     marginBottom: 16,
@@ -220,7 +231,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0284c7',
+    backgroundColor: '#059669',
     borderRadius: 10,
     height: 44,
     gap: 6,
@@ -235,15 +246,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+    borderWidth: 1,
     borderRadius: 10,
     height: 44,
     gap: 6,
-    borderColor: '#38bdf8',
-    borderWidth: 1,
   },
   registerBtnText: {
-    color: '#38bdf8',
+    color: '#059669',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -251,64 +262,70 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
     borderWidth: 1,
     borderRadius: 12,
-    height: 48,
+    height: 46,
     gap: 8,
   },
   logoutText: {
-    color: '#ef4444',
+    color: '#dc2626',
     fontSize: 14,
     fontWeight: '700',
   },
   infoCard: {
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
     borderRadius: 16,
     padding: 16,
-    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  appInfoCard: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   infoTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 12,
   },
   infoTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '700',
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   infoLabel: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 12,
   },
   infoValue: {
-    color: '#e2e8f0',
+    color: '#1e293b',
     fontSize: 12,
-    fontFamily: 'monospace',
     fontWeight: '600',
   },
-  appInfoCard: {
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-  },
   appDesc: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 12,
     lineHeight: 18,
-    marginTop: 6,
   },
 });
-

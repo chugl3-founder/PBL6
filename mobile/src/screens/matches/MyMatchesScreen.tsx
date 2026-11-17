@@ -26,7 +26,7 @@ import {
   LogIn,
   CheckCircle,
   AlertCircle,
-  Loader,
+  PlusCircle,
 } from 'lucide-react-native';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -50,8 +50,12 @@ export const MyMatchesScreen: React.FC = () => {
     try {
       const data = await matchApi.getMyMatches(0, 30);
       setMatches(data);
-    } catch (err) {
-      console.error('Lỗi khi tải trận đấu của tôi:', err);
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        setMatches([]);
+      } else {
+        console.warn('Lỗi khi tải trận đấu của tôi:', err?.message || err);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -86,46 +90,52 @@ export const MyMatchesScreen: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'COMPLETED':
+      case 'ANALYZED':
         return (
-          <View style={[styles.statusBadge, { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]}>
-            <CheckCircle color="#34d399" size={12} />
-            <Text style={[styles.statusText, { color: '#34d399' }]}>Đã phân tích</Text>
+          <View style={[styles.statusBadge, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
+            <CheckCircle color="#059669" size={12} />
+            <Text style={[styles.statusText, { color: '#059669' }]}>Đã phân tích</Text>
           </View>
         );
       case 'PROCESSING':
         return (
-          <View style={[styles.statusBadge, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
-            <ActivityIndicator size="small" color="#38bdf8" style={{ transform: [{ scale: 0.6 }] }} />
-            <Text style={[styles.statusText, { color: '#38bdf8' }]}>Đang phân tích AI...</Text>
+          <View style={[styles.statusBadge, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
+            <ActivityIndicator size="small" color="#0284c7" style={{ transform: [{ scale: 0.6 }] }} />
+            <Text style={[styles.statusText, { color: '#0284c7' }]}>Đang phân tích...</Text>
           </View>
         );
       case 'FAILED':
         return (
-          <View style={[styles.statusBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-            <AlertCircle color="#ef4444" size={12} />
-            <Text style={[styles.statusText, { color: '#ef4444' }]}>Thất bại</Text>
+          <View style={[styles.statusBadge, { backgroundColor: '#fef2f2', borderColor: '#fecaca' }]}>
+            <AlertCircle color="#dc2626" size={12} />
+            <Text style={[styles.statusText, { color: '#dc2626' }]}>Thất bại</Text>
+          </View>
+        );
+      case 'READY':
+        return (
+          <View style={[styles.statusBadge, { backgroundColor: '#fef3c7', borderColor: '#fde68a' }]}>
+            <Clock color="#d97706" size={12} />
+            <Text style={[styles.statusText, { color: '#d97706' }]}>Sẵn sàng phân tích</Text>
           </View>
         );
       default:
         return (
-          <View style={[styles.statusBadge, { backgroundColor: 'rgba(251, 191, 36, 0.15)' }]}>
-            <Clock color="#fbbf24" size={12} />
-            <Text style={[styles.statusText, { color: '#fbbf24' }]}>Chờ phân tích</Text>
+          <View style={[styles.statusBadge, { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' }]}>
+            <Text style={[styles.statusText, { color: '#64748b' }]}>{status}</Text>
           </View>
         );
     }
   };
 
-  // Nếu chưa đăng nhập -> Hiển thị màn hình giới thiệu & nút Đăng nhập
   if (!user) {
     return (
       <View style={styles.centerContainer}>
         <View style={styles.lockBox}>
-          <Lock color="#38bdf8" size={36} />
+          <Lock color="#059669" size={32} />
         </View>
-        <Text style={styles.unauthTitle}>Quản Lý Trận Đấu Của Bạn</Text>
+        <Text style={styles.unauthTitle}>Yêu Cầu Đăng Nhập</Text>
         <Text style={styles.unauthDesc}>
-          Đăng nhập để tải lên video trận đấu cá nhân, yêu cầu AI phân tích và lưu trữ lịch sử trận đấu của bạn.
+          Đăng nhập vào tài khoản của bạn để quản lý các trận đấu cá nhân, tải video lên và xem phân tích chiến thuật chi tiết.
         </Text>
         <TouchableOpacity
           style={styles.loginBtn}
@@ -138,124 +148,142 @@ export const MyMatchesScreen: React.FC = () => {
     );
   }
 
+  const renderItem = ({ item }: { item: MatchData }) => {
+    const isAnalyzed = item.status === 'COMPLETED' || item.status === 'ANALYZED';
+    const isReady = item.status === 'READY';
+    const isProcessing = item.status === 'PROCESSING';
+
+    return (
+      <View style={styles.matchCard}>
+        {/* Header: Title & Status */}
+        <View style={styles.cardHeaderRow}>
+          <Text style={styles.matchTitle} numberOfLines={1}>
+            {item.title || `${item.playerAName} vs ${item.playerBName}`}
+          </Text>
+          {getStatusBadge(item.status)}
+        </View>
+
+        {/* Players */}
+        <View style={styles.matchPlayersRow}>
+          <Text style={styles.playersText}>{item.playerAName}</Text>
+          <Text style={styles.vs}>VS</Text>
+          <Text style={styles.playersText}>{item.playerBName}</Text>
+        </View>
+
+        {/* Date and Court */}
+        <View style={styles.metaRow}>
+          <Text style={styles.dateText}>
+            {item.matchDate ? new Date(item.matchDate).toLocaleDateString('vi-VN') : 'Hôm nay'}
+          </Text>
+          {item.totalStrokes ? (
+            <Text style={styles.dateText}>• {item.totalStrokes} cú đánh</Text>
+          ) : null}
+        </View>
+
+        {/* Actions */}
+        <View style={styles.cardActions}>
+          {isAnalyzed ? (
+            <>
+              <TouchableOpacity
+                style={styles.actionBtnPrimary}
+                onPress={() =>
+                  navigation.navigate('MatchReplay', {
+                    matchId: item.id,
+                    isPublic: false,
+                    title: item.title || `${item.playerAName} vs ${item.playerBName}`,
+                  })
+                }
+              >
+                <Play color="#ffffff" size={14} fill="#ffffff" />
+                <Text style={styles.actionBtnPrimaryText}>Xem Replay</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionBtnSecondary}
+                onPress={() =>
+                  navigation.navigate('MatchStatistics', {
+                    matchId: item.id,
+                    isPublic: false,
+                    title: item.title || `${item.playerAName} vs ${item.playerBName}`,
+                    playerAName: item.playerAName,
+                    playerBName: item.playerBName,
+                  })
+                }
+              >
+                <BarChart2 color="#059669" size={14} />
+                <Text style={styles.actionBtnSecondaryText}>Thống kê</Text>
+              </TouchableOpacity>
+            </>
+          ) : isReady ? (
+            <TouchableOpacity
+              style={[styles.actionBtnAi, triggeringId === item.id && styles.buttonDisabled]}
+              disabled={triggeringId === item.id}
+              onPress={() => handleTriggerAnalysis(item.id)}
+            >
+              {triggeringId === item.id ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Sparkles color="#ffffff" size={14} />
+                  <Text style={styles.actionBtnAiText}>Bắt đầu Phân Tích AI</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : isProcessing ? (
+            <View style={styles.processingBar}>
+              <ActivityIndicator size="small" color="#0284c7" />
+              <Text style={styles.processingText}>GPU AI đang phân tích video...</Text>
+            </View>
+          ) : (
+            <Text style={styles.pendingText}>Đang chuẩn bị video...</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Trận Đấu Của Tôi</Text>
-          <Text style={styles.headerSubtitle}>Quản lý {matches.length} video trận đấu cá nhân</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.createBtn}
-          onPress={() => navigation.navigate('CreateMatch')}
-        >
-          <Plus color="#ffffff" size={18} />
-          <Text style={styles.createBtnText}>Tạo mới</Text>
-        </TouchableOpacity>
-      </View>
-
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#0284c7" />
+          <ActivityIndicator size="large" color="#059669" />
           <Text style={styles.loadingText}>Đang tải danh sách trận đấu...</Text>
         </View>
       ) : (
         <FlatList
           data={matches}
+          renderItem={renderItem}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#38bdf8"
-              colors={['#0284c7']}
+              tintColor="#059669"
+              colors={['#059669']}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Video color="#475569" size={48} />
+              <Video color="#cbd5e1" size={48} />
               <Text style={styles.emptyTitle}>Chưa có trận đấu nào</Text>
               <Text style={styles.emptyDesc}>
-                Nhấn vào nút "Tạo mới" ở trên để thêm trận đấu đầu tiên của bạn!
+                Bấm vào nút "Tạo Trận Đấu Mới" bên dưới để tải video lên và phân tích chiến thuật!
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <View style={styles.matchCard}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.matchTitle} numberOfLines={1}>
-                  {item.title || `${item.playerAName} vs ${item.playerBName}`}
-                </Text>
-                {getStatusBadge(item.status)}
-              </View>
-
-              <View style={styles.matchPlayersRow}>
-                <Text style={styles.playersText}>
-                  {item.playerAName} <Text style={styles.vs}>VS</Text> {item.playerBName}
-                </Text>
-                <Text style={styles.dateText}>{item.matchDate || 'Hôm nay'}</Text>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.cardActions}>
-                {item.status === 'COMPLETED' ? (
-                  <>
-                    <TouchableOpacity
-                      style={styles.actionBtnPrimary}
-                      onPress={() =>
-                        navigation.navigate('MatchReplay', {
-                          matchId: item.id,
-                          isPublic: false,
-                          title: item.title || undefined,
-                        })
-                      }
-                    >
-                      <Play color="#ffffff" size={14} fill="#ffffff" />
-                      <Text style={styles.actionBtnPrimaryText}>Xem lại & AI</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionBtnSecondary}
-                      onPress={() =>
-                        navigation.navigate('MatchStatistics', {
-                          matchId: item.id,
-                          isPublic: false,
-                          title: item.title || undefined,
-                          playerAName: item.playerAName,
-                          playerBName: item.playerBName,
-                        })
-                      }
-                    >
-                      <BarChart2 color="#38bdf8" size={14} />
-                      <Text style={styles.actionBtnSecondaryText}>Thống kê</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionBtnAi,
-                      triggeringId === item.id && styles.buttonDisabled,
-                    ]}
-                    disabled={triggeringId === item.id}
-                    onPress={() => handleTriggerAnalysis(item.id)}
-                  >
-                    {triggeringId === item.id ? (
-                      <ActivityIndicator size="small" color="#ffffff" />
-                    ) : (
-                      <>
-                        <Sparkles color="#ffffff" size={14} />
-                        <Text style={styles.actionBtnAiText}>Phân tích bằng AI</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )}
         />
       )}
+
+      {/* FLOATING ACTION BUTTON */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('CreateMatch')}
+        activeOpacity={0.85}
+      >
+        <Plus color="#ffffff" size={24} />
+        <Text style={styles.fabText}>Tạo trận mới</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -263,59 +291,33 @@ export const MyMatchesScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0b1424',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-  },
-  headerTitle: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  headerSubtitle: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  createBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0284c7',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 4,
-  },
-  createBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
+    backgroundColor: '#f8fafc',
   },
   listContent: {
     padding: 16,
-    gap: 14,
+    paddingBottom: 90,
+    gap: 12,
   },
   matchCard: {
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
     borderRadius: 16,
-    padding: 14,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 12,
   },
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   matchTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 15,
     fontWeight: '700',
     flex: 1,
@@ -327,6 +329,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
+    borderWidth: 1,
     gap: 4,
   },
   statusText: {
@@ -337,17 +340,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   playersText: {
-    color: '#cbd5e1',
+    color: '#1e293b',
     fontSize: 13,
     fontWeight: '600',
   },
   vs: {
-    color: '#38bdf8',
+    color: '#059669',
     fontWeight: '800',
     fontSize: 11,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
   },
   dateText: {
     color: '#64748b',
@@ -357,7 +371,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     borderTopWidth: 1,
-    borderTopColor: '#1e3a5f',
+    borderTopColor: '#f1f5f9',
     paddingTop: 10,
   },
   actionBtnPrimary: {
@@ -365,8 +379,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0284c7',
-    paddingVertical: 8,
+    backgroundColor: '#059669',
+    paddingVertical: 9,
     borderRadius: 8,
     gap: 6,
   },
@@ -379,84 +393,106 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+    borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: 8,
     gap: 4,
   },
   actionBtnSecondaryText: {
-    color: '#38bdf8',
+    color: '#059669',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   actionBtnAi: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#8b5cf6',
-    paddingVertical: 8,
+    backgroundColor: '#059669',
+    paddingVertical: 10,
     borderRadius: 8,
     gap: 6,
   },
   actionBtnAiText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  processingBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eff6ff',
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 8,
+  },
+  processingText: {
+    color: '#0284c7',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pendingText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontStyle: 'italic',
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: '#0b1424',
+    backgroundColor: '#f8fafc',
   },
   loadingText: {
-    color: '#94a3b8',
+    color: '#64748b',
     marginTop: 12,
     fontSize: 14,
   },
   lockBox: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   unauthTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 8,
     textAlign: 'center',
   },
   unauthDesc: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 19,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   loginBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0284c7',
+    backgroundColor: '#059669',
     borderRadius: 12,
     paddingHorizontal: 24,
-    height: 48,
+    height: 46,
   },
   loginBtnText: {
     color: '#ffffff',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   emptyContainer: {
@@ -465,16 +501,37 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 16,
     fontWeight: '700',
     marginTop: 8,
   },
   emptyDesc: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 13,
     textAlign: 'center',
     paddingHorizontal: 32,
+    lineHeight: 18,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  fabText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
-

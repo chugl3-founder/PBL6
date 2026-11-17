@@ -22,7 +22,6 @@ import {
   FileText,
   Lock,
   Globe,
-  Sparkles,
   ArrowRight,
   Video,
   UploadCloud,
@@ -184,11 +183,11 @@ export const CreateMatchScreen: React.FC = () => {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <View style={styles.iconCircle}>
-          <Plus color="#38bdf8" size={28} />
+          <Video color="#059669" size={28} />
         </View>
-        <Text style={styles.title}>Tạo & Tải Lên Trận Đấu</Text>
+        <Text style={styles.title}>Tạo Trận Đấu Mới</Text>
         <Text style={styles.subtitle}>
-          Khởi tạo hồ sơ trận đấu và tải lên video từ điện thoại để AI phân tích
+          Tải video trận đấu lên hệ thống để AI tự động trích xuất các pha cầu và phân tích chuyên sâu
         </Text>
       </View>
 
@@ -198,60 +197,56 @@ export const CreateMatchScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Khu vực Chọn & Upload Video */}
+      {/* Video Selection Section */}
       <View style={styles.videoSection}>
-        <Text style={styles.sectionTitle}>Video Trận Đấu</Text>
+        <Text style={styles.sectionTitle}>Video Trận Đấu (MP4)</Text>
 
         {!selectedVideo ? (
           <TouchableOpacity
             style={styles.uploadPlaceholder}
             onPress={handlePickVideo}
             disabled={submitting}
-            activeOpacity={0.7}
           >
             <View style={styles.uploadIconCircle}>
-              <UploadCloud color="#38bdf8" size={28} />
+              <UploadCloud color="#059669" size={26} />
             </View>
-            <Text style={styles.uploadMainText}>Chọn video trận đấu từ thiết bị</Text>
+            <Text style={styles.uploadMainText}>Chạm để chọn video từ thiết bị</Text>
             <Text style={styles.uploadSubText}>
-              Định dạng hỗ trợ: MP4, MOV (Quay góc camera cố định sau lưng sân)
+              Định dạng MP4 được hỗ trợ tối ưu cho tiến trình AI
             </Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.selectedVideoCard}>
             <View style={styles.videoCardHeader}>
               <View style={styles.videoIconBox}>
-                <Video color="#38bdf8" size={22} />
+                <Video color="#059669" size={20} />
               </View>
               <View style={styles.videoMetaDetails}>
                 <Text style={styles.videoFileName} numberOfLines={1}>
                   {selectedVideo.fileName}
                 </Text>
                 <View style={styles.videoMetaRow}>
-                  {selectedVideo.fileSize ? (
+                  {selectedVideo.fileSize && (
                     <View style={styles.metaBadge}>
-                      <HardDrive color="#94a3b8" size={11} style={{ marginRight: 3 }} />
-                      <Text style={styles.metaBadgeText}>
-                        {formatFileSize(selectedVideo.fileSize)}
-                      </Text>
+                      <HardDrive color="#64748b" size={11} style={{ marginRight: 3 }} />
+                      <Text style={styles.metaBadgeText}>{formatFileSize(selectedVideo.fileSize)}</Text>
                     </View>
-                  ) : null}
-                  {selectedVideo.duration ? (
+                  )}
+                  {selectedVideo.duration && (
                     <View style={styles.metaBadge}>
-                      <Clock color="#94a3b8" size={11} style={{ marginRight: 3 }} />
-                      <Text style={styles.metaBadgeText}>
-                        {formatVideoDuration(selectedVideo.duration)}
-                      </Text>
+                      <Clock color="#64748b" size={11} style={{ marginRight: 3 }} />
+                      <Text style={styles.metaBadgeText}>{formatVideoDuration(selectedVideo.duration)}</Text>
                     </View>
-                  ) : null}
+                  )}
                 </View>
               </View>
+
               {!submitting && (
                 <TouchableOpacity
                   style={styles.removeVideoBtn}
                   onPress={handleRemoveVideo}
                 >
-                  <X color="#ef4444" size={18} />
+                  <X color="#dc2626" size={18} />
                 </TouchableOpacity>
               )}
             </View>
@@ -285,7 +280,7 @@ export const CreateMatchScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               placeholder="VD: Chung kết Toàn Anh 2026"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
               value={title}
               onChangeText={setTitle}
               editable={!submitting}
@@ -296,11 +291,11 @@ export const CreateMatchScreen: React.FC = () => {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Vận động viên A (Sân trên / Xa camera) *</Text>
           <View style={styles.inputWrapper}>
-            <User color="#38bdf8" size={18} style={styles.icon} />
+            <User color="#0284c7" size={18} style={styles.icon} />
             <TextInput
               style={styles.input}
               placeholder="VD: Viktor Axelsen"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
               value={playerAName}
               onChangeText={setPlayerAName}
               editable={!submitting}
@@ -311,11 +306,11 @@ export const CreateMatchScreen: React.FC = () => {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Vận động viên B (Sân dưới / Gần camera) *</Text>
           <View style={styles.inputWrapper}>
-            <User color="#34d399" size={18} style={styles.icon} />
+            <User color="#059669" size={18} style={styles.icon} />
             <TextInput
               style={styles.input}
               placeholder="VD: Shi Yuqi"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
               value={playerBName}
               onChangeText={setPlayerBName}
               editable={!submitting}
@@ -330,7 +325,7 @@ export const CreateMatchScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               placeholder="VD: Sân số 1 - Sân Cầu Lông ĐH Bách Khoa"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
               value={courtName}
               onChangeText={setCourtName}
               editable={!submitting}
@@ -342,7 +337,7 @@ export const CreateMatchScreen: React.FC = () => {
         <View style={styles.switchRow}>
           <View style={styles.switchInfo}>
             <View style={styles.switchTitleRow}>
-              {isPublic ? <Globe color="#38bdf8" size={16} /> : <Lock color="#94a3b8" size={16} />}
+              {isPublic ? <Globe color="#059669" size={16} /> : <Lock color="#64748b" size={16} />}
               <Text style={styles.switchTitle}>
                 {isPublic ? 'Trận đấu công khai' : 'Trận đấu riêng tư'}
               </Text>
@@ -356,8 +351,8 @@ export const CreateMatchScreen: React.FC = () => {
           <Switch
             value={isPublic}
             onValueChange={setIsPublic}
-            trackColor={{ false: '#334155', true: '#0284c7' }}
-            thumbColor="#ffffff"
+            trackColor={{ false: '#cbd5e1', true: '#a7f3d0' }}
+            thumbColor={isPublic ? '#059669' : '#f1f5f9'}
             disabled={submitting}
           />
         </View>
@@ -392,10 +387,10 @@ export const CreateMatchScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0b1424',
+    backgroundColor: '#f8fafc',
   },
   content: {
-    padding: 20,
+    padding: 16,
     paddingBottom: 40,
   },
   header: {
@@ -406,50 +401,51 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
-    borderWidth: 1,
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   title: {
-    color: '#ffffff',
-    fontSize: 22,
+    color: '#0f172a',
+    fontSize: 20,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#94a3b8',
-    fontSize: 13,
+    color: '#64748b',
+    fontSize: 12,
     textAlign: 'center',
-    marginTop: 6,
-    paddingHorizontal: 16,
+    marginTop: 4,
+    paddingHorizontal: 12,
+    lineHeight: 18,
   },
   errorBox: {
-    backgroundColor: '#451a1a',
-    borderColor: '#f87171',
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   errorText: {
-    color: '#fca5a5',
+    color: '#dc2626',
     fontSize: 13,
     textAlign: 'center',
   },
   videoSection: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   sectionTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 8,
   },
   uploadPlaceholder: {
-    backgroundColor: '#13233e',
-    borderColor: '#0284c7',
+    backgroundColor: '#ffffff',
+    borderColor: '#059669',
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderRadius: 16,
@@ -458,32 +454,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   uploadIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#ecfdf5',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   uploadMainText: {
-    color: '#38bdf8',
+    color: '#059669',
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 4,
   },
   uploadSubText: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 11,
     textAlign: 'center',
     paddingHorizontal: 16,
   },
   selectedVideoCard: {
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
     borderRadius: 16,
     padding: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   videoCardHeader: {
     flexDirection: 'row',
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 10,
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    backgroundColor: '#ecfdf5',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   videoFileName: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 4,
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metaBadgeText: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 11,
     fontFamily: 'monospace',
   },
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
   progressContainer: {
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#1e3a5f',
+    borderTopColor: '#f1f5f9',
     paddingTop: 10,
   },
   progressHeaderRow: {
@@ -536,32 +536,32 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   progressStatusText: {
-    color: '#38bdf8',
+    color: '#059669',
     fontSize: 12,
     fontWeight: '600',
   },
   progressPercentText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 12,
     fontWeight: '700',
     fontFamily: 'monospace',
   },
   progressBarTrack: {
     height: 6,
-    backgroundColor: '#0b1424',
+    backgroundColor: '#f1f5f9',
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#0284c7',
+    backgroundColor: '#059669',
   },
   form: {
-    gap: 16,
+    gap: 14,
   },
   inputGroup: {},
   label: {
-    color: '#e2e8f0',
+    color: '#334155',
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 6,
@@ -569,31 +569,31 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#cbd5e1',
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 14,
-    height: 48,
+    height: 46,
   },
   icon: {
     marginRight: 10,
   },
   input: {
     flex: 1,
-    color: '#ffffff',
-    fontSize: 14,
+    color: '#0f172a',
+    fontSize: 13,
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
     borderRadius: 14,
     padding: 14,
-    marginTop: 6,
+    marginTop: 4,
   },
   switchInfo: {
     flex: 1,
@@ -606,27 +606,27 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   switchTitle: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 14,
     fontWeight: '700',
   },
   switchDesc: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 11,
     lineHeight: 15,
   },
   submitButton: {
-    backgroundColor: '#0284c7',
+    backgroundColor: '#059669',
     borderRadius: 12,
-    height: 50,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 14,
-    shadowColor: '#0284c7',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 4,
+    marginTop: 10,
+    shadowColor: '#059669',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
   },
   buttonDisabled: {
     opacity: 0.7,
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
 });

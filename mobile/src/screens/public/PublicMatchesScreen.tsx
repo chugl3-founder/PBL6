@@ -26,7 +26,6 @@ import {
   Globe,
   Play,
   BarChart2,
-  Lock,
 } from 'lucide-react-native';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -79,7 +78,7 @@ export const PublicMatchesScreen: React.FC = () => {
       {/* Banner */}
       <View style={styles.banner}>
         <View style={styles.tag}>
-          <Globe color="#38bdf8" size={14} />
+          <Globe color="#059669" size={13} />
           <Text style={styles.tagText}>THƯ VIỆN CÔNG KHAI</Text>
         </View>
 
@@ -91,17 +90,17 @@ export const PublicMatchesScreen: React.FC = () => {
         {/* Quick Stats Grid */}
         <View style={styles.statsGrid}>
           <View style={styles.statBox}>
-            <Video color="#38bdf8" size={16} />
+            <Video color="#059669" size={16} />
             <Text style={styles.statNumber}>{matches.length}</Text>
             <Text style={styles.statLabel}>Trận đấu</Text>
           </View>
           <View style={styles.statBox}>
-            <Trophy color="#fbbf24" size={16} />
+            <Trophy color="#d97706" size={16} />
             <Text style={styles.statNumber}>{totalRallies}</Text>
             <Text style={styles.statLabel}>Pha cầu</Text>
           </View>
           <View style={styles.statBox}>
-            <Zap color="#34d399" size={16} />
+            <Zap color="#0284c7" size={16} />
             <Text style={styles.statNumber}>{totalStrokes}</Text>
             <Text style={styles.statLabel}>Cú đánh</Text>
           </View>
@@ -110,7 +109,7 @@ export const PublicMatchesScreen: React.FC = () => {
         {/* Guest Preview Notice */}
         {!user && (
           <View style={styles.guestNotice}>
-            <Clock color="#fbbf24" size={14} />
+            <Clock color="#b45309" size={14} />
             <Text style={styles.guestNoticeText}>
               Chế độ Khách vãng lai: Xem thử 5 phút đầu tiên của mỗi trận đấu.
             </Text>
@@ -125,12 +124,16 @@ export const PublicMatchesScreen: React.FC = () => {
           testID="search-match-input"
           style={styles.searchInput}
           placeholder="Tìm theo tuyển thủ, giải đấu..."
-          placeholderTextColor="#64748b"
+          placeholderTextColor="#94a3b8"
           value={search}
           onChangeText={setSearch}
         />
         {search.length > 0 && (
-          <TouchableOpacity testID="btn-clear-search" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => setSearch('')}>
+          <TouchableOpacity
+            testID="btn-clear-search"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={() => setSearch('')}
+          >
             <Text style={styles.clearSearch}>✕</Text>
           </TouchableOpacity>
         )}
@@ -160,7 +163,7 @@ export const PublicMatchesScreen: React.FC = () => {
           <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnailImage} />
         ) : (
           <View style={styles.thumbnailPlaceholder}>
-            <Video color="#475569" size={36} />
+            <Video color="#94a3b8" size={36} />
           </View>
         )}
 
@@ -176,7 +179,7 @@ export const PublicMatchesScreen: React.FC = () => {
 
         {/* Duration Badge */}
         <View style={styles.durationBadge}>
-          <Clock color="#38bdf8" size={11} style={{ marginRight: 4 }} />
+          <Clock color="#ffffff" size={11} style={{ marginRight: 4 }} />
           <Text style={styles.durationText}>{formatDuration(item.durationSeconds)}</Text>
         </View>
       </View>
@@ -206,11 +209,11 @@ export const PublicMatchesScreen: React.FC = () => {
         <View style={styles.cardFooter}>
           <View style={styles.matchMeta}>
             <View style={styles.metaItem}>
-              <Trophy color="#fbbf24" size={12} />
+              <Trophy color="#d97706" size={13} />
               <Text style={styles.metaText}>{item.totalRallies || 0} pha cầu</Text>
             </View>
             <View style={styles.metaItem}>
-              <Zap color="#38bdf8" size={12} />
+              <Zap color="#059669" size={13} />
               <Text style={styles.metaText}>{item.totalStrokes || 0} cú đánh</Text>
             </View>
           </View>
@@ -227,7 +230,7 @@ export const PublicMatchesScreen: React.FC = () => {
               })
             }
           >
-            <BarChart2 color="#38bdf8" size={14} />
+            <BarChart2 color="#059669" size={14} />
             <Text style={styles.statsButtonText}>Thống kê</Text>
           </TouchableOpacity>
         </View>
@@ -239,7 +242,7 @@ export const PublicMatchesScreen: React.FC = () => {
     <View style={styles.container}>
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0284c7" />
+          <ActivityIndicator size="large" color="#059669" />
           <Text style={styles.loadingText}>Đang tải thư viện trận đấu...</Text>
         </View>
       ) : (
@@ -247,23 +250,20 @@ export const PublicMatchesScreen: React.FC = () => {
           data={matches}
           renderItem={renderItem}
           keyExtractor={(item) => String(item.id)}
-          // Truyền element (renderHeader()) thay vì hàm: hàm tạo mới mỗi lần render
-          // khiến FlatList remount header -> TextInput mất focus sau mỗi ký tự.
           ListHeaderComponent={renderHeader()}
-          // Cho phép chạm nút ✕ / thẻ trận ngay khi bàn phím đang mở (mặc định lần chạm đầu chỉ đóng bàn phím)
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#38bdf8"
-              colors={['#0284c7']}
+              tintColor="#059669"
+              colors={['#059669']}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Video color="#475569" size={48} />
+              <Video color="#cbd5e1" size={48} />
               <Text style={styles.emptyTitle}>Không tìm thấy trận đấu nào</Text>
               <Text style={styles.emptyDesc}>
                 {search
@@ -281,7 +281,7 @@ export const PublicMatchesScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0b1424',
+    backgroundColor: '#f8fafc',
   },
   listContent: {
     paddingHorizontal: 16,
@@ -294,49 +294,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: '#94a3b8',
+    color: '#64748b',
     marginTop: 12,
     fontSize: 14,
   },
   headerContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   banner: {
-    backgroundColor: '#122340',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+    borderWidth: 1,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 20,
     gap: 6,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   tagText: {
-    color: '#38bdf8',
+    color: '#059669',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   bannerTitle: {
-    color: '#ffffff',
-    fontSize: 22,
+    color: '#0f172a',
+    fontSize: 20,
     fontWeight: '800',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   bannerDesc: {
-    color: '#94a3b8',
-    fontSize: 13,
+    color: '#64748b',
+    fontSize: 12,
     lineHeight: 18,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -345,56 +351,56 @@ const styles = StyleSheet.create({
   },
   statBox: {
     flex: 1,
-    backgroundColor: 'rgba(15, 29, 53, 0.7)',
-    borderRadius: 14,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
     padding: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1e3a5f',
+    borderColor: '#f1f5f9',
   },
   statNumber: {
-    color: '#ffffff',
-    fontSize: 17,
+    color: '#0f172a',
+    fontSize: 16,
     fontWeight: '800',
     marginTop: 4,
   },
   statLabel: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 11,
     marginTop: 2,
   },
   guestNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(251, 191, 36, 0.1)',
-    borderColor: 'rgba(251, 191, 36, 0.3)',
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
     borderWidth: 1,
     borderRadius: 10,
     padding: 10,
-    marginTop: 14,
+    marginTop: 12,
     gap: 8,
   },
   guestNoticeText: {
-    color: '#fef08a',
+    color: '#92400e',
     fontSize: 11,
     flex: 1,
-    lineHeight: 15,
+    lineHeight: 16,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#cbd5e1',
     borderWidth: 1,
-    borderRadius: 24,
+    borderRadius: 12,
     paddingHorizontal: 14,
     height: 44,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   searchInput: {
     flex: 1,
-    color: '#ffffff',
-    fontSize: 14,
+    color: '#0f172a',
+    fontSize: 13,
   },
   clearSearch: {
     color: '#94a3b8',
@@ -402,26 +408,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   sectionTitle: {
-    color: '#ffffff',
-    fontSize: 16,
+    color: '#0f172a',
+    fontSize: 15,
     fontWeight: '700',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   card: {
-    backgroundColor: '#13233e',
-    borderColor: '#1e3a5f',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 16,
-    shadowColor: '#000000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   thumbnailArea: {
-    height: 180,
-    backgroundColor: '#070f1e',
+    height: 170,
+    backgroundColor: '#0f172a',
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
@@ -440,7 +446,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(2, 132, 199, 0.85)',
+    backgroundColor: 'rgba(5, 150, 105, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -448,16 +454,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: 'rgba(11, 20, 36, 0.85)',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   courtBadgeText: {
-    color: '#e2e8f0',
-    fontSize: 11,
+    color: '#ffffff',
+    fontSize: 10,
     fontWeight: '600',
   },
   durationBadge: {
@@ -466,10 +470,10 @@ const styles = StyleSheet.create({
     right: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(11, 20, 36, 0.9)',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   durationText: {
     color: '#ffffff',
@@ -480,8 +484,8 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   cardTitle: {
-    color: '#ffffff',
-    fontSize: 16,
+    color: '#0f172a',
+    fontSize: 15,
     fontWeight: '700',
     marginBottom: 10,
   },
@@ -489,22 +493,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0c1729',
+    backgroundColor: '#f8fafc',
     borderRadius: 10,
     padding: 8,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   playerBadge: {
     flex: 1,
     alignItems: 'center',
   },
   playerName: {
-    color: '#e2e8f0',
+    color: '#1e293b',
     fontSize: 13,
     fontWeight: '600',
   },
   vsText: {
-    color: '#38bdf8',
+    color: '#059669',
     fontWeight: '800',
     fontSize: 11,
     paddingHorizontal: 8,
@@ -514,7 +520,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#1e3a5f',
+    borderTopColor: '#f1f5f9',
     paddingTop: 10,
   },
   matchMeta: {
@@ -527,22 +533,24 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 11,
   },
   statsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+    borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
   },
   statsButtonText: {
-    color: '#38bdf8',
+    color: '#059669',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   emptyContainer: {
     paddingVertical: 60,
@@ -550,13 +558,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: '#ffffff',
-    fontSize: 16,
+    color: '#0f172a',
+    fontSize: 15,
     fontWeight: '700',
     marginTop: 8,
   },
   emptyDesc: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 13,
     textAlign: 'center',
     paddingHorizontal: 32,

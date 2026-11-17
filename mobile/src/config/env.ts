@@ -43,6 +43,7 @@ const DETECTED_HOST = getAutoDetectedHost();
 export const ENV = {
   HOST_IP: DETECTED_HOST,
   API_BASE_URL: `http://${DETECTED_HOST}:8080/api`,
+  COACH_API_URL: `http://${DETECTED_HOST}:8000`,
   STORAGE_BASE_URL: `http://${DETECTED_HOST}:9000`,
   TIMEOUT_MS: 15000,
 };
