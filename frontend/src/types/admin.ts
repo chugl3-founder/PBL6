@@ -16,6 +16,40 @@ export interface DashboardMetrics {
   aiSuccessRate: number;
   matchStatusBreakdown?: Record<string, number>;
   aiStatusBreakdown?: Record<string, number>;
+  /** Scouting reports open to anyone with the link. */
+  sharedReports?: number;
+  highlightReels?: number;
+}
+
+/** A scouting report anyone with its link can open (AdminSharedReportResponse). */
+export interface AdminSharedReport {
+  id: number;
+  title: string;
+  opponentName: string;
+  ownPlayerName: string | null;
+  ownerEmail: string;
+  ownerName: string | null;
+  shareToken: string;
+  updatedAt: string;
+}
+
+/** A highlight reel of any user (HighlightReelResponse plus ownerEmail). */
+export interface AdminHighlight {
+  id: number;
+  matchId: number;
+  playerAName: string;
+  playerBName: string;
+  title: string;
+  status: 'QUEUED' | 'RENDERING' | 'COMPLETED' | 'FAILED' | string;
+  progressPercent: number;
+  clipCount: number;
+  durationSeconds: number | null;
+  fileSize: number | null;
+  errorMessage: string | null;
+  videoUrl: string | null;
+  ownerEmail: string;
+  createdAt: string;
+  completedAt: string | null;
 }
 
 export interface UserAccount {

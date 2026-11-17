@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, ChevronRight, Play, Inbox } from 'lucide-react';
 import { deleteMatch, listMyMatches } from '../api/matches';
 import { errorMessage } from '../api/errors';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Notice } from '../components/ui/Notice';
+import { toast } from '../components/ui/toastBus';
 
 interface MatchItem {
   id: number;
@@ -28,13 +31,16 @@ interface PaginationMeta {
   totalPages: number;
 }
 
+/** WAITING: no video yet or not analysed yet, both just wait for the coach's next step. */
 const FILTERS = [
   { id: 'ALL', label: 'Tất cả' },
   { id: 'ANALYZED', label: 'Đã phân tích' },
   { id: 'ANALYZING', label: 'Đang phân tích' },
-  { id: 'READY', label: 'Chưa phân tích' },
-  { id: 'DRAFT', label: 'Chưa có video' },
+  { id: 'WAITING', label: 'Chờ phân tích' },
 ];
+
+const groupOf = (status: string) =>
+  status === 'DRAFT' || status === 'READY' ? 'WAITING' : status === 'ANALYZING' ? 'ANALYZING' : 'ANALYZED';
 
 /** What the match is waiting for, in the coach's words, and the one thing to do next. */
 const nextStep = (match: MatchItem) => {
@@ -93,7 +99,6 @@ export const MyMatchesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [matchToDelete, setMatchToDelete] = useState<MatchItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -104,7 +109,7 @@ export const MyMatchesPage: React.FC = () => {
       const all: MatchItem[] = res.data || [];
       const byStatus: Record<string, number> = {};
       for (const m of all) {
-        const key = m.status === 'DRAFT' || m.status === 'READY' || m.status === 'ANALYZING' ? m.status : 'ANALYZED';
+        const key = groupOf(m.status);
         byStatus[key] = (byStatus[key] ?? 0) + 1;
       }
       setSummary({
@@ -129,6 +134,16 @@ export const MyMatchesPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      if (statusFilter === 'WAITING') {
+        // Two server statuses in one tab: few matches wait at once, so one list without pages.
+        const [drafts, ready] = await Promise.all([
+          listMyMatches({ page: 0, size: 50, status: 'DRAFT' }),
+          listMyMatches({ page: 0, size: 50, status: 'READY' }),
+        ]);
+        setMatches([...(ready.data || []), ...(drafts.data || [])]);
+        setPagination(null);
+        return;
+      }
       const res = await listMyMatches({
         page,
         size: 10,
@@ -161,10 +176,9 @@ export const MyMatchesPage: React.FC = () => {
       setIsDeleting(true);
       await deleteMatch(matchToDelete.id);
       setMatches((prev) => prev.filter((m) => m.id !== matchToDelete.id));
-      setSuccessMsg(`Đã xóa "${matchToDelete.title || `${matchToDelete.playerAName} gặp ${matchToDelete.playerBName}`}"`);
+      toast.success(`Đã xóa "${matchToDelete.title || `${matchToDelete.playerAName} gặp ${matchToDelete.playerBName}`}"`);
       setMatchToDelete(null);
       fetchSummary();
-      setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       setError(errorMessage(err, 'Không xóa được trận.'));
     } finally {
@@ -179,6 +193,15 @@ export const MyMatchesPage: React.FC = () => {
     return () => document.removeEventListener('keydown', onKey);
   }, [matchToDelete, isDeleting]);
 
+  // Only tabs that hold matches; no tab bar at all while every match is in the same state.
+  const visibleTabs = FILTERS.filter((tab) => tab.id === 'ALL' || (summary?.byStatus[tab.id] ?? 0) > 0);
+  const showTabs = visibleTabs.length > 2 || (selectedStatus !== 'ALL' && visibleTabs.length > 1);
+
+  useEffect(() => {
+    // A tab emptied by a delete goes away: fall back to all matches.
+    if (summary && !visibleTabs.some((tab) => tab.id === selectedStatus)) setSelectedStatus('ALL');
+  }, [summary]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16 pt-4 font-vn">
       <header>
@@ -191,21 +214,15 @@ export const MyMatchesPage: React.FC = () => {
       </header>
 
 
-      {successMsg && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-md bg-pitch-soft text-pitch-deep text-sm" role="status">
-          <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden />
-          <span>{successMsg}</span>
-        </div>
-      )}
       {error && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-md bg-loss/10 text-loss text-sm" role="alert">
-          <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden />
-          <span>{error}</span>
-        </div>
+        <Notice tone="error" action={{ label: 'Thử lại', onClick: () => fetchMatches(selectedStatus, currentPage) }} onClose={() => setError(null)}>
+          {error}
+        </Notice>
       )}
 
+      {showTabs && (
       <div className="flex gap-1 border-b border-ink/10 overflow-x-auto" role="tablist" aria-label="Lọc theo trạng thái">
-        {FILTERS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -225,6 +242,7 @@ export const MyMatchesPage: React.FC = () => {
           </button>
         ))}
       </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -233,7 +251,12 @@ export const MyMatchesPage: React.FC = () => {
           ))}
         </div>
       ) : matches.length === 0 && selectedStatus !== 'ALL' ? (
-        <p className="rounded-lg bg-sheet border border-ink/10 px-6 py-10 text-center text-sm text-ink/70">Không có trận nào ở mục này.</p>
+        <EmptyState
+          icon={Inbox}
+          title="Không có trận nào ở mục này"
+          description="Các trận của bạn đang ở trạng thái khác."
+          action={{ label: 'Xem tất cả trận', onClick: () => setSelectedStatus('ALL') }}
+        />
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {matches.map((match) => {

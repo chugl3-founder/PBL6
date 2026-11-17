@@ -5,6 +5,7 @@ import { ArrowRight, ClipboardList, Link2, Loader2, Sparkles, Target } from 'luc
 import { createReport, listReports, type ScoutingReport } from '../api/scouting';
 import { PlayerPicker } from '../components/player/PlayerPicker';
 import { PlayerMonogram } from '../components/player/PlayerMonogram';
+import { EmptyState } from '../components/ui/EmptyState';
 
 const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -99,10 +100,11 @@ export const ScoutingListPage: React.FC = () => {
             {[1, 2, 3].map(n => <div key={n} className="h-36 rounded-xl bg-sheet border border-ink/10 animate-pulse" />)}
           </div>
         ) : reports.length === 0 ? (
-          <div className="rounded-xl bg-sheet border border-dashed border-ink/20 px-6 py-12 text-center">
-            <ClipboardList className="w-8 h-8 mx-auto text-ink/20" />
-            <p className="mt-3 text-sm text-ink/70">Chưa có báo cáo nào. Chọn một đối thủ ở trên để bắt đầu.</p>
-          </div>
+          <EmptyState
+            icon={ClipboardList}
+            title="Chưa có báo cáo trinh sát nào"
+            description="Chọn đối thủ sắp gặp ở khung phía trên: hệ thống đọc mọi trận của họ và lập kế hoạch thi đấu kèm video minh chứng."
+          />
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {reports.map(r => (

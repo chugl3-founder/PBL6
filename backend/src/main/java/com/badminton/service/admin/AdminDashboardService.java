@@ -2,6 +2,8 @@ package com.badminton.service.admin;
 
 import com.badminton.dto.admin.AdminDashboardResponse;
 import com.badminton.repository.analysis.AiAnalysisRepository;
+import com.badminton.repository.highlight.HighlightReelRepository;
+import com.badminton.repository.scouting.ScoutingReportRepository;
 import com.badminton.repository.match.MatchRepository;
 import com.badminton.repository.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,8 @@ public class AdminDashboardService {
     private final UserRepository userRepository;
     private final MatchRepository matchRepository;
     private final AiAnalysisRepository aiAnalysisRepository;
+    private final ScoutingReportRepository scoutingReportRepository;
+    private final HighlightReelRepository highlightReelRepository;
 
     @Transactional(readOnly = true)
     public AdminDashboardResponse getDashboardMetrics() {
@@ -76,6 +80,8 @@ public class AdminDashboardService {
                 .aiSuccessRate(aiSuccessRate)
                 .matchStatusBreakdown(matchBreakdown)
                 .aiStatusBreakdown(aiBreakdown)
+                .sharedReports(scoutingReportRepository.countByShareTokenIsNotNull())
+                .highlightReels(highlightReelRepository.count())
                 .build();
     }
 }

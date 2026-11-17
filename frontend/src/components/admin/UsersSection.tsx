@@ -1,311 +1,208 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Users,
-  Loader2,
-  Search,
-  Lock,
-  Unlock,
-  Shield,
-} from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, UserX, X } from 'lucide-react';
 import { listUsers, setUserStatus } from '../../api/admin';
 import { errorMessage } from '../../api/errors';
 import { getSessionUser } from '../../auth/session';
-import type { DashboardMetrics, UserAccount } from '../../types/admin';
-import { LoadError, LoadMore } from './adminUi';
-import { Feedback, PAGE_SIZE, getLevelLabel, loadErrorText } from './adminFormat';
+import type { UserAccount } from '../../types/admin';
+import type { AdminOutletContext } from '../layout/AdminLayout';
+import { EmptyState } from '../ui/EmptyState';
+import { toast } from '../ui/toastBus';
+import {
+  ConfirmDialog,
+  FilterTabs,
+  LoadError,
+  LoadMore,
+  Pill,
+  SectionHeader,
+  Sheet,
+  SkeletonRows,
+  TextAction,
+  rowClass,
+  tableClass,
+  tdClass,
+  thClass,
+  theadClass,
+} from './adminUi';
+import { PAGE_SIZE, formatDate, getLevelLabel, loadErrorText } from './adminFormat';
 
-interface UsersSectionProps {
-  dashboardMetrics: DashboardMetrics | null;
-  showFeedback: Feedback;
-  /** Locking an account changes the overview numbers. */
-  onChanged: () => void;
-}
+const STATUSES = ['ALL', 'ACTIVE', 'LOCKED'];
 
-/** /admin/users: accounts, with search and lock/unlock (VS-17). */
-export const UsersSection: React.FC<UsersSectionProps> = ({ dashboardMetrics, showFeedback, onChanged }) => {
+/** /admin/users: accounts, with search and lock/unlock. A locked user is signed out on their next request. */
+export const UsersSection: React.FC<AdminOutletContext> = ({ metrics, refreshMetrics }) => {
+  const [params, setParams] = useSearchParams();
+  const status = STATUSES.includes(params.get('status') ?? '') ? (params.get('status') as string) : 'ALL';
+  const setStatus = (key: string) => setParams(key === 'ALL' ? {} : { status: key }, { replace: true });
+
   const [users, setUsers] = useState<UserAccount[]>([]);
-  const [usersTotal, setUsersTotal] = useState(0);
-  const [usersLoading, setUsersLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [userSearch, setUserSearch] = useState('');
-  const [userStatusFilter, setUserStatusFilter] = useState<string>('ALL');
-  const [userActionLoadingId, setUserActionLoadingId] = useState<number | null>(null);
-  const currentUser = getSessionUser();
+  const [search, setSearch] = useState('');
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [toLock, setToLock] = useState<UserAccount | null>(null);
+  const me = getSessionUser();
 
-  const fetchUsers = async (search: string, status: string, size = PAGE_SIZE, showSpinner = true) => {
+  const fetchUsers = async (q: string, s: string, size = PAGE_SIZE, showSpinner = true) => {
     try {
-      if (showSpinner) setUsersLoading(true);
-      const page = await listUsers(search, status, size);
+      if (showSpinner) setLoading(true);
+      const page = await listUsers(q, s, size);
       setUsers(page.data || []);
-      if (page.pagination?.totalElements !== undefined) {
-        setUsersTotal(page.pagination.totalElements);
-      }
+      setTotal(page.pagination?.totalElements ?? (page.data || []).length);
       setLoadError(null);
     } catch (err) {
-      console.error('Lỗi khi tải danh sách người dùng cho Admin:', err);
       setLoadError(loadErrorText(err, 'danh sách người dùng'));
     } finally {
-      if (showSpinner) setUsersLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchUsers(userSearch, userStatusFilter);
-    }, 250);
+    const timer = setTimeout(() => fetchUsers(search, status), 250);
     return () => clearTimeout(timer);
-  }, [userSearch, userStatusFilter]);  
+  }, [search, status]);  
 
   const loadMore = async () => {
     setLoadingMore(true);
     try {
-      await fetchUsers(userSearch, userStatusFilter, users.length + PAGE_SIZE, false);
+      await fetchUsers(search, status, users.length + PAGE_SIZE, false);
     } finally {
       setLoadingMore(false);
     }
   };
 
-  const handleToggleUserStatus = async (userItem: UserAccount) => {
-    const nextStatus = userItem.status === 'LOCKED' ? 'ACTIVE' : 'LOCKED';
+  const changeStatus = async (u: UserAccount, next: 'ACTIVE' | 'LOCKED') => {
+    setBusyId(u.id);
     try {
-      setUserActionLoadingId(userItem.id);
-      const updated = await setUserStatus(userItem.id, nextStatus);
-      setUsers((prev) => prev.map((u) => (u.id === userItem.id ? updated : u)));
-      showFeedback(
-        'success',
-        nextStatus === 'LOCKED'
-          ? `Đã khóa tài khoản người dùng "${userItem.email}".`
-          : `Đã mở khóa tài khoản người dùng "${userItem.email}".`,
-      );
-      onChanged();
+      const updated = await setUserStatus(u.id, next);
+      const stays = status === 'ALL' || updated.status === status;
+      setUsers((prev) => (stays ? prev.map((x) => (x.id === u.id ? updated : x)) : prev.filter((x) => x.id !== u.id)));
+      if (!stays) setTotal((t) => t - 1);
+      toast.success(next === 'LOCKED' ? `Đã khóa tài khoản ${u.email}.` : `Đã mở khóa tài khoản ${u.email}.`);
+      setToLock(null);
+      refreshMetrics();
     } catch (err) {
-      showFeedback('error', errorMessage(err, 'Không thể cập nhật trạng thái tài khoản.'));
+      toast.error(errorMessage(err, 'Không đổi được trạng thái tài khoản.'));
     } finally {
-      setUserActionLoadingId(null);
+      setBusyId(null);
     }
   };
 
+  const tabs = [
+    { key: 'ALL', label: 'Tất cả', count: metrics?.totalUsers },
+    { key: 'ACTIVE', label: 'Đang hoạt động', count: metrics?.activeUsers },
+    { key: 'LOCKED', label: 'Đã khóa', count: metrics?.lockedUsers },
+  ];
+
   return (
-    <div className="space-y-5 min-w-0">
-      {/* 3 Thẻ tóm tắt nhanh dành riêng cho phân hệ Người dùng */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="bg-[#0f1d35]/85 border border-white/10 rounded-2xl p-4">
-          <div className="text-[11px] text-slate-400">Tổng số tài khoản hệ thống</div>
-          <div className="text-xl font-black text-white mt-0.5">
-            {dashboardMetrics?.totalUsers ?? '–'}
-          </div>
-        </div>
-        <div className="bg-[#0f1d35]/85 border border-emerald-500/25 rounded-2xl p-4">
-          <div className="text-[11px] text-emerald-300">Đang hoạt động (ACTIVE)</div>
-          <div className="text-xl font-black text-emerald-400 mt-0.5">
-            {dashboardMetrics?.activeUsers ?? '–'}
-          </div>
-        </div>
-        <div className="bg-[#0f1d35]/85 border border-rose-500/25 rounded-2xl p-4">
-          <div className="text-[11px] text-rose-300">Đã bị khóa (LOCKED)</div>
-          <div className="text-xl font-black text-rose-400 mt-0.5">
-            {dashboardMetrics?.lockedUsers ?? '–'}
-          </div>
-        </div>
+    <div className="space-y-5">
+      <SectionHeader
+        title="Người dùng"
+        description="Tìm tài khoản và khóa khi cần. Người bị khóa bị đăng xuất ngay ở lần thao tác kế tiếp."
+      />
+
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-ink/10">
+        <FilterTabs tabs={tabs} value={status} onChange={setStatus} label="Lọc người dùng theo trạng thái" bordered={false} />
+        <label className="relative mb-2 w-full sm:w-72">
+          <span className="sr-only">Tìm người dùng</span>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink/45" aria-hidden />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm theo tên hoặc email"
+            className="w-full h-9 pl-9 pr-8 rounded-md border border-ink/15 bg-sheet text-sm text-ink placeholder:text-ink/45 focus:outline-none focus:border-pitch focus:ring-2 focus:ring-pitch/20"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-ink/45 hover:text-ink"
+              aria-label="Xóa từ khóa"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </label>
       </div>
 
-      <section className="bg-[#0f1d35]/90 border border-white/10 rounded-3xl p-5 sm:p-7 space-y-5 shadow-xl min-w-0">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-5">
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-sky-400" />
-              <span>Danh Sách Tài Khoản Người Dùng</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Tra cứu thông tin vận động viên, kiểm soát quyền truy cập và khóa/mở khóa tài khoản vi phạm (VS-17)
-            </p>
-          </div>
+      {loadError && <LoadError message={loadError} onRetry={() => fetchUsers(search, status)} />}
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* Ô tìm kiếm người dùng */}
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-white/40" />
-              <input
-                type="text"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Tìm theo email hoặc họ tên…"
-                className="w-full pl-10 pr-8 py-2 bg-[#14233c] border border-white/15 rounded-full text-xs text-white placeholder-white/40 focus:outline-none focus:border-brand transition"
-              />
-              {userSearch && (
-                <button
-                  type="button"
-                  onClick={() => setUserSearch('')}
-                  className="absolute right-3 top-2 text-white/40 hover:text-white text-sm"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-
-            {/* Bộ lọc trạng thái */}
-            <div className="flex items-center gap-1.5 text-xs">
-              {[
-                { key: 'ALL', label: 'Tất cả' },
-                { key: 'ACTIVE', label: 'Đang hoạt động' },
-                { key: 'LOCKED', label: 'Đã khóa' },
-              ].map((st) => (
-                <button
-                  key={st.key}
-                  onClick={() => setUserStatusFilter(st.key)}
-                  className={`px-3 py-1.5 rounded-full font-semibold transition-all ${
-                    userStatusFilter === st.key
-                      ? st.key === 'LOCKED'
-                        ? 'bg-rose-600 text-white'
-                        : 'bg-brand text-white shadow-glow-blue'
-                      : 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10'
-                  }`}
-                >
-                  {st.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {usersLoading && (
-          <div className="py-16 flex flex-col items-center justify-center space-y-3">
-            <Loader2 className="w-7 h-7 text-sky-400 animate-spin" />
-            <span className="text-xs text-slate-400">Đang tải danh sách người dùng…</span>
-          </div>
-        )}
-
-        {!usersLoading && loadError && (
-          <LoadError message={loadError} onRetry={() => fetchUsers(userSearch, userStatusFilter)} />
-        )}
-
-        {!usersLoading && !loadError && users.length === 0 && (
-          <div className="py-12 text-center text-slate-400 text-sm">
-            Không tìm thấy người dùng nào phù hợp với điều kiện lọc.
-          </div>
-        )}
-
-        {!usersLoading && users.length > 0 && (
+      <Sheet className="overflow-hidden">
+        {loading ? (
+          <SkeletonRows />
+        ) : !loadError && users.length === 0 ? (
+          <EmptyState
+            compact
+            icon={UserX}
+            title={search ? `Không tìm thấy ai khớp với "${search}"` : 'Không có tài khoản nào ở mục này'}
+            action={search ? { label: 'Xóa từ khóa', onClick: () => setSearch('') } : undefined}
+          />
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-white/10 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                  <th className="pb-3 px-3">Người Dùng</th>
-                  <th className="pb-3 px-3 whitespace-nowrap">Vai Trò</th>
-                  <th className="pb-3 px-3 whitespace-nowrap">Trình Độ & Hồ Sơ</th>
-                  <th className="pb-3 px-3 whitespace-nowrap">Trạng Thái</th>
-                  <th className="pb-3 px-3 text-right whitespace-nowrap">Hành Động</th>
+            <table className={tableClass}>
+              <thead className={theadClass}>
+                <tr>
+                  <th className={thClass}>Người dùng</th>
+                  <th className={thClass}>Vai trò</th>
+                  <th className={thClass}>Trình độ</th>
+                  <th className={thClass}>Tham gia</th>
+                  <th className={thClass}>Trạng thái</th>
+                  <th className={`${thClass} text-right`}>
+                    <span className="sr-only">Thao tác</span>
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody>
                 {users.map((u) => {
-                  const isLocked = u.status === 'LOCKED';
-                  const isSelf = Boolean(
-                    currentUser?.email && u.email?.toLowerCase() === currentUser.email.toLowerCase()
-                  );
-                  const isUpdating = userActionLoadingId === u.id;
-
+                  const locked = u.status === 'LOCKED';
+                  const self = Boolean(me?.email && u.email?.toLowerCase() === me.email.toLowerCase());
+                  const admin = u.role === 'ROLE_ADMIN';
                   return (
-                    <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-4 px-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-brand/20 border border-brand/30 text-sky-300 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                    <tr key={u.id} className={rowClass}>
+                      <td className={tdClass}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-8 h-8 rounded-full overflow-hidden bg-pitch-soft text-pitch-deep flex items-center justify-center text-xs font-semibold shrink-0">
                             {u.avatarUrl ? (
-                              <img
-                                src={u.avatarUrl}
-                                alt={u.fullName || u.email}
-                                className="w-full h-full object-cover"
-                              />
+                              <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              (u.fullName || u.email || 'U').charAt(0).toUpperCase()
+                              (u.fullName || u.email || '?').charAt(0).toUpperCase()
                             )}
-                          </div>
-                          <div>
-                            <div className="font-bold text-white text-sm flex items-center gap-1.5">
-                              <span>{u.fullName || 'Chưa cập nhật tên'}</span>
-                              {isSelf && (
-                                <span className="px-2 py-0.2 rounded-full bg-brand/20 border border-brand/40 text-[11px] text-sky-300 font-semibold">
-                                  Bạn
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-slate-400 font-mono text-[11px]">{u.email}</div>
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-medium text-ink truncate">
+                              {u.fullName || 'Chưa đặt tên'}
+                              {self && <span className="ml-1.5 text-xs font-normal text-ink/60">(bạn)</span>}
+                            </p>
+                            <p className="text-xs text-ink/60 truncate">{u.email}</p>
                           </div>
                         </div>
                       </td>
-
-                      <td className="py-4 px-3 whitespace-nowrap">
-                        {u.role === 'ROLE_ADMIN' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 font-semibold">
-                            <Shield className="w-3 h-3" />
-                            <span>Quản trị viên</span>
-                          </span>
+                      <td className={`${tdClass} whitespace-nowrap`}>
+                        {admin ? <Pill tone="info">Quản trị viên</Pill> : <span className="text-ink/70">Người dùng</span>}
+                      </td>
+                      <td className={`${tdClass} whitespace-nowrap text-ink/70`}>{getLevelLabel(u.badmintonLevel)}</td>
+                      <td className={`${tdClass} whitespace-nowrap text-ink/70 tabular-nums`}>{formatDate(u.createdAt)}</td>
+                      <td className={tdClass}>
+                        {locked ? <Pill tone="loss">Đã khóa</Pill> : <Pill tone="pitch">Hoạt động</Pill>}
+                      </td>
+                      <td className={`${tdClass} text-right whitespace-nowrap`}>
+                        {self ? (
+                          <span className="text-xs text-ink/50">Không tự khóa được</span>
+                        ) : locked ? (
+                          <TextAction busy={busyId === u.id} onClick={() => changeStatus(u, 'ACTIVE')}>
+                            Mở khóa
+                          </TextAction>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300">
-                            <span>Vận động viên</span>
-                          </span>
+                          <TextAction
+                            busy={busyId === u.id}
+                            onClick={() => setToLock(u)}
+                            className="hover:!border-loss hover:!text-loss"
+                          >
+                            Khóa
+                          </TextAction>
                         )}
-                      </td>
-
-                      <td className="py-4 px-3 text-slate-300 whitespace-nowrap">
-                        <div className="font-medium text-sky-400">
-                          {getLevelLabel(u.badmintonLevel)}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          ID: #{u.id} • Tham gia:{' '}
-                          {u.createdAt
-                            ? new Date(u.createdAt).toLocaleDateString('vi-VN')
-                            : 'N/A'}
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-3 whitespace-nowrap">
-                        {isLocked ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 font-bold">
-                            <Lock className="w-3 h-3" />
-                            <span>Đã khóa (LOCKED)</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span>Đang hoạt động</span>
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-4 px-3 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          disabled={isUpdating || isSelf}
-                          onClick={() => handleToggleUserStatus(u)}
-                          title={
-                            isSelf
-                              ? 'Không thể tự khóa tài khoản của chính mình'
-                              : isLocked
-                              ? 'Mở khóa tài khoản người dùng này'
-                              : 'Khóa tài khoản người dùng vi phạm'
-                          }
-                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                            isLocked
-                              ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
-                              : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30'
-                          }`}
-                        >
-                          {isUpdating ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : isLocked ? (
-                            <>
-                              <Unlock className="w-3.5 h-3.5" />
-                              <span>Mở khóa</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lock className="w-3.5 h-3.5" />
-                              <span>Khóa tài khoản</span>
-                            </>
-                          )}
-                        </button>
                       </td>
                     </tr>
                   );
@@ -314,11 +211,23 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ dashboardMetrics, sh
             </table>
           </div>
         )}
+        {!loading && total > users.length && <LoadMore shown={users.length} total={total} loading={loadingMore} onClick={loadMore} />}
+      </Sheet>
 
-        {!usersLoading && usersTotal > users.length && (
-          <LoadMore shown={users.length} total={usersTotal} loading={loadingMore} onClick={() => loadMore()} />
-        )}
-      </section>
+      {toLock && (
+        <ConfirmDialog
+          title="Khóa tài khoản này?"
+          confirmLabel="Khóa tài khoản"
+          busyLabel="Đang khóa…"
+          danger
+          busy={busyId === toLock.id}
+          onConfirm={() => changeStatus(toLock, 'LOCKED')}
+          onCancel={() => setToLock(null)}
+        >
+          <strong className="text-ink">{toLock.fullName || toLock.email}</strong> sẽ bị đăng xuất và không đăng nhập lại được cho đến khi
+          bạn mở khóa. Trận và báo cáo của họ vẫn được giữ nguyên.
+        </ConfirmDialog>
+      )}
     </div>
   );
 };

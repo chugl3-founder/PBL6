@@ -4,6 +4,7 @@ import { Crosshair, Minus, PlayCircle, Swords, TrendingDown, TrendingUp } from '
 import { fetchTrainingFocus, replayPath, type TrainingFocus, type TrainingFocusData, type TrainingTrend } from '../../api/players';
 import { isSignedIn } from '../../auth/session';
 import { askCoach, exploitWeaknessPrompt } from '../../utils/coachEvents';
+import { Notice } from '../ui/Notice';
 import { formatDate } from '../../utils/playerProfile';
 import { strokeLabelLower } from '../../utils/strokeLabels';
 
@@ -79,7 +80,13 @@ export const TrainingFocusPanel: React.FC<{ name: string }> = ({ name }) => {
     };
   }, [name]);
 
-  if (failed) return <p className="text-sm text-ink/70 py-6 text-center">Không tải được dữ liệu điểm yếu. Thử tải lại trang.</p>;
+  if (failed) {
+    return (
+      <Notice tone="error" action={{ label: 'Tải lại', onClick: () => window.location.reload() }}>
+        Không tải được dữ liệu điểm yếu.
+      </Notice>
+    );
+  }
   if (!data) return <div className="h-40 rounded-lg bg-ink/[0.04] animate-pulse" />;
 
   if (data.focuses.length === 0) {

@@ -147,6 +147,9 @@ body.theme-court :focus-visible {
   outline-offset: 2px;
 }
 
+/* Search boxes draw their own clear button; hide the browser's so there are not two. */
+input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
 /* Streaming analysis: markers of newly analysed rallies fade in; the not-yet-analysed part
    of the timeline is hatched and its edge (the AI frontier) glows. */
 @keyframes marker-arrive {

@@ -1,432 +1,283 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Globe,
-  EyeOff,
-  Loader2,
-  ExternalLink,
-  Trash2,
-  RotateCcw,
-  AlertTriangle,
-  X,
-} from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ExternalLink, Inbox, RotateCcw, Trash2, Youtube } from 'lucide-react';
 import { deleteMatchAsAdmin, listAdminMatches, publishMatch, restoreMatch, unpublishMatch } from '../../api/admin';
 import { errorMessage } from '../../api/errors';
-import type { DashboardMetrics } from '../../types/admin';
 import type { Match } from '../../types/match';
-import { LoadError, LoadMore, MatchStatusBadge } from './adminUi';
-import { Feedback, PAGE_SIZE, loadErrorText } from './adminFormat';
+import type { AdminOutletContext } from '../layout/AdminLayout';
+import { EmptyState } from '../ui/EmptyState';
+import { toast } from '../ui/toastBus';
+import {
+  ConfirmDialog,
+  FilterTabs,
+  IconAction,
+  LoadError,
+  LoadMore,
+  MatchStatusBadge,
+  Sheet,
+  SectionHeader,
+  SkeletonRows,
+  TextAction,
+  rowClass,
+  tableClass,
+  tdClass,
+  thClass,
+  theadClass,
+} from './adminUi';
+import { PAGE_SIZE, formatDate, formatDuration, loadErrorText, numberFormat } from './adminFormat';
 
-const filterTabs = [
-  { key: 'ALL', label: 'Tất cả hoạt động' },
-  { key: 'PUBLISHED', label: 'Đang công khai' },
-  { key: 'ANALYZED', label: 'Đã phân tích' },
-  { key: 'DRAFT', label: 'Bản nháp' },
-  { key: 'DELETED', label: 'Thùng rác (Đã xóa)' },
-];
+const STATUSES = ['ALL', 'ANALYZED', 'PUBLISHED', 'ANALYZING', 'READY', 'DRAFT', 'DELETED'];
 
-interface MatchesSectionProps {
-  dashboardMetrics: DashboardMetrics | null;
-  showFeedback: Feedback;
-  /** Publishing, deleting and restoring change the overview numbers. */
-  onChanged: () => void;
-}
+const players = (m: Match) => `${m.playerAName} gặp ${m.playerBName}`;
 
-/** /admin/matches: every match, publishing to the public library and the recycle bin (VS-16). */
-export const MatchesSection: React.FC<MatchesSectionProps> = ({ dashboardMetrics, showFeedback, onChanged }) => {
+type Pending = { kind: 'delete' | 'unpublish'; match: Match };
+
+/** /admin/matches: every match, publishing to the public library, and the recycle bin. */
+export const MatchesSection: React.FC<AdminOutletContext> = ({ metrics, refreshMetrics }) => {
+  const [params, setParams] = useSearchParams();
+  const status = STATUSES.includes(params.get('status') ?? '') ? (params.get('status') as string) : 'ALL';
+  const setStatus = (key: string) => setParams(key === 'ALL' ? {} : { status: key }, { replace: true });
+
   const [matches, setMatches] = useState<Match[]>([]);
-  const [matchesTotal, setMatchesTotal] = useState(0);
-  const [matchesLoading, setMatchesLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string>('ALL');
-  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
-  const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
 
-  const fetchMatches = async (status: string, size = PAGE_SIZE, showSpinner = true) => {
+  const fetchMatches = async (s: string, size = PAGE_SIZE, showSpinner = true) => {
     try {
-      if (showSpinner) setMatchesLoading(true);
-      const page = await listAdminMatches(status, size);
+      if (showSpinner) setLoading(true);
+      const page = await listAdminMatches(s, size);
       setMatches(page.data || []);
-      setMatchesTotal(page.pagination?.totalElements ?? (page.data || []).length);
+      setTotal(page.pagination?.totalElements ?? (page.data || []).length);
       setLoadError(null);
     } catch (err) {
-      console.error('Lỗi khi tải danh sách trận đấu cho Admin:', err);
-      setLoadError(loadErrorText(err, 'danh sách trận đấu'));
+      setLoadError(loadErrorText(err, 'danh sách trận'));
     } finally {
-      if (showSpinner) setMatchesLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMatches(filterStatus);
-  }, [filterStatus]);  
+    fetchMatches(status);
+  }, [status]);  
 
   const loadMore = async () => {
     setLoadingMore(true);
     try {
-      await fetchMatches(filterStatus, matches.length + PAGE_SIZE, false);
+      await fetchMatches(status, matches.length + PAGE_SIZE, false);
     } finally {
       setLoadingMore(false);
     }
   };
 
-  const handleTogglePublish = async (matchId: number, currentStatus: string) => {
+  /** A row whose state changed leaves a tab it no longer belongs to. */
+  const replaceOrDrop = (updated: Match) => {
+    const stays = status === 'ALL' || updated.status === status;
+    setMatches((prev) => (stays ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev.filter((x) => x.id !== updated.id)));
+    if (!stays) setTotal((t) => t - 1);
+  };
+
+  const publish = async (match: Match) => {
+    setBusyId(match.id);
     try {
-      setActionLoadingId(matchId);
-      const unpublishing = currentStatus === 'PUBLISHED';
-      const updated = unpublishing ? await unpublishMatch(matchId) : await publishMatch(matchId);
-      setMatches((prev) => prev.map((m) => (m.id === matchId ? updated : m)));
-      showFeedback(
-        'success',
-        unpublishing
-          ? `Đã gỡ công khai trận đấu #${matchId} về chế độ riêng tư.`
-          : `Đã duyệt xuất bản trận đấu #${matchId} lên Thư viện công khai!`,
-      );
-      onChanged();
+      replaceOrDrop(await publishMatch(match.id));
+      toast.success(`Đã công khai ${players(match)}.`);
+      refreshMetrics();
     } catch (err) {
-      showFeedback('error', errorMessage(err, 'Không thể cập nhật trạng thái xuất bản của trận đấu.'));
+      toast.error(errorMessage(err, 'Không công khai được trận.'));
     } finally {
-      setActionLoadingId(null);
+      setBusyId(null);
     }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!matchToDelete) return;
-    const matchId = matchToDelete.id;
+  const confirmPending = async () => {
+    if (!pending) return;
+    const { kind, match } = pending;
+    setBusyId(match.id);
     try {
-      setActionLoadingId(matchId);
-      await deleteMatchAsAdmin(matchId);
-      setMatches((prev) => prev.filter((m) => m.id !== matchId));
-      setMatchToDelete(null);
-      showFeedback('success', `Đã xóa mềm trận đấu #${matchId} vào Thùng rác.`);
-      onChanged();
-    } catch (err) {
-      showFeedback('error', errorMessage(err, 'Không thể xóa trận đấu.'));
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  const handleRestoreMatch = async (matchId: number) => {
-    try {
-      setActionLoadingId(matchId);
-      await restoreMatch(matchId);
-      if (filterStatus === 'DELETED') {
-        setMatches((prev) => prev.filter((m) => m.id !== matchId));
+      if (kind === 'unpublish') {
+        replaceOrDrop(await unpublishMatch(match.id));
+        toast.success(`Đã gỡ ${players(match)} khỏi thư viện công khai.`);
       } else {
-        fetchMatches(filterStatus);
+        await deleteMatchAsAdmin(match.id);
+        setMatches((prev) => prev.filter((x) => x.id !== match.id));
+        setTotal((t) => t - 1);
+        toast.success(`Đã chuyển ${players(match)} vào thùng rác.`);
       }
-      showFeedback('success', `Đã khôi phục thành công trận đấu #${matchId} từ Thùng rác!`);
-      onChanged();
+      setPending(null);
+      refreshMetrics();
     } catch (err) {
-      showFeedback('error', errorMessage(err, 'Không thể khôi phục trận đấu.'));
+      toast.error(errorMessage(err, kind === 'unpublish' ? 'Không gỡ công khai được.' : 'Không xóa được trận.'));
     } finally {
-      setActionLoadingId(null);
+      setBusyId(null);
     }
   };
+
+  const restore = async (match: Match) => {
+    setBusyId(match.id);
+    try {
+      await restoreMatch(match.id);
+      setMatches((prev) => prev.filter((x) => x.id !== match.id));
+      setTotal((t) => t - 1);
+      toast.success(`Đã khôi phục ${players(match)}.`);
+      refreshMetrics();
+    } catch (err) {
+      toast.error(errorMessage(err, 'Không khôi phục được trận.'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const b = metrics?.matchStatusBreakdown ?? {};
+  const tabs = [
+    { key: 'ALL', label: 'Tất cả', count: metrics?.totalMatches },
+    { key: 'ANALYZED', label: 'Chờ công khai', count: metrics?.analyzedMatches },
+    { key: 'PUBLISHED', label: 'Công khai', count: metrics?.publishedMatches },
+    { key: 'ANALYZING', label: 'Đang phân tích', count: b.ANALYZING },
+    { key: 'READY', label: 'Chưa phân tích', count: b.READY },
+    { key: 'DRAFT', label: 'Chưa có video', count: metrics?.draftMatches },
+    { key: 'DELETED', label: 'Thùng rác', count: metrics?.deletedMatches },
+  ];
 
   return (
-    <>
-      <div className="space-y-5 min-w-0">
-        {/* 4 Thẻ tóm tắt nhanh dành riêng cho phân hệ Trận đấu */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-          <div className="bg-[#0f1d35]/85 border border-white/10 rounded-2xl p-4">
-            <div className="text-[11px] text-slate-400">Tổng trận đang hoạt động</div>
-            <div className="text-xl font-black text-white mt-0.5">
-              {dashboardMetrics?.totalMatches ?? '–'}
-            </div>
-          </div>
-          <div className="bg-[#0f1d35]/85 border border-emerald-500/25 rounded-2xl p-4">
-            <div className="text-[11px] text-emerald-300">Đang công khai (PUBLISHED)</div>
-            <div className="text-xl font-black text-emerald-400 mt-0.5">
-              {dashboardMetrics?.publishedMatches ?? '–'}
-            </div>
-          </div>
-          <div className="bg-[#0f1d35]/85 border border-sky-500/25 rounded-2xl p-4">
-            <div className="text-[11px] text-sky-300">Đã phân tích chờ duyệt (ANALYZED)</div>
-            <div className="text-xl font-black text-sky-400 mt-0.5">
-              {dashboardMetrics?.analyzedMatches ?? '–'}
-            </div>
-          </div>
-          <div className="bg-[#0f1d35]/85 border border-rose-500/25 rounded-2xl p-4">
-            <div className="text-[11px] text-rose-300">Trong thùng rác (DELETED)</div>
-            <div className="text-xl font-black text-rose-400 mt-0.5">
-              {dashboardMetrics?.deletedMatches ?? '–'}
-            </div>
-          </div>
-        </div>
+    <div className="space-y-5">
+      <SectionHeader
+        title="Trận đấu"
+        description="Trận của mọi người dùng. Công khai một trận để khách xem được trên thư viện; trận bị xóa nằm trong thùng rác và khôi phục được."
+      />
 
-        <section className="bg-[#0f1d35]/90 border border-white/10 rounded-3xl p-5 sm:p-7 space-y-5 shadow-xl min-w-0">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-5">
-            <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Globe className="w-5 h-5 text-sky-400" />
-                <span>Danh Sách Trận Đấu & Kiểm Duyệt Thư Viện Công Khai</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Duyệt xuất bản (Publish), gỡ công khai (Unpublish), xóa mềm vi phạm hoặc khôi phục từ thùng rác (VS-16)
-              </p>
-            </div>
+      <FilterTabs tabs={tabs} value={status} onChange={setStatus} label="Lọc trận theo trạng thái" />
 
-            {/* Bộ lọc */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              {filterTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setFilterStatus(tab.key)}
-                  className={`px-3.5 py-1.5 rounded-full font-semibold transition-all ${
-                    filterStatus === tab.key
-                      ? tab.key === 'DELETED'
-                        ? 'bg-rose-600 text-white shadow-lg'
-                        : 'bg-brand text-white shadow-glow-blue'
-                      : 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
+      {loadError && <LoadError message={loadError} onRetry={() => fetchMatches(status)} />}
 
-          {matchesLoading && (
-            <div className="py-16 flex flex-col items-center justify-center space-y-3">
-              <Loader2 className="w-7 h-7 text-sky-400 animate-spin" />
-              <span className="text-xs text-slate-400">Đang tải danh sách trận đấu…</span>
-            </div>
-          )}
-
-          {!matchesLoading && loadError && (
-            <LoadError message={loadError} onRetry={() => fetchMatches(filterStatus)} />
-          )}
-
-          {!matchesLoading && !loadError && matches.length === 0 && (
-            <div className="py-12 text-center text-slate-400 text-sm">
-              {filterStatus === 'DELETED'
-                ? 'Thùng rác đang trống. Không có trận đấu nào bị xóa mềm.'
-                : 'Không tìm thấy trận đấu nào với bộ lọc hiện tại.'}
-            </div>
-          )}
-
-          {!matchesLoading && matches.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-white/10 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                    <th className="pb-3 px-3">Trận Đấu & Người Tạo</th>
-                    <th className="pb-3 px-3 whitespace-nowrap">Nguồn Video</th>
-                    <th className="pb-3 px-3 whitespace-nowrap">Thời Lượng / Dữ Liệu AI</th>
-                    <th className="pb-3 px-3 whitespace-nowrap">Trạng Thái</th>
-                    <th className="pb-3 px-3 text-right whitespace-nowrap">Hành Động</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {matches.map((item) => {
-                    const isPublished = item.status === 'PUBLISHED';
-                    const isDeleted = Boolean(item.deletedAt);
-                    const isOperating = actionLoadingId === item.id;
-                    const canPublish =
-                      !isDeleted &&
-                      (item.status === 'ANALYZED' ||
-                        item.status === 'PUBLISHED' ||
-                        (item.totalStrokes && item.totalStrokes > 0));
-
-                    return (
-                      <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-4 px-3 max-w-xs">
-                          <div className="font-bold text-white text-sm line-clamp-1">
-                            {item.title || `${item.playerAName} vs ${item.playerBName}`}
-                          </div>
-                          <div className="text-sky-400 text-xs mt-0.5 font-medium">
-                            {item.playerAName}{' '}
-                            <span className="text-white/40 font-normal">đối đầu</span>{' '}
-                            {item.playerBName}
-                          </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">
-                            Mã: #{item.id} • Chủ sở hữu: {item.ownerEmail || `User #${item.ownerId}`}
-                          </div>
-                        </td>
-
-                        <td className="py-4 px-3 whitespace-nowrap">
-                          {item.youtubeVideoId ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 font-medium">
-                              <span>YouTube Nhúng</span>
-                            </span>
+      <Sheet className="overflow-hidden">
+        {loading ? (
+          <SkeletonRows />
+        ) : !loadError && matches.length === 0 ? (
+          <EmptyState
+            compact
+            icon={Inbox}
+            title={status === 'DELETED' ? 'Thùng rác trống' : status === 'ANALYZED' ? 'Không có trận nào chờ công khai' : 'Không có trận nào ở mục này'}
+            description={status === 'ALL' ? 'Khi người dùng tạo trận, trận sẽ hiện ở đây.' : undefined}
+            action={status !== 'ALL' ? { label: 'Xem tất cả trận', onClick: () => setStatus('ALL') } : undefined}
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className={tableClass}>
+              <thead className={theadClass}>
+                <tr>
+                  <th className={thClass}>Trận</th>
+                  <th className={thClass}>Người tạo</th>
+                  <th className={thClass}>Video và dữ liệu</th>
+                  <th className={thClass}>Trạng thái</th>
+                  <th className={`${thClass} text-right`}>
+                    <span className="sr-only">Thao tác</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {matches.map((m) => {
+                  const deleted = Boolean(m.deletedAt);
+                  const busy = busyId === m.id;
+                  const published = m.status === 'PUBLISHED';
+                  const viewTo = published ? `/public-matches/${m.id}/replay` : `/matches/${m.id}`;
+                  const title = m.title && m.title !== players(m) ? m.title : null;
+                  return (
+                    <tr key={m.id} className={rowClass}>
+                      <td className={`${tdClass} max-w-[22rem]`}>
+                        <span className="flex items-center gap-2 font-medium text-ink">
+                          <span className="w-2 h-2 rounded-full bg-pa shrink-0" aria-hidden />
+                          <span className="truncate">{m.playerAName}</span>
+                        </span>
+                        <span className="flex items-center gap-2 font-medium text-ink">
+                          <span className="w-2 h-2 rounded-full bg-pb shrink-0" aria-hidden />
+                          <span className="truncate">{m.playerBName}</span>
+                        </span>
+                        <span className="block text-xs text-ink/60 truncate mt-0.5">
+                          {formatDate(m.matchDate)}
+                          {title && <> · {title}</>}
+                        </span>
+                      </td>
+                      <td className={`${tdClass} text-ink/70 max-w-[14rem] truncate`}>{m.ownerEmail || `Người dùng #${m.ownerId}`}</td>
+                      <td className={`${tdClass} whitespace-nowrap text-ink/70`}>
+                        <span className="flex items-center gap-1.5">
+                          {m.youtubeVideoId && <Youtube className="w-4 h-4 text-ink/50" aria-label="YouTube" />}
+                          {m.durationSeconds ? formatDuration(m.durationSeconds) : m.status === 'DRAFT' ? 'Chưa có video' : 'Chưa rõ độ dài'}
+                        </span>
+                        {m.totalRallies ? (
+                          <span className="block text-xs text-ink/60 tabular-nums">
+                            {m.totalRallies} pha · {numberFormat.format(m.totalStrokes ?? 0)} cú
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className={tdClass}>
+                        <MatchStatusBadge status={m.status} deletedAt={m.deletedAt} />
+                      </td>
+                      <td className={`${tdClass} text-right whitespace-nowrap`}>
+                        <div className="inline-flex items-center gap-1.5">
+                          {deleted ? (
+                            <TextAction busy={busy} onClick={() => restore(m)}>
+                              {!busy && <RotateCcw className="w-3.5 h-3.5" aria-hidden />}
+                              Khôi phục
+                            </TextAction>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 font-medium">
-                              <span>MinIO S3</span>
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-4 px-3 text-slate-300 whitespace-nowrap">
-                          <div>
-                            {item.durationSeconds
-                              ? `${Math.floor(item.durationSeconds / 60)} phút`
-                              : item.status === 'DRAFT'
-                              ? 'Chưa có video'
-                              : 'Chưa rõ thời lượng'}
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            {item.totalRallies || 0} pha cầu • {item.totalStrokes || 0} cú đánh
-                          </div>
-                        </td>
-
-                        <td className="py-4 px-3 whitespace-nowrap">
-                          <MatchStatusBadge status={item.status} deletedAt={item.deletedAt} />
-                        </td>
-
-                        <td className="py-4 px-3 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center gap-2">
-                            {isDeleted ? (
-                              <button
-                                type="button"
-                                disabled={isOperating}
-                                onClick={() => handleRestoreMatch(item.id)}
-                                className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold transition-all flex items-center gap-1.5"
+                            <>
+                              {m.status === 'ANALYZED' && (
+                                // Filled only in the "Chờ công khai" queue; in the full list it would drown the page in green.
+                                <TextAction primary={status === 'ANALYZED'} busy={busy} onClick={() => publish(m)}>
+                                  Công khai
+                                </TextAction>
+                              )}
+                              {published && (
+                                <TextAction busy={busy} onClick={() => setPending({ kind: 'unpublish', match: m })}>
+                                  Gỡ công khai
+                                </TextAction>
+                              )}
+                              <Link
+                                to={viewTo}
+                                target="_blank"
+                                title="Mở trận trong tab mới"
+                                aria-label={`Mở ${players(m)} trong tab mới`}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-ink/60 hover:text-ink hover:bg-ink/[0.06]"
                               >
-                                {isOperating ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <>
-                                    <RotateCcw className="w-3.5 h-3.5" />
-                                    <span>Khôi phục</span>
-                                  </>
-                                )}
-                              </button>
-                            ) : (
-                              <>
-                                <Link
-                                  to={
-                                    isPublished
-                                      ? `/public-matches/${item.id}/replay`
-                                      : `/matches/${item.id}`
-                                  }
-                                  target="_blank"
-                                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-colors border border-white/10"
-                                  title="Xem chi tiết / Phát lại trận đấu"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </Link>
-
-                                <button
-                                  type="button"
-                                  disabled={isOperating || !canPublish}
-                                  onClick={() => handleTogglePublish(item.id, item.status)}
-                                  title={
-                                    !canPublish
-                                      ? 'Chỉ có thể xuất bản trận đấu đã hoàn tất phân tích AI'
-                                      : isPublished
-                                      ? 'Gỡ khỏi Thư viện công khai'
-                                      : 'Xuất bản lên Thư viện công khai'
-                                  }
-                                  className={`px-3.5 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
-                                    isPublished
-                                      ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30'
-                                      : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 shadow-glow-blue'
-                                  }`}
-                                >
-                                  {isOperating ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : isPublished ? (
-                                    <>
-                                      <EyeOff className="w-3.5 h-3.5" />
-                                      <span>Gỡ công khai</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Globe className="w-3.5 h-3.5" />
-                                      <span>Xuất bản</span>
-                                    </>
-                                  )}
-                                </button>
-
-                                <button
-                                  type="button"
-                                  disabled={isOperating}
-                                  onClick={() => setMatchToDelete(item)}
-                                  className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/25 transition-colors"
-                                  title="Xóa mềm trận đấu vào Thùng rác"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {!matchesLoading && matchesTotal > matches.length && (
-            <LoadMore shown={matches.length} total={matchesTotal} loading={loadingMore} onClick={() => loadMore()} />
-          )}
-        </section>
-      </div>
-
-      {/* Modal xác nhận xóa mềm trận đấu */}
-      {matchToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl bg-[#0f1a2e] border border-white/15 p-6 shadow-2xl space-y-5">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-white text-base">
-                    Xác nhận xóa mềm trận đấu
-                  </h3>
-                  <p className="text-xs text-slate-400">Trận đấu #{matchToDelete.id}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setMatchToDelete(null)}
-                className="text-white/40 hover:text-white p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Bạn có chắc chắn muốn chuyển trận đấu{' '}
-              <strong className="text-white">
-                {matchToDelete.title ||
-                  `${matchToDelete.playerAName} vs ${matchToDelete.playerBName}`}
-              </strong>{' '}
-              vào Thùng rác? Bạn có thể khôi phục lại trận đấu này bất kỳ lúc nào trong tab{' '}
-              <strong>Thùng rác (Đã xóa)</strong>.
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setMatchToDelete(null)}
-                className="px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-300 border border-white/10 transition"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="button"
-                disabled={actionLoadingId === matchToDelete.id}
-                onClick={handleConfirmDelete}
-                className="px-5 py-2 rounded-full bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg transition flex items-center gap-1.5"
-              >
-                {actionLoadingId === matchToDelete.id ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
-                )}
-                <span>Xác nhận xóa</span>
-              </button>
-            </div>
+                                <ExternalLink className="w-4 h-4" />
+                              </Link>
+                              <IconAction label={`Xóa ${players(m)}`} danger disabled={busy} onClick={() => setPending({ kind: 'delete', match: m })}>
+                                <Trash2 className="w-4 h-4" />
+                              </IconAction>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
+        {!loading && total > matches.length && <LoadMore shown={matches.length} total={total} loading={loadingMore} onClick={loadMore} />}
+      </Sheet>
+
+      {pending && (
+        <ConfirmDialog
+          title={pending.kind === 'delete' ? 'Chuyển trận vào thùng rác?' : 'Gỡ trận khỏi thư viện công khai?'}
+          confirmLabel={pending.kind === 'delete' ? 'Chuyển vào thùng rác' : 'Gỡ công khai'}
+          busyLabel={pending.kind === 'delete' ? 'Đang xóa…' : 'Đang gỡ…'}
+          danger={pending.kind === 'delete'}
+          busy={busyId === pending.match.id}
+          onConfirm={confirmPending}
+          onCancel={() => setPending(null)}
+        >
+          <strong className="text-ink">{players(pending.match)}</strong>{' '}
+          {pending.kind === 'delete'
+            ? 'sẽ biến mất khỏi danh sách của người tạo và khỏi thư viện. Bạn khôi phục được từ thùng rác.'
+            : 'sẽ không còn hiện với khách. Người tạo vẫn xem được trận như bình thường.'}
+        </ConfirmDialog>
       )}
-    </>
+    </div>
   );
 };

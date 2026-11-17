@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight, Search, Users, X } from 'lucide-react';
 import { fetchPlayers, playerPath, type PlayerSummary } from '../api/players';
 import { PlayerMonogram } from '../components/player/PlayerMonogram';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Notice } from '../components/ui/Notice';
 import { PlayerRadarChart } from '../components/player/PlayerRadarChart';
 import { formatDate, hasRadar, playstyleLabel, playstyleTone, winRate } from '../utils/playerProfile';
 import { isSignedIn } from '../auth/session';
@@ -138,20 +140,16 @@ export const PlayersPage: React.FC = () => {
           ))}
         </div>
       ) : failed ? (
-        <div className="rounded-lg bg-sheet border border-ink/10 px-6 py-14 text-center text-sm text-ink/70">
-          Không tải được danh sách vận động viên. Thử tải lại trang.
-        </div>
+        <Notice tone="error" action={{ label: 'Tải lại', onClick: () => window.location.reload() }}>
+          Không tải được danh sách vận động viên.
+        </Notice>
       ) : players.length === 0 ? (
-        <div className="rounded-lg bg-sheet border border-ink/10 px-6 py-14 text-center space-y-3">
-          <h2 className="text-lg font-semibold text-ink">
-            {search ? `Không có vận động viên nào khớp với "${search}"` : 'Chưa có vận động viên nào'}
-          </h2>
-          {search && (
-            <button type="button" onClick={() => setSearch('')} className="text-sm font-semibold text-pitch hover:text-pitch-deep">
-              Xem tất cả
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={Users}
+          title={search ? `Không có vận động viên nào khớp với "${search}"` : 'Chưa có vận động viên nào'}
+          description={search ? 'Thử gõ họ hoặc tên riêng, không cần dấu.' : 'Vận động viên xuất hiện khi có trận đấu trong thư viện.'}
+          action={search ? { label: 'Xem tất cả', onClick: () => setSearch('') } : undefined}
+        />
       ) : (
         <>
           <p className="text-sm text-ink/70">{players.length} vận động viên</p>

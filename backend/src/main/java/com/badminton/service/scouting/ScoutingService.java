@@ -3,6 +3,8 @@ package com.badminton.service.scouting;
 import com.badminton.service.player.PlayerProfileService;
 import com.badminton.common.dto.ErrorType;
 import com.badminton.common.exception.ApiException;
+import com.badminton.dto.admin.AdminSharedReportResponse;
+import com.badminton.dto.admin.PagedResponse;
 import com.badminton.dto.player.PlayerProfileResponse;
 import com.badminton.dto.scouting.ScoutingPlan;
 import com.badminton.dto.scouting.ScoutingReportRequest;
@@ -15,6 +17,8 @@ import com.badminton.repository.user.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -132,6 +136,25 @@ public class ScoutingService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.SYSTEM, "ERR_REPORT_NOT_FOUND",
                         "Link chia sẻ không tồn tại hoặc đã bị tắt"));
         return toResponse(report, false, true);
+    }
+
+    /** Reports open to anyone with the link, most recently changed first: what the admin checks. */
+    @Transactional(readOnly = true)
+    public PagedResponse<AdminSharedReportResponse> listSharedForAdmin(int page, int size) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        return PagedResponse.of(scoutingReportRepository.findByShareTokenIsNotNull(pageable), r ->
+                new AdminSharedReportResponse(r.getId(), r.getTitle(), r.getOpponentName(), r.getOwnPlayerName(),
+                        r.getOwner().getEmail(), r.getOwner().getFullName(), r.getShareToken(), r.getUpdatedAt()));
+    }
+
+    /** Turns off the share link of any user's report; the report itself stays with its owner. */
+    @Transactional
+    public void revokeShareForAdmin(Long id) {
+        ScoutingReport report = scoutingReportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorType.SYSTEM, "ERR_REPORT_NOT_FOUND",
+                        "Không tìm thấy báo cáo trinh sát"));
+        report.setShareToken(null);
+        scoutingReportRepository.save(report);
     }
 
     /* ------------------------------------------------------------------ helpers */
