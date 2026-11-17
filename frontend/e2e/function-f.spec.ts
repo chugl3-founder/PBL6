@@ -7,7 +7,14 @@ import { apiContext, loginAs, readState, videoTime, type E2EState } from './help
 // E2E_REPLAY_EMAIL / E2E_REPLAY_PASSWORD.
 
 interface Ev { id: number; timeSeconds: number; stroke: string }
-interface Rally { startTime: number; endTime: number; strokeSequence: string[] }
+interface Rally {
+  startTime: number; endTime: number; strokeSequence: string[];
+  winnerSide?: string | null; winnerPlayer?: string | null; afterMatch?: boolean; beforeMatch?: boolean;
+}
+
+/** The rallies the replay lists: points only (no warm-up, post-match play or lets), as isShownRally. */
+const isShown = (r: Rally) => !r.afterMatch && !r.beforeMatch
+  && (!r.winnerSide || r.winnerSide === 'UPPER' || r.winnerSide === 'LOWER' || Boolean(r.winnerPlayer));
 
 let owner: E2EState;
 let matchId: number;
@@ -31,7 +38,7 @@ test.beforeAll(async () => {
   }));
   rallies = (await (await api.get(`/api/matches/${matchId}/analysis/rallies`)).json()).map((r: Rally) => ({
     ...r, startTime: Number(r.startTime), endTime: Number(r.endTime),
-  }));
+  })).filter(isShown);
 });
 
 async function openReplay(page: Page): Promise<void> {
@@ -137,7 +144,7 @@ test('WT-09 Lọc cú đánh theo loại', async ({ page }) => {
 test('WT-10 Xem phân tích cả trận và thống kê', async ({ page }) => {
   const stats = await (await api.get(`/api/matches/${matchId}/analysis/statistics`)).json();
   expect(stats.totalStrokes).toBe(events.length);
-  expect(stats.totalRallies).toBe(rallies.length);
+  expect(stats.totalRallies).toBeGreaterThanOrEqual(rallies.length); // the list leaves out lets and play outside the match
 
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

@@ -1,6 +1,7 @@
 import React from 'react';
 import { AiEventData, RallyData } from '../../types/replay';
 import { strokeLabel } from '../../utils/strokeLabels';
+import { isShownRally } from '../../utils/rallies';
 
 interface TimelineMarkersProps {
   events: AiEventData[];
@@ -71,7 +72,7 @@ export const TimelineMarkers: React.FC<TimelineMarkersProps> = ({
         {/* The court mat */}
         <div className="absolute inset-x-0 top-1.5 h-6 rounded-md bg-pitch overflow-hidden">
           {/* Rallies, coloured by who won the point */}
-          {rallies.filter(rally => rally.endTime >= viewStart && rally.startTime <= viewEnd).map(rally => {
+          {rallies.filter(rally => isShownRally(rally) && rally.endTime >= viewStart && rally.startTime <= viewEnd).map(rally => {
             // Warm-up, post-match play and lets (no point) stay grey: only points are coloured by their winner.
             const counts = !rally.afterMatch && !rally.beforeMatch;
             const side = counts ? rally.winnerSide : null;

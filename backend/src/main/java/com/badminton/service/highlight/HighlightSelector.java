@@ -24,6 +24,9 @@ public final class HighlightSelector {
     static final double TARGET_REEL_SECONDS = 120.0;
     /** The most points the AI may have counted from warm-up play before it first reads the scoreboard. */
     static final int MAX_WARM_UP_POINTS = 6;
+    /** A count back at this many points or fewer, after a near-complete game, is the AI starting the next game. */
+    static final int RESTARTED_COUNT_POINTS = 5;
+    static final int MIN_GAME_POINTS_BEFORE_RESTART = 20;
     static final int TARGET_CLIPS = 12;
     /** The reel must stay under the storage file cap (50 MB on Supabase); 3 minutes at 720p fits. */
     public static final double MAX_REEL_SECONDS = 180.0;
@@ -204,13 +207,35 @@ public final class HighlightSelector {
             boolean firstGame = gamesA + gamesB == 0 && start.equals(Start.NONE);
             // Only a handful of warm-up rallies are plausible. A larger count that drops is the AI restarting
             // its count for the next game (it missed a point, so the game never reached 21 here): not warm-up.
-            if (firstGame && !anchored && prevTotal >= 0 && prevTotal <= MAX_WARM_UP_POINTS && total < prevTotal) {
-                anchored = true;
-                int extra = counted.size() - Math.max(0, total - 1);
-                for (int i = 0; i < extra; i++) {
-                    out.put(counted.get(i).rallyId(), new GameContext(game, start.scoreA(), start.scoreB(),
-                            start.scoreA(), start.scoreB(), false, false, aOnUpper, false, true));
+            boolean drop = prevTotal >= 0 && total < prevTotal;
+            if (firstGame && !anchored && drop) {
+                anchored = true; // only the first drop can be the first scoreboard reading
+                if (prevTotal <= MAX_WARM_UP_POINTS) {
+                    int extra = counted.size() - Math.max(0, total - 1);
+                    for (int i = 0; i < extra; i++) {
+                        out.put(counted.get(i).rallyId(), new GameContext(game, start.scoreA(), start.scoreB(),
+                                start.scoreA(), start.scoreB(), false, false, aOnUpper, false, true));
+                    }
                 }
+            }
+            // The AI restarted its count for the next game although this one never reached 21 in its count
+            // (it missed points): end the game here, won by the player ahead, and change ends as usual.
+            // (last.game() == game: a game that already ended by the rules has moved on and is not ended twice.)
+            if (drop && last != null && last.game() == game && total <= RESTARTED_COUNT_POINTS
+                    && last.aAfter() + last.bAfter() >= MIN_GAME_POINTS_BEFORE_RESTART) {
+                if (last.aAfter() > last.bAfter()) gamesA++;
+                else if (last.bAfter() > last.aAfter()) gamesB++;
+                matchOver = gamesA >= 2 || gamesB >= 2 || game >= 3;
+                if (matchOver) {
+                    out.put(r.rallyId(), new GameContext(game, last.aAfter(), last.bAfter(), last.aAfter(),
+                            last.bAfter(), false, false, last.aOnUpper(), true, false));
+                    prevTotal = total;
+                    continue;
+                }
+                game++;
+                offUpper = offLower = segUpper = segLower = baseA = baseB = 0;
+                aOnUpper = !aOnUpper;
+                switchedAt11 = false;
             }
             prevTotal = total;
             if (gamesA + gamesB == 0) {

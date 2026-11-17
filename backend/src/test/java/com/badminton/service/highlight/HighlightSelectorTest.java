@@ -243,6 +243,24 @@ class HighlightSelectorTest {
         Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies, true);
 
         assertThat(games.values()).noneMatch(HighlightSelector.GameContext::beforeMatch);
+        // The restart ends game 1 (won by the player ahead) and starts game 2 with the players' ends changed.
+        assertThat(games.get(35L).game()).isEqualTo(1);
+        assertThat(games.get(36L).game()).isEqualTo(2);
+        assertThat(games.get(36L).aOnUpper()).isFalse();
+        assertThat(games.get(36L).bAfter()).isEqualTo(1); // B is on the upper half now and won it
+    }
+
+    @Test
+    void aGameEndedByTheRulesIsNotEndedAgainWhenTheCountRestarts() {
+        List<RallyFacts> rallies = new ArrayList<>();
+        int[] count = {0, 0};
+        run(rallies, "UPPER", 21, count);                          // game 1: A wins 21-0
+        rallies.add(rally(22, 2000, 4, "UPPER", 1, 0, null, null)); // the AI restarts its count for game 2
+
+        Map<Long, HighlightSelector.GameContext> games = HighlightSelector.trackGames(rallies, true);
+
+        assertThat(games.get(22L).game()).isEqualTo(2);
+        assertThat(games.get(22L).afterMatch()).isFalse();
     }
 
     @Test
