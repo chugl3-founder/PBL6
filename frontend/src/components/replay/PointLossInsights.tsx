@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { PlayCircle, ShieldCheck, Info, GraduationCap } from 'lucide-react';
+import { PlayCircle, ShieldCheck, Info, Swords } from 'lucide-react';
 import { isSignedIn } from '../../auth/session';
-import { askCoach, trainingPlanPrompt } from '../../utils/coachEvents';
+import { askCoach, exploitWeaknessPrompt } from '../../utils/coachEvents';
 import { AiEventData, RallyData } from '../../types/replay';
 import { PlaylistClip, CourtSide, sideName, analyzeLostPoints, toPlaylist } from '../../utils/pointLoss';
 
@@ -12,7 +12,7 @@ interface PointLossInsightsProps {
   playerBName: string;
   upperPlayer: string;
   onPlayPlaylist: (title: string, clips: PlaylistClip[]) => void;
-  /** The match being watched, given to the coach as context for the training plan. */
+  /** The match being watched, given to the coach as context when asked how to exploit a weakness. */
   matchId?: number;
 }
 
@@ -101,11 +101,11 @@ export const PointLossInsights: React.FC<PointLossInsightsProps> = ({
       {isSignedIn() && analysis.lost.length > 0 && (
         <button
           type="button"
-          onClick={() => askCoach(trainingPlanPrompt(nameOf(player), matchId))}
+          onClick={() => askCoach(exploitWeaknessPrompt(nameOf(player), matchId))}
           className="w-full h-9 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-ink/90 flex items-center justify-center gap-1.5 transition-colors"
         >
-          <GraduationCap className="w-4 h-4" />
-          Nhờ HLV AI lập giáo án cho {nameOf(player)}
+          <Swords className="w-4 h-4" />
+          Hỏi HLV AI cách khai thác điểm yếu của {nameOf(player)}
         </button>
       )}
 

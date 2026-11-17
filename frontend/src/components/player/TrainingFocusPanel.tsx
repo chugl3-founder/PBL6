@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Minus, PlayCircle, TrendingDown, TrendingUp } from 'lucide-react';
+import { Crosshair, Minus, PlayCircle, Swords, TrendingDown, TrendingUp } from 'lucide-react';
 import { fetchTrainingFocus, replayPath, type TrainingFocus, type TrainingFocusData, type TrainingTrend } from '../../api/players';
 import { isSignedIn } from '../../auth/session';
-import { askCoach, trainingPlanPrompt } from '../../utils/coachEvents';
+import { askCoach, exploitWeaknessPrompt } from '../../utils/coachEvents';
 import { formatDate } from '../../utils/playerProfile';
 import { strokeLabelLower } from '../../utils/strokeLabels';
 
 const TREND: Record<TrainingTrend, { label: string; className: string; icon: React.FC<{ className?: string }> }> = {
-  // Fewer points lost this way in the latest match is progress, so the arrow points down.
-  IMPROVING: { label: 'Tiến bộ', className: 'bg-pitch-soft text-pitch-deep', icon: TrendingDown },
-  WORSENING: { label: 'Sa sút', className: 'bg-loss/10 text-loss', icon: TrendingUp },
-  STABLE: { label: 'Giữ nguyên', className: 'bg-ink/[0.06] text-ink/70', icon: Minus },
+  // Fewer points lost this way in the latest match: the weakness is closing, so the arrow points down.
+  IMPROVING: { label: 'Đang khắc phục', className: 'bg-pitch-soft text-pitch-deep', icon: TrendingDown },
+  WORSENING: { label: 'Lộ rõ hơn', className: 'bg-loss/10 text-loss', icon: TrendingUp },
+  STABLE: { label: 'Ổn định', className: 'bg-ink/[0.06] text-ink/70', icon: Minus },
   NOT_ENOUGH_DATA: { label: 'Chưa đủ trận', className: 'bg-ink/[0.04] text-ink/55', icon: Minus },
 };
 
@@ -22,8 +22,8 @@ const focusTitle = (f: TrainingFocus) =>
 
 const focusHint = (f: TrainingFocus) =>
   f.kind === 'ERROR'
-    ? 'Cú cuối pha là của VĐV mà vẫn mất điểm: thường là cầu ra ngoài hoặc chạm lưới'
-    : 'Cú dứt điểm của đối thủ: cần cải thiện phòng thủ hoặc tránh tạo cơ hội cho cú này';
+    ? 'Cú cuối pha là của VĐV mà vẫn mất điểm: thường là cầu ra ngoài hoặc chạm lưới, nên hãy ép VĐV phải đánh cú này'
+    : 'Cú dứt điểm của đối thủ: VĐV khó chống đỡ cú này, nên hãy tạo cơ hội để tung ra nó';
 
 /** Share of each match's lost points that went this way, oldest match first. */
 const RateBars: React.FC<{ focus: TrainingFocus }> = ({ focus }) => {
@@ -59,7 +59,10 @@ const RateBars: React.FC<{ focus: TrainingFocus }> = ({ focus }) => {
   );
 };
 
-/** "Trọng tâm tập luyện": the player's main ways of losing points and how each moved over the matches. */
+/**
+ * "Điểm yếu": the player's main ways of losing points across their matches and how each moved, read by
+ * someone preparing to face them (or following their form); the matches are broadcast pro matches.
+ */
 export const TrainingFocusPanel: React.FC<{ name: string }> = ({ name }) => {
   const [data, setData] = useState<TrainingFocusData | null>(null);
   const [failed, setFailed] = useState(false);
@@ -76,7 +79,7 @@ export const TrainingFocusPanel: React.FC<{ name: string }> = ({ name }) => {
     };
   }, [name]);
 
-  if (failed) return <p className="text-sm text-ink/70 py-6 text-center">Không tải được dữ liệu tập luyện. Thử tải lại trang.</p>;
+  if (failed) return <p className="text-sm text-ink/70 py-6 text-center">Không tải được dữ liệu điểm yếu. Thử tải lại trang.</p>;
   if (!data) return <div className="h-40 rounded-lg bg-ink/[0.04] animate-pulse" />;
 
   if (data.focuses.length === 0) {
@@ -99,17 +102,26 @@ export const TrainingFocusPanel: React.FC<{ name: string }> = ({ name }) => {
           <b className="text-loss">{Math.round((100 * covered) / Math.max(1, data.pointsLost))}%</b> số điểm mất.
         </p>
         {signedIn ? (
-          <button
-            type="button"
-            onClick={() => askCoach(trainingPlanPrompt(data.player))}
-            className="h-9 px-4 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-ink/90 flex items-center gap-1.5 transition-colors"
-          >
-            <GraduationCap className="w-4 h-4" />
-            Nhờ HLV AI lập giáo án
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => askCoach(exploitWeaknessPrompt(data.player))}
+              className="h-9 px-4 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-ink/90 flex items-center gap-1.5 transition-colors"
+            >
+              <Swords className="w-4 h-4" />
+              Hỏi HLV AI cách khai thác
+            </button>
+            <Link
+              to={`/scouting?opponent=${encodeURIComponent(data.player)}`}
+              className="h-9 px-4 rounded-lg border border-ink/15 text-ink text-xs font-semibold hover:border-pitch hover:text-pitch-deep flex items-center gap-1.5 transition-colors"
+            >
+              <Crosshair className="w-4 h-4" />
+              Lập báo cáo trinh sát
+            </Link>
+          </div>
         ) : (
           <Link to="/login" className="text-xs font-semibold text-pitch hover:text-pitch-deep">
-            Đăng nhập để HLV AI lập giáo án
+            Đăng nhập để hỏi HLV AI cách khai thác
           </Link>
         )}
       </div>
@@ -167,7 +179,7 @@ export const TrainingFocusPanel: React.FC<{ name: string }> = ({ name }) => {
       </div>
 
       <p className="text-xs text-ink/60 leading-relaxed">
-        Mỗi cột là một trận (cũ → mới, cột đỏ là trận gần nhất): phần trăm điểm mất theo cách này. Cột thấp dần là đang tiến bộ.
+        Mỗi cột là một trận (cũ → mới, cột đỏ là trận gần nhất): phần trăm điểm mất theo cách này. Cột cao dần là điểm yếu đang lộ rõ hơn.
         AI gom nhóm theo cú cuối của pha cầu và đôi khi sót cú hỏng, nên hãy xem clip để xác nhận.
       </p>
     </div>

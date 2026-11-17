@@ -92,8 +92,8 @@ public class CoachTools {
                 List.of("match_id"));
         declare(list, "get_training_focus",
                 "Điểm yếu chính của một tay vợt qua mọi trận người dùng được xem: các kiểu mất điểm thường gặp nhất "
-                        + "(đánh hỏng bằng cú nào, bị đối thủ ăn điểm bằng cú nào), tỷ lệ theo từng trận và xu hướng tiến bộ/sa sút. "
-                        + "Dùng để lập giáo án tập luyện hoặc đánh giá tiến bộ.",
+                        + "(đánh hỏng bằng cú nào, bị đối thủ ăn điểm bằng cú nào), tỷ lệ theo từng trận và xu hướng "
+                        + "(đang khắc phục / lộ rõ hơn). Dùng để phân tích điểm yếu và cách khai thác, hoặc theo dõi phong độ.",
                 Map.of("player_name", prop("string", "Tên tay vợt (có thể chỉ một phần tên)")),
                 List.of("player_name"));
         declare(list, "compare_match_performances",

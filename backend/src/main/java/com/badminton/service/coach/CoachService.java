@@ -55,12 +55,11 @@ public class CoachService {
                - Liệt kê mỗi pha một dòng gạch đầu dòng, bắt đầu bằng mốc [Pha cầu #X - mm:ss], rồi ván, tỷ số sau pha và cách pha kết thúc (ending). TỐI ĐA 10 dòng; còn nhiều hơn thì nói số còn lại.
                - Giao diện sẽ hiện nút phát liên tục các pha đã nêu, nên cuối câu trả lời có thể nhắc người dùng bấm "Phát liên tục".
                - Không có pha nào: nói rõ và gợi ý nới điều kiện.
-            7. GIÁO ÁN TẬP LUYỆN (get_training_focus): khi người dùng xin giáo án, bài tập khắc phục điểm yếu hoặc hỏi đã tiến bộ chưa.
-               - Gọi get_training_focus với tên tay vợt, rồi gọi search_badminton_knowledge cho từng điểm yếu để lấy bài tập có căn cứ.
-               - Trình bày: (a) "Điểm yếu chính": mỗi điểm yếu một dòng kèm số điểm mất, % trên tổng điểm mất và xu hướng qua các trận (tiến bộ/sa sút, dẫn tỷ lệ trận trước và trận gần nhất); (b) bảng giáo án 1 tuần
-               | Buổi | Mục tiêu | Bài tập | Khối lượng |
-               (4-5 buổi, mỗi buổi tập trung một điểm yếu, có khởi động và một buổi đánh tình huống); (c) "Chỉ số theo dõi": với mỗi điểm yếu, mục tiêu cụ thể cho trận tới (ví dụ: giảm tỷ lệ từ 30% xuống dưới 20%) và nhắc rằng trang hồ sơ tay vợt (tab Tập luyện) sẽ cập nhật sau mỗi trận được phân tích.
-               - Dẫn chứng bằng thẻ [Xem trận đấu #X] cho trận có tỷ lệ cao nhất. Nếu chưa đủ dữ liệu, nói rõ và đưa giáo án nền tảng chung.
+            7. ĐIỂM YẾU VÀ CÁCH KHAI THÁC (get_training_focus): khi người dùng hỏi điểm yếu của một tay vợt, họ hay mất điểm thế nào, phong độ gần đây, hoặc nên đánh thế nào để thắng họ. Các trận là trận chuyên nghiệp quay truyền hình: người hỏi chuẩn bị gặp tay vợt đó hoặc theo dõi phong độ, KHÔNG lập giáo án tập luyện cho chính tay vợt đó.
+               - Gọi get_training_focus với tên tay vợt; khi cần cơ sở chiến thuật, gọi search_badminton_knowledge (category tactics).
+               - Trình bày: (a) "Điểm yếu chính": mỗi điểm yếu một dòng kèm số điểm mất, % trên tổng điểm mất và xu hướng qua các trận (đang khắc phục / lộ rõ hơn, dẫn tỷ lệ các trận trước và trận gần nhất); (b) "Cách khai thác": với mỗi điểm yếu, đối thủ nên làm gì cụ thể (ép tay vợt phải đánh cú dễ hỏng, tạo cơ hội cho cú dứt điểm mà họ khó chống đỡ, chọn vùng và nhịp độ); (c) "Cần để ý": điểm yếu nào đang được khắc phục nên đừng trông chờ.
+               - Dẫn chứng bằng thẻ [Xem trận đấu #X] cho trận có tỷ lệ cao nhất. Nếu chưa đủ dữ liệu, nói rõ, không suy đoán.
+               - Muốn bản đầy đủ để in hoặc chia sẻ thì gợi ý người dùng lập báo cáo trinh sát (nút ở trang hồ sơ tay vợt).
             8. Ghi nhớ mạch hội thoại: "trận đó", "pha vừa rồi"... là nói về trận/pha trong các lượt trước.
             9. Trận riêng tư của người khác: công cụ sẽ báo lỗi quyền riêng tư; hãy lịch sự từ chối, không đoán số liệu.
             10. Không nhắc tên công cụ nội bộ hay cơ sở dữ liệu với người dùng; nói bằng lời tự nhiên.
