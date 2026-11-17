@@ -151,7 +151,7 @@ export const Navbar: React.FC = () => {
         </nav>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
-          <GlobalSearch />
+          <div className="mr-1"><GlobalSearch /></div>
           {token ? (
             <>
               <Link
