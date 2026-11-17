@@ -25,19 +25,24 @@ async function publicMatchId(): Promise<number> {
   return match!.id;
 }
 
-/** Clicks the first rally that starts at 05:00 or later in the replay rally list. */
+/** Clicks the first rally after the 5-minute guest preview window (counted from the first rally). */
 async function clickRallyAfterPreview(page: Page): Promise<void> {
   const labels = page.getByText(/^Pha \d+$/);
   await expect(labels.first()).toBeVisible({ timeout: 30_000 });
-  for (let i = 0; i < Math.min(await labels.count(), 40); i++) {
+  const count = await labels.count();
+  let cutoff = 300;
+  for (let i = 0; i < count; i++) {
     const row = labels.nth(i).locator('xpath=ancestor::*[self::button or self::li or @role="button"][1]');
     const m = (await row.innerText()).match(/(\d{1,2}):(\d{2})/);
-    if (m && Number(m[1]) * 60 + Number(m[2]) >= 300) {
+    if (!m) continue;
+    const sec = Number(m[1]) * 60 + Number(m[2]);
+    if (i === 0) cutoff = sec + 301;
+    if (sec >= cutoff) {
       await row.click();
       return;
     }
   }
-  throw new Error('no rally after 05:00 in the list');
+  throw new Error('no rally after 5-minute preview window in the list');
 }
 
 test.describe('Khách chưa đăng nhập', () => {

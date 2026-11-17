@@ -795,8 +795,8 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
         <button
           onClick={() => setIsOpen(true)}
           className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl shadow-emerald-900/20 border-2 border-white hover:border-emerald-200 transition-all duration-300 hover:scale-110 active:scale-95"
-          aria-label="Trợ lý AI Coach"
-          title="Trợ lý AI Coach"
+          aria-label="Mở trợ lý ảo AI"
+          title="Mở trợ lý ảo AI"
         >
           <Bot className="w-7 h-7" />
           <span className="absolute top-1 right-1 w-3 h-3 bg-amber-400 rounded-full border-2 border-white animate-pulse" />

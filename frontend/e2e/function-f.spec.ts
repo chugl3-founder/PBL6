@@ -165,15 +165,20 @@ test('WT-11 Giới hạn xem thử 300 giây đối với khách chưa đăng nh
   const publicId = (list as { id: number; totalRallies: number }[]).find((m) => m.totalRallies > 10)?.id;
   test.skip(!publicId, 'no public match with rallies');
 
-  /** Clicks the first rally in the list that starts at 05:00 or later. */
+  /** Clicks the first rally in the list after the 5-minute guest preview window. */
   const clickLateRally = async (p: Page) => {
     const rows = rallyRows(p);
     await expect(rows.first()).toBeVisible({ timeout: 30_000 });
-    for (let i = 0; i < Math.min(await rows.count(), 40); i++) {
+    const count = await rows.count();
+    let cutoff = 300;
+    for (let i = 0; i < count; i++) {
       const m = (await rows.nth(i).innerText()).match(/(\d{1,2}):(\d{2})/);
-      if (m && Number(m[1]) * 60 + Number(m[2]) >= 300) return rows.nth(i).click();
+      if (!m) continue;
+      const sec = Number(m[1]) * 60 + Number(m[2]);
+      if (i === 0) cutoff = sec + 301;
+      if (sec >= cutoff) return rows.nth(i).click();
     }
-    throw new Error('no rally after 05:00');
+    throw new Error('no rally after 5-minute preview window');
   };
   const modal = (p: Page) => p.getByRole('dialog', { name: 'Hết thời lượng xem thử' });
 
