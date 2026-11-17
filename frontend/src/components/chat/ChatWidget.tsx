@@ -731,15 +731,17 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
       /(\*\*\*[^*]+?\*\*\*|\*\*.*?\*\*|\*(?!\s)[^*]+?(?<!\s)\*|`[^`]+`|\[Pha cầu #\d+\s*-\s*\d+:\d+\]|\[Xem trận(?:\s*đấu)?\s*#\d+\])/g;
     const parts = text.split(regex);
 
+    // Bold and italic text is rendered again inside, so a [Xem trận đấu #X] link or a rally time the
+    // coach wrote within **…** still becomes a link.
     return parts.map((part, i) => {
       if (part.length > 6 && part.startsWith('***') && part.endsWith('***')) {
-        return <strong key={i} className="font-semibold italic text-slate-900">{part.slice(3, -3)}</strong>;
+        return <strong key={i} className="font-semibold italic text-slate-900">{renderBoldAndCitations(part.slice(3, -3), targetMatchId)}</strong>;
       }
       if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="font-semibold text-slate-900">{part.slice(2, -2)}</strong>;
+        return <strong key={i} className="font-semibold text-slate-900">{renderBoldAndCitations(part.slice(2, -2), targetMatchId)}</strong>;
       }
       if (part.length > 2 && part.startsWith('*') && part.endsWith('*')) {
-        return <em key={i}>{part.slice(1, -1)}</em>;
+        return <em key={i}>{renderBoldAndCitations(part.slice(1, -1), targetMatchId)}</em>;
       }
       if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
         return <code key={i} className="px-1 py-0.5 rounded bg-slate-100 text-[0.85em] font-mono">{part.slice(1, -1)}</code>;
@@ -1163,7 +1165,8 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
             /* CHẾ ĐỘ 4: KHUNG CHAT TIN NHẮN (NỀN TRẮNG SÁNG) */
             <>
               <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-slate-50/60">
-                {messages.map(msg => (
+                {/* An answer with no text yet is shown by the "Coach đang suy nghĩ" line below, not as an empty bubble. */}
+                {messages.filter(msg => !(msg.role === 'assistant' && msg.isStreaming && !msg.content)).map(msg => (
                   <div
                     key={msg.id}
                     className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
