@@ -57,12 +57,11 @@ test('WT-03 Tải video hợp lệ lên trận đấu', async ({ page }) => {
   test.setTimeout(10 * 60_000);
   await page.goto(matchUrl());
   await page.locator('input[type="file"]').setInputFiles(SAMPLE_VIDEO);
-  await page.getByRole('button', { name: 'Bắt đầu tải lên MinIO' }).click();
+  await page.getByRole('button', { name: 'Đúng rồi, tải video lên' }).click();
 
   await expect(page.getByText(/\d{1,3}%/).first()).toBeVisible();
-  await expect(page.getByText('Video sẵn sàng')).toBeVisible({ timeout: 9 * 60_000 });
-  await expect(page.locator('video').first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Bắt đầu Phân tích AI' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Video đã sẵn sàng' })).toBeVisible({ timeout: 9 * 60_000 });
+  await expect(page.getByRole('button', { name: 'Phân tích trận đấu' })).toBeVisible();
 });
 
 test('WT-04 Báo lỗi khi tải video sai định dạng hoặc quá dung lượng', async ({ page }) => {
@@ -87,6 +86,7 @@ test('WT-04 Báo lỗi khi tải video sai định dạng hoặc quá dung lư�
 });
 
 test('WT-05 Kích hoạt phân tích AI và theo dõi đến khi hoàn tất', async ({ page }) => {
+  test.skip(!fs.existsSync(SAMPLE_VIDEO), 'needs the match uploaded in WT-03');
   test.setTimeout(40 * 60_000);
   await page.goto(matchUrl());
   const statusPolls: number[] = [];
@@ -94,17 +94,15 @@ test('WT-05 Kích hoạt phân tích AI và theo dõi đến khi hoàn tất', a
     if (req.url().includes('/analysis/status')) statusPolls.push(Date.now());
   });
 
-  await page.getByRole('button', { name: 'Bắt đầu Phân tích AI' }).click();
-  await expect(page.getByText('Đang phân tích AI')).toBeVisible();
-  await expect(page.getByText('Mã phản hồi: HTTP 202 Accepted')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Hủy phân tích' })).toBeVisible();
+  const started = page.waitForResponse((r) => r.url().includes('/analysis') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Phân tích trận đấu' }).click();
+  expect((await started).status()).toBe(202); // NFR-AI-01: accepted, not processed on the HTTP thread
+  await expect(page.getByRole('heading', { name: 'AI đang phân tích' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Dừng phân tích' })).toBeVisible();
 
   await page.waitForTimeout(7_000);
   const recent = statusPolls.filter((t) => t > Date.now() - 7_000);
   expect(recent.length).toBeGreaterThanOrEqual(3); // polled roughly every 2 s without reload
 
-  await expect(page.getByText('Trận đấu đã phân tích thành công! Dữ liệu Replay & Thống kê đã sẵn sàng.'))
-    .toBeVisible({ timeout: 38 * 60_000 });
-  await expect(page.getByText('Đã phân tích').first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Xem Video Replay & Thống Kê AI' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Xem lại trận đấu/ })).toBeVisible({ timeout: 38 * 60_000 });
 });

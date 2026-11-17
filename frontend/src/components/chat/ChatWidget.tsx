@@ -664,10 +664,11 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
         if (tableBuffer.length > 0) {
           flushTable(`table-${idx}`, currentSectionMatchId);
         }
-        if (line.startsWith('### ')) {
-          elements.push(<h4 key={idx} className="font-bold text-emerald-800 mt-2 mb-1 text-sm">{line.replace('### ', '')}</h4>);
-        } else if (line.startsWith('## ')) {
-          elements.push(<h3 key={idx} className="font-bold text-slate-900 mt-3 mb-1 text-base">{line.replace('## ', '')}</h3>);
+        const heading = line.match(/^(#{1,6})\s+(.*)$/);
+        if (heading && heading[1].length >= 3) {
+          elements.push(<h4 key={idx} className="font-bold text-emerald-800 mt-2 mb-1 text-sm">{renderBoldAndCitations(heading[2].replace(/\*\*/g, ''), lineMatchId)}</h4>);
+        } else if (heading) {
+          elements.push(<h3 key={idx} className="font-bold text-slate-900 mt-3 mb-1 text-base">{renderBoldAndCitations(heading[2].replace(/\*\*/g, ''), lineMatchId)}</h3>);
         } else if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
           const text = line.trim().replace(/^[\*\-]\s+/, '');
           elements.push(
@@ -694,12 +695,23 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
 
   const renderBoldAndCitations = (text: string, targetMatchId?: string | null) => {
     // Regex nhận diện in đậm, mốc video [Pha cầu #X - mm:ss], và nút xem trận [Xem trận đấu #X]
-    const regex = /(\*\*.*?\*\*|\[Pha cầu #\d+\s*-\s*\d+:\d+\]|\[Xem trận(?:\s*đấu)?\s*#\d+\])/g;
+    // Also ***bold italic***, *italic* (no space just inside the stars, so "2 * 3" stays text) and `code`.
+    const regex =
+      /(\*\*\*[^*]+?\*\*\*|\*\*.*?\*\*|\*(?!\s)[^*]+?(?<!\s)\*|`[^`]+`|\[Pha cầu #\d+\s*-\s*\d+:\d+\]|\[Xem trận(?:\s*đấu)?\s*#\d+\])/g;
     const parts = text.split(regex);
 
     return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
+      if (part.length > 6 && part.startsWith('***') && part.endsWith('***')) {
+        return <strong key={i} className="font-semibold italic text-slate-900">{part.slice(3, -3)}</strong>;
+      }
+      if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) {
         return <strong key={i} className="font-semibold text-slate-900">{part.slice(2, -2)}</strong>;
+      }
+      if (part.length > 2 && part.startsWith('*') && part.endsWith('*')) {
+        return <em key={i}>{part.slice(1, -1)}</em>;
+      }
+      if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
+        return <code key={i} className="px-1 py-0.5 rounded bg-slate-100 text-[0.85em] font-mono">{part.slice(1, -1)}</code>;
       }
       
       // Mốc xem video pha cầu cụ thể

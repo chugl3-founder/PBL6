@@ -267,6 +267,36 @@ test.describe('Người dùng đã đăng nhập', () => {
       done();
     });
 
+    test('WT-S23 AI Coach hiển thị đúng định dạng câu trả lời', async ({ page }) => {
+      // A fixed answer instead of Gemini, so every markdown form appears every time.
+      const answer = [
+        '#### Luật giao cầu',
+        '* *Lưu ý trước đây:* luật dùng **thắt lưng**, nay là ***1,15 m***.',
+        'Cú `smash` mạnh nhất; 2 * 3 vẫn là phép nhân.',
+      ].join('\n');
+      await page.route('**/api/coach/chat/stream', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ text: answer })}\n\ndata: ${JSON.stringify({ done: true })}\n\n`,
+        }),
+      );
+      await page.goto('/players');
+      await page.getByRole('button', { name: 'Mở trợ lý ảo AI' }).click();
+      const input = page.getByPlaceholder(/Hỏi về luật BWF/);
+      await input.fill('Luật giao cầu?');
+      await input.press('Enter');
+
+      await expect(page.getByRole('heading', { name: 'Luật giao cầu' })).toBeVisible();
+      await expect(page.locator('em', { hasText: 'Lưu ý trước đây:' })).toBeVisible();
+      await expect(page.locator('strong', { hasText: 'thắt lưng' })).toBeVisible();
+      await expect(page.locator('strong.italic', { hasText: '1,15 m' })).toBeVisible();
+      await expect(page.locator('code', { hasText: 'smash' })).toBeVisible();
+      await expect(page.getByText('2 * 3 vẫn là phép nhân.', { exact: false })).toBeVisible();
+      const shown = await page.getByText(/Lưu ý trước đây/).locator('xpath=ancestor::li[1]').innerText();
+      expect(shown).not.toMatch(/[*#`]/);
+    });
+
     test('WT-S21 AI Coach: Gợi ý trận và So sánh mở đúng màn', async ({ page }) => {
       await page.goto('/players');
       await page.getByRole('button', { name: 'Mở trợ lý ảo AI' }).click();

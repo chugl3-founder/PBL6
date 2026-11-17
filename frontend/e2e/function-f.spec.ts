@@ -2,8 +2,9 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import { apiContext, loginAs, readState, videoTime, type E2EState } from './helpers';
 
 // Function F — Phát lại trận đấu (Replay) và thống kê AI (WT-06..WT-11).
-// Uses the match analysed in WT-05, or an existing one via E2E_REPLAY_MATCH_ID
-// together with its owner's E2E_REPLAY_EMAIL / E2E_REPLAY_PASSWORD.
+// Uses the match analysed in WT-05 (run both files in one invocation: global setup makes a new
+// account each run), or an existing one via E2E_REPLAY_MATCH_ID with its owner's
+// E2E_REPLAY_EMAIL / E2E_REPLAY_PASSWORD.
 
 interface Ev { id: number; timeSeconds: number; stroke: string }
 interface Rally { startTime: number; endTime: number; strokeSequence: string[] }
@@ -36,26 +37,31 @@ test.beforeAll(async () => {
 async function openReplay(page: Page): Promise<void> {
   await loginAs(page, owner);
   await page.goto(`/matches/${matchId}/replay`);
-  await expect(page.getByText(/AI TIMELINE CÚ ĐÁNH/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'Diễn biến trận' })).toBeVisible({ timeout: 30_000 });
   await page.locator('video').first().evaluate(async (v: HTMLVideoElement) => {
     if (v.readyState < 1) await new Promise((r) => v.addEventListener('loadedmetadata', r, { once: true }));
     v.pause();
   });
 }
 
-const markers = (page: Page) => page.locator('[class*="group/pin"]');
+/** Hit markers on the "Diễn biến trận" strip, one per distinct hit time ("<cú> của <người> lúc mm:ss"). */
+const markers = (page: Page) => page.getByRole('button', { name: / của .+ lúc \d+:\d\d$/ });
+const distinctTimes = (list: Ev[]) => new Set(list.map((e) => e.timeSeconds)).size;
+const rallyRows = (page: Page) => page.getByText(/^Pha \d+$/).locator('xpath=ancestor::button[1]');
+const isPaused = (page: Page) => page.locator('video').first().evaluate((v: HTMLVideoElement) => v.paused);
 
 test('WT-06 Mở trang Replay của trận đã phân tích', async ({ page }) => {
   await loginAs(page, owner);
   await page.goto(`/matches/${matchId}`);
-  await page.getByRole('link', { name: 'Xem Video Replay & Thống Kê AI' }).click();
+  await page.getByRole('link', { name: /Xem lại trận đấu/ }).click();
   await expect(page).toHaveURL(new RegExp(`/matches/${matchId}/replay$`));
 
-  await expect(page.getByText(`AI TIMELINE CÚ ĐÁNH (${events.length} SỰ KIỆN)`)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTitle(`Cú đánh (${events.length})`)).toBeVisible();
-  await expect(page.getByTitle(`Pha cầu (${rallies.length})`)).toBeVisible();
-  for (const legend of ['Smash / Vồ lưới', 'Drop / Bỏ nhỏ', 'Clear / Phông sâu', 'Drive / Tạt cầu', 'Serve / Giao cầu']) {
-    await expect(page.getByText(legend)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Diễn biến trận' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(`${rallies.length} pha cầu`).first()).toBeVisible();
+  await expect(markers(page)).toHaveCount(distinctTimes(events));
+  await expect(rallyRows(page)).toHaveCount(rallies.length);
+  for (const tab of ['Tỉ số', 'Bản đồ nhiệt', 'Thống kê']) {
+    await expect(page.getByRole('tab', { name: tab })).toBeVisible();
   }
   const duration = await page.locator('video').first().evaluate((v: HTMLVideoElement) =>
     v.readyState >= 1 ? v.duration : new Promise<number>((r) => v.addEventListener('loadedmetadata', () => r(v.duration), { once: true })));
@@ -65,26 +71,26 @@ test('WT-06 Mở trang Replay của trận đã phân tích', async ({ page }) =
 test('WT-07 Nhảy đến cú đánh khi bấm vào timeline và dùng phím tắt', async ({ page }) => {
   await openReplay(page);
   // Dense rallies make neighbouring pins overlap; click the most isolated one.
+  const times = [...new Set(events.map((e) => e.timeSeconds))].sort((a, b) => a - b);
   const gap = (i: number) => Math.min(
-    i > 0 ? events[i].timeSeconds - events[i - 1].timeSeconds : Infinity,
-    i < events.length - 1 ? events[i + 1].timeSeconds - events[i].timeSeconds : Infinity,
+    i > 0 ? times[i] - times[i - 1] : Infinity,
+    i < times.length - 1 ? times[i + 1] - times[i] : Infinity,
   );
-  const idx = events.reduce((best, _e, i) => (gap(i) > gap(best) ? i : best), 0);
+  const idx = times.reduce((best, _t, i) => (gap(i) > gap(best) ? i : best), 0);
   await markers(page).nth(idx).click();
-  await expect.poll(() => videoTime(page)).toBeGreaterThan(events[idx].timeSeconds - 1);
-  expect(Math.abs((await videoTime(page)) - events[idx].timeSeconds)).toBeLessThanOrEqual(1);
+  await expect.poll(() => videoTime(page)).toBeGreaterThan(times[idx] - 1);
+  expect(Math.abs((await videoTime(page)) - times[idx])).toBeLessThanOrEqual(1);
 
   // Drive playback only through the app's shortcuts so its isPlaying state stays in sync.
   await page.locator('body').click({ position: { x: 5, y: 5 } });
-  const paused = () => page.locator('video').first().evaluate((v: HTMLVideoElement) => v.paused);
-  const p0 = await paused();
+  const p0 = await isPaused(page);
   await page.keyboard.press('Space');
-  await expect.poll(paused).toBe(!p0);
+  await expect.poll(() => isPaused(page)).toBe(!p0);
   await page.keyboard.press('Space');
-  await expect.poll(paused).toBe(p0);
-  if (!(await paused())) {
+  await expect.poll(() => isPaused(page)).toBe(p0);
+  if (!(await isPaused(page))) {
     await page.keyboard.press('Space');
-    await expect.poll(paused).toBe(true);
+    await expect.poll(() => isPaused(page)).toBe(true);
   }
 
   const t0 = await videoTime(page);
@@ -102,96 +108,79 @@ test('WT-07 Nhảy đến cú đánh khi bấm vào timeline và dùng phím t�
 test('WT-08 Phát lại một pha cầu từ danh sách', async ({ page }) => {
   test.skip(rallies.length < 3, 'match has fewer than 3 rallies');
   await openReplay(page);
-  await page.getByTitle(`Pha cầu (${rallies.length})`).click();
   const idx = Math.floor(rallies.length / 2);
-  await page.getByRole('button', { name: 'Phát pha này' }).nth(idx).click();
+  await rallyRows(page).nth(idx).click();
 
   await expect.poll(() => videoTime(page)).toBeGreaterThan(rallies[idx].startTime - 1);
   expect(Math.abs((await videoTime(page)) - rallies[idx].startTime)).toBeLessThanOrEqual(1.5);
-  await expect.poll(() => page.locator('video').first().evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
-  await expect(page.getByText('Bên ghi điểm:').nth(idx)).toBeVisible();
-  await expect(page.getByText('Chuỗi cú đánh:').first()).toBeVisible();
+  await expect.poll(() => isPaused(page)).toBe(false);
+  await expect(rallyRows(page).nth(idx)).toHaveClass(/bg-pitch-soft/);
 });
 
 test('WT-09 Lọc cú đánh theo loại', async ({ page }) => {
-  const smashes = events.filter((e) => e.stroke.toUpperCase() === 'SMASH').length;
-  test.skip(smashes === 0, 'match has no SMASH');
+  const labels: Record<string, string> = { SMASH: 'Đập cầu', DROP: 'Bỏ nhỏ', CLEAR: 'Phông cầu', NET_SHOT: 'Kéo lưới', SERVE: 'Giao cầu' };
+  const byStroke = (code: string) => events.filter((e) => e.stroke.toUpperCase() === code);
+  const stroke = Object.keys(labels).find((code) => byStroke(code).length > 0);
+  test.skip(!stroke, 'match has none of the filterable strokes');
   await openReplay(page);
-  await page.getByRole('button', { name: 'SMASH', exact: true }).click();
-  await expect(page.getByText(`AI TIMELINE CÚ ĐÁNH (${smashes} SỰ KIỆN)`)).toBeVisible();
-  await expect(page.getByTitle(`Cú đánh (${smashes})`)).toBeVisible();
-  await expect(markers(page)).toHaveCount(smashes);
-  await expect(page.getByRole('button', { name: 'SMASH', exact: true })).toHaveClass(/bg-brand/);
+  const filter = page.getByRole('group', { name: 'Lọc cú đánh' });
+  const chip = (name: string) => filter.getByRole('button', { name, exact: true });
 
-  await page.getByRole('button', { name: 'ALL', exact: true }).click();
-  await expect(page.getByText(`AI TIMELINE CÚ ĐÁNH (${events.length} SỰ KIỆN)`)).toBeVisible();
+  await chip(labels[stroke!]).click();
+  await expect(chip(labels[stroke!])).toHaveAttribute('aria-pressed', 'true');
+  await expect(markers(page)).toHaveCount(distinctTimes(byStroke(stroke!)));
+
+  await chip('Tất cả').click();
+  await expect(markers(page)).toHaveCount(distinctTimes(events));
 });
 
-test('WT-10 Xem tab Chiến thuật và thống kê', async ({ page }) => {
+test('WT-10 Xem phân tích cả trận và thống kê', async ({ page }) => {
   const stats = await (await api.get(`/api/matches/${matchId}/analysis/statistics`)).json();
-  await openReplay(page);
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  await page.getByTitle('Chiến thuật').click();
-  await expect(page.getByText('Đang tải dữ liệu thống kê chuyên sâu...')).toBeHidden({ timeout: 3_000 });
-
   expect(stats.totalStrokes).toBe(events.length);
   expect(stats.totalRallies).toBe(rallies.length);
-  await expect(page.locator('svg, canvas').first()).toBeVisible();
+
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await openReplay(page);
+  for (const tab of ['Bản đồ nhiệt', 'Thống kê', 'Tỉ số']) {
+    await page.getByRole('tab', { name: tab }).click();
+    await expect(page.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
+  }
+  for (const side of ['Mất điểm', 'Cú đánh', 'Lối chơi', 'Sân', 'Pha cầu']) {
+    await page.getByRole('button', { name: new RegExp(`^${side}$`) }).first().click();
+  }
   expect(errors).toEqual([]);
 });
 
 test('WT-11 Giới hạn xem thử 300 giây đối với khách chưa đăng nhập', async ({ page, browser }) => {
-  test.setTimeout(3 * 60_000);
   const publicApi = await apiContext();
-  const list = (await (await publicApi.get('/api/public-matches', { params: { page: 0, size: 50 } })).json()).data ?? [];
-  let publicId: number | undefined;
-  for (const m of list) {
-    const video = await publicApi.get(`/api/public-matches/${m.id}/video`);
-    if (video.ok() && Number((await video.json()).durationSeconds) > 300) { publicId = m.id; break; }
-  }
-  test.skip(!publicId, 'no PUBLISHED match longer than 5 minutes');
+  const list = (await (await publicApi.get('/api/public-matches', { params: { page: 0, size: 20 } })).json()).data ?? [];
+  const publicId = (list as { id: number; totalRallies: number }[]).find((m) => m.totalRallies > 10)?.id;
+  test.skip(!publicId, 'no public match with rallies');
 
-  const seekTo = async (p: Page, seconds: number) => {
-    await p.locator('input[type="range"]').first().evaluate((el: HTMLInputElement, s) => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-      setter.call(el, String(s));
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }, seconds);
-  };
-  const modal = (p: Page) => p.getByText('Hết Thời Lượng Xem Thử');
-  // 'k' toggles play/pause and the embedded YouTube player's initial state varies,
-  // so toggle until playback carries the video past second 300 (or 4 tries).
-  const playPast300 = async (p: Page) => {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      await p.keyboard.press('k');
-      if (await modal(p).isVisible({ timeout: 0 }).catch(() => false)) return;
-      try {
-        await expect(modal(p)).toBeVisible({ timeout: 12_000 });
-        return;
-      } catch { /* still paused: toggle again */ }
+  /** Clicks the first rally in the list that starts at 05:00 or later. */
+  const clickLateRally = async (p: Page) => {
+    const rows = rallyRows(p);
+    await expect(rows.first()).toBeVisible({ timeout: 30_000 });
+    for (let i = 0; i < Math.min(await rows.count(), 40); i++) {
+      const m = (await rows.nth(i).innerText()).match(/(\d{1,2}):(\d{2})/);
+      if (m && Number(m[1]) * 60 + Number(m[2]) >= 300) return rows.nth(i).click();
     }
+    throw new Error('no rally after 05:00');
   };
+  const modal = (p: Page) => p.getByRole('dialog', { name: 'Hết thời lượng xem thử' });
 
   await page.goto(`/public-matches/${publicId}/replay`);
-  await expect(page.getByText(/AI TIMELINE CÚ ĐÁNH/)).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(5_000);
-  await expect(modal(page)).toBeHidden();
-  await seekTo(page, 295);
-  await page.locator('body').click({ position: { x: 5, y: 5 } });
-  await playPast300(page);
-  await expect(modal(page)).toBeVisible();
-  await expect(page.getByText('Đăng nhập ngay')).toBeVisible();
-  await expect(page.getByText('Tạo tài khoản')).toBeVisible();
+  await clickLateRally(page);
+  await expect(modal(page)).toBeVisible({ timeout: 15_000 });
+  await expect(modal(page).getByRole('link', { name: 'Đăng nhập ngay' })).toBeVisible();
+  await expect(modal(page).getByRole('link', { name: 'Tạo tài khoản' })).toBeVisible();
 
   const member = await browser.newPage();
   await loginAs(member, readState());
   await member.goto(`/public-matches/${publicId}/replay`);
-  await expect(member.getByText(/AI TIMELINE CÚ ĐÁNH/)).toBeVisible({ timeout: 30_000 });
-  await seekTo(member, 295);
-  await member.locator('body').click({ position: { x: 5, y: 5 } });
-  await playPast300(member); // never sees the modal, so this exhausts all toggles (~50 s)
-  await expect(modal(member)).toBeHidden();
+  await clickLateRally(member);
+  await member.waitForTimeout(3_000);
+  await expect(modal(member)).toHaveCount(0);
   await member.close();
 });
