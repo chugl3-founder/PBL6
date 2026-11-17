@@ -1,403 +1,194 @@
-import React, { useEffect, useRef } from 'react';
-
-import {
-
-  View,
-
-  Text,
-
-  FlatList,
-
-  TouchableOpacity,
-
-  StyleSheet,
-
-} from 'react-native';
-
-import { RallyData } from '../types/replay';
-
-import { Trophy, Clock, Zap } from 'lucide-react-native';
-
-
-
-interface RallyScrollerProps {
-
-  rallies: RallyData[];
-
-  currentTime: number;
-
-  selectedRallyId?: number;
-
-  onSelectRally: (rally: RallyData) => void;
-
-  playerAName?: string;
-
-  playerBName?: string;
-
-}
-
-
-
-export const RallyScroller: React.FC<RallyScrollerProps> = ({
-
-  rallies,
-
-  currentTime,
-
-  selectedRallyId,
-
-  onSelectRally,
-
-  playerAName = 'Vận Động Viên A',
-
-  playerBName = 'Vận Động Viên B',
-
-}) => {
-
-  const flatListRef = useRef<FlatList>(null);
-
-
-
-  // Tìm rally đang phát dựa trên currentTime
-
-  const activeRally = rallies.find(
-
-    (r) => currentTime >= r.startTime && currentTime <= r.endTime
-
-  );
-
-
-
-  // Ưu tiên rally người dùng vừa chạm chọn, nếu không thì lấy theo video hiện tại
-
-  const activeId = selectedRallyId ?? activeRally?.id;
-
-
-
-  // Tự động cuộn đến rally đang được chọn hoặc đang phát
-
-  useEffect(() => {
-
-    const targetId = selectedRallyId ?? activeRally?.id;
-
-    if (targetId) {
-
-      const idx = rallies.findIndex((r) => r.id === targetId);
-
-      if (idx !== -1 && flatListRef.current) {
-
-        flatListRef.current.scrollToIndex({
-
-          index: idx,
-
-          animated: true,
-
-          viewPosition: 0.5,
-
-        });
-
-      }
-
-    }
-
-  }, [selectedRallyId, activeRally?.id]);
-
-
-
-  const renderItem = ({ item }: { item: RallyData }) => {
-
-    const isActive = item.id === activeId;
-
-    const winnerName =
-
-      item.winnerSide === 'UPPER' ? playerAName : playerBName;
-
-
-
-    return (
-
-      <TouchableOpacity
-
-        style={[styles.rallyCard, isActive && styles.activeCard]}
-
-        onPress={() => onSelectRally(item)}
-
-        activeOpacity={0.7}
-
-      >
-
-        <View style={styles.cardHeader}>
-
-          <Text style={[styles.rallyNumber, isActive && styles.activeText]}>
-
-            Pha cầu #{item.rallyNumber}
-
-          </Text>
-
-          <View style={styles.timeTag}>
-
-            <Clock color="#94a3b8" size={11} style={{ marginRight: 3 }} />
-
-            <Text style={styles.timeText}>{item.duration.toFixed(1)}s</Text>
-
-          </View>
-
-        </View>
-
-
-
-        {/* Điểm số */}
-
-        <View style={styles.scoreRow}>
-
-          <Text style={styles.scoreText}>
-
-            Tỷ số: <Text style={styles.scoreHighlight}>{item.scoreUpper} - {item.scoreLower}</Text>
-
-          </Text>
-
-          <View style={styles.strokeBadge}>
-
-            <Zap color="#38bdf8" size={11} style={{ marginRight: 2 }} />
-
-            <Text style={styles.strokeBadgeText}>{item.totalStrokes} chạm</Text>
-
-          </View>
-
-        </View>
-
-
-
-        {/* Người chiến thắng pha cầu */}
-
-        {item.winnerSide ? (
-
-          <View style={styles.winnerRow}>
-
-            <Trophy color="#fbbf24" size={12} style={{ marginRight: 4 }} />
-
-            <Text style={styles.winnerText} numberOfLines={1}>
-
-              Thắng: {winnerName} ({item.winReason || 'Điểm trực tiếp'})
-
-            </Text>
-
-          </View>
-
-        ) : null}
-
-      </TouchableOpacity>
-
-    );
-
-  };
-
-
-
-  return (
-
-    <View style={styles.container}>
-
-      <FlatList
-
-        ref={flatListRef}
-
-        onScrollToIndexFailed={(info) => {
-
-          setTimeout(() => {
-
-            flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
-
-          }, 100);
-
-        }}
-
-        data={rallies}
-
-        renderItem={renderItem}
-
-        keyExtractor={(item) => String(item.id)}
-
-        horizontal
-
-        showsHorizontalScrollIndicator={false}
-
-        contentContainerStyle={styles.listContent}
-
-
-      />
-
-    </View>
-
-  );
-
-};
-
-
-
-const styles = StyleSheet.create({
-
-  container: {
-
-    marginVertical: 6,
-
-  },
-
-  listContent: {
-
-    paddingHorizontal: 12,
-
-    gap: 10,
-
-  },
-
-  rallyCard: {
-
-    width: 200,
-
-    backgroundColor: '#13233e',
-
-    borderColor: '#1e3a5f',
-
-    borderWidth: 1,
-
-    borderRadius: 14,
-
-    padding: 12,
-
-  },
-
-  activeCard: {
-
-    borderColor: '#38bdf8',
-
-    backgroundColor: '#172c4e',
-
-  },
-
-  cardHeader: {
-
-    flexDirection: 'row',
-
-    justifyContent: 'space-between',
-
-    alignItems: 'center',
-
-    marginBottom: 6,
-
-  },
-
-  rallyNumber: {
-
-    color: '#ffffff',
-
-    fontSize: 13,
-
-    fontWeight: '700',
-
-  },
-
-  activeText: {
-
-    color: '#38bdf8',
-
-  },
-
-  timeTag: {
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-  },
-
-  timeText: {
-
-    color: '#94a3b8',
-
-    fontSize: 11,
-
-    fontFamily: 'monospace',
-
-  },
-
-  scoreRow: {
-
-    flexDirection: 'row',
-
-    justifyContent: 'space-between',
-
-    alignItems: 'center',
-
-    marginBottom: 6,
-
-  },
-
-  scoreText: {
-
-    color: '#94a3b8',
-
-    fontSize: 12,
-
-  },
-
-  scoreHighlight: {
-
-    color: '#ffffff',
-
-    fontWeight: '800',
-
-  },
-
-  strokeBadge: {
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-
-    paddingHorizontal: 6,
-
-    paddingVertical: 2,
-
-    borderRadius: 6,
-
-  },
-
-  strokeBadgeText: {
-
-    color: '#38bdf8',
-
-    fontSize: 10,
-
-    fontWeight: '700',
-
-  },
-
-  winnerRow: {
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    marginTop: 2,
-
-  },
-
-  winnerText: {
-
-    color: '#fbbf24',
-
-    fontSize: 11,
-
-    fontWeight: '600',
-
-    flex: 1,
-
-  },
-
-});
-
-
-
+import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
+import { RallyData } from '../types/replay';
+import { Trophy, Clock, Zap } from 'lucide-react-native';
+interface RallyScrollerProps {
+  rallies: RallyData[];
+  currentTime: number;
+  selectedRallyId?: number;
+  onSelectRally: (rally: RallyData) => void;
+  playerAName?: string;
+  playerBName?: string;
+}
+export const RallyScroller: React.FC<RallyScrollerProps> = ({
+  rallies,
+  currentTime,
+  selectedRallyId,
+  onSelectRally,
+  playerAName = 'Vận Động Viên A',
+  playerBName = 'Vận Động Viên B',
+}) => {
+  const flatListRef = useRef<FlatList>(null);
+  // Tìm rally đang phát dựa trên currentTime
+  const activeRally = rallies.find(
+    (r) => currentTime >= r.startTime && currentTime <= r.endTime
+  );
+  // Ưu tiên rally người dùng vừa chạm chọn, nếu không thì lấy theo video hiện tại
+  const activeId = selectedRallyId ?? activeRally?.id;
+  // Tự động cuộn đến rally đang được chọn hoặc đang phát
+  useEffect(() => {
+    const targetId = selectedRallyId ?? activeRally?.id;
+    if (targetId) {
+      const idx = rallies.findIndex((r) => r.id === targetId);
+      if (idx !== -1 && flatListRef.current) {
+        flatListRef.current.scrollToIndex({
+          index: idx,
+          animated: true,
+          viewPosition: 0.5,
+        });
+      }
+    }
+  }, [selectedRallyId, activeRally?.id]);
+  const renderItem = ({ item }: { item: RallyData }) => {
+    const isActive = item.id === activeId;
+    const winnerName =
+      item.winnerSide === 'UPPER' ? playerAName : playerBName;
+    return (
+      <TouchableOpacity
+        style={[styles.rallyCard, isActive && styles.activeCard]}
+        onPress={() => onSelectRally(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={[styles.rallyNumber, isActive && styles.activeText]}>
+            Pha cầu #{item.rallyNumber}
+          </Text>
+          <View style={styles.timeTag}>
+            <Clock color="#94a3b8" size={11} style={{ marginRight: 3 }} />
+            <Text style={styles.timeText}>{item.duration.toFixed(1)}s</Text>
+          </View>
+        </View>
+        {/* Điểm số */}
+        <View style={styles.scoreRow}>
+          <Text style={styles.scoreText}>
+            Tỷ số: <Text style={styles.scoreHighlight}>{item.scoreUpper} - {item.scoreLower}</Text>
+          </Text>
+          <View style={styles.strokeBadge}>
+            <Zap color="#38bdf8" size={11} style={{ marginRight: 2 }} />
+            <Text style={styles.strokeBadgeText}>{item.totalStrokes} chạm</Text>
+          </View>
+        </View>
+        {/* Người chiến thắng pha cầu */}
+        {item.winnerSide ? (
+          <View style={styles.winnerRow}>
+            <Trophy color="#fbbf24" size={12} style={{ marginRight: 4 }} />
+            <Text style={styles.winnerText} numberOfLines={1}>
+              Thắng: {winnerName} ({item.winReason || 'Điểm trực tiếp'})
+            </Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
+  return (
+    <View style={styles.container}>
+      <FlatList
+        ref={flatListRef}
+        onScrollToIndexFailed={(info) => {
+          setTimeout(() => {
+            flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+          }, 100);
+        }}
+        data={rallies}
+        renderItem={renderItem}
+        keyExtractor={(item) => String(item.id)}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
+    </View>
+  );
+};
+const styles = StyleSheet.create({
+  container: {
+    marginVertical: 6,
+  },
+  listContent: {
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  rallyCard: {
+    width: 200,
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  activeCard: {
+    borderColor: '#059669',
+    backgroundColor: '#ecfdf5',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  rallyNumber: {
+    color: '#0f172a',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  activeText: {
+    color: '#059669',
+  },
+  timeTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timeText: {
+    color: '#64748b',
+    fontSize: 11,
+    fontFamily: 'monospace',
+    fontWeight: '600',
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  scoreText: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  scoreHighlight: {
+    color: '#0f172a',
+    fontWeight: '800',
+  },
+  strokeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  strokeBadgeText: {
+    color: '#059669',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  winnerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  winnerText: {
+    color: '#d97706',
+    fontSize: 11,
+    fontWeight: '600',
+    flex: 1,
+  },
+});

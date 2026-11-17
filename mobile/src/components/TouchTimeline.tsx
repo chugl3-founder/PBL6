@@ -147,9 +147,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   timeText: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 11,
     fontFamily: 'monospace',
+    fontWeight: '600',
   },
   touchArea: {
     height: 32,
@@ -158,14 +159,14 @@ const styles = StyleSheet.create({
   },
   trackBackground: {
     height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#e2e8f0',
     borderRadius: 3,
     overflow: 'hidden',
     width: '100%',
   },
   trackFill: {
     height: '100%',
-    backgroundColor: '#0284c7',
+    backgroundColor: '#059669',
   },
   marker: {
     position: 'absolute',
@@ -180,7 +181,7 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     backgroundColor: '#ffffff',
-    borderColor: '#0284c7',
+    borderColor: '#059669',
     borderWidth: 2,
     transform: [{ translateX: -7 }],
     zIndex: 3,

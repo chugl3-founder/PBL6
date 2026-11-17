@@ -1,6 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ENV } from '../config/env';
+import { TOKEN_STORAGE_KEY } from './client';
 
 export interface VideoCitation {
   match_id?: number;
@@ -36,7 +37,7 @@ export interface MatchOption {
 
 export const coachApi = {
   getAuthHeaders: async (): Promise<Record<string, string>> => {
-    const token = await AsyncStorage.getItem('access_token');
+    const token = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -58,7 +59,8 @@ export const coachApi = {
   sendMessage: async (
     message: string,
     sessionId?: string | null,
-    matchId?: number
+    matchId?: number,
+    onChunk?: (chunk: string) => void
   ): Promise<{ session_id: string; reply: string; video_citations: VideoCitation[] }> => {
     const headers = await coachApi.getAuthHeaders();
     const browserKey = await coachApi.getBrowserKey();
@@ -70,11 +72,63 @@ export const coachApi = {
       browser_key: browserKey,
     };
 
-    const res = await axios.post(`${ENV.COACH_API_URL}/api/chat`, payload, {
-      headers,
-      timeout: 30000,
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${ENV.API_BASE_URL}/coach/chat/stream`);
+      for (const [k, v] of Object.entries(headers)) {
+        xhr.setRequestHeader(k, v);
+      }
+      xhr.timeout = 45000;
+
+      let seenIndex = 0;
+      let reply = '';
+      let sessionIdRet = sessionId || '';
+      let citations: VideoCitation[] = [];
+
+      const processChunk = (chunk: string) => {
+        const lines = chunk.split('\n\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:')) {
+            try {
+              const data = JSON.parse(trimmed.slice(5));
+              if (data.text) {
+                reply += data.text;
+                onChunk?.(data.text);
+              }
+              if (data.session_id) sessionIdRet = data.session_id;
+              if (data.video_citations) citations = data.video_citations;
+            } catch {
+              // Ignore partial JSON
+            }
+          }
+        }
+      };
+
+      xhr.onprogress = () => {
+        const newText = xhr.responseText.substring(seenIndex);
+        const lastDoubleNewline = newText.lastIndexOf('\n\n');
+        if (lastDoubleNewline !== -1) {
+          const toProcess = newText.substring(0, lastDoubleNewline + 2);
+          seenIndex += lastDoubleNewline + 2;
+          processChunk(toProcess);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const remaining = xhr.responseText.substring(seenIndex);
+          if (remaining.trim()) processChunk(remaining);
+          resolve({ session_id: sessionIdRet, reply, video_citations: citations });
+        } else {
+          reject(new Error(`Coach request failed with status ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error calling AI Coach'));
+      xhr.ontimeout = () => reject(new Error('Timeout calling AI Coach'));
+      xhr.send(JSON.stringify(payload));
     });
-    return res.data;
   },
 
   getSessions: async (matchId?: number): Promise<CoachSessionItem[]> => {
@@ -84,7 +138,7 @@ export const coachApi = {
     const params: Record<string, any> = { browser_key: browserKey };
     if (matchId) params.match_id = matchId;
 
-    const res = await axios.get(`${ENV.COACH_API_URL}/api/chat/sessions`, {
+    const res = await axios.get(`${ENV.API_BASE_URL}/coach/sessions`, {
       headers,
       params,
       timeout: 10000,
@@ -96,7 +150,7 @@ export const coachApi = {
     const headers = await coachApi.getAuthHeaders();
     const browserKey = await coachApi.getBrowserKey();
 
-    const res = await axios.get(`${ENV.COACH_API_URL}/api/chat/history/${sessionId}`, {
+    const res = await axios.get(`${ENV.API_BASE_URL}/coach/sessions/${sessionId}/messages`, {
       headers,
       params: { browser_key: browserKey },
       timeout: 15000,
@@ -106,7 +160,7 @@ export const coachApi = {
 
   getAvailableMatches: async (): Promise<MatchOption[]> => {
     const headers = await coachApi.getAuthHeaders();
-    const res = await axios.get(`${ENV.COACH_API_URL}/api/matches/list`, {
+    const res = await axios.get(`${ENV.API_BASE_URL}/coach/matches`, {
       headers,
       timeout: 10000,
     });

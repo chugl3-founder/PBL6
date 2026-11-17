@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, LoginRequest, RegisterRequest } from '../types/auth';
 import { authApi } from '../api/authApi';
-import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from '../api/client';
+import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY, onAuthExpired } from '../api/client';
 
 interface AuthContextType {
   user: User | null;
@@ -19,6 +19,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Lắng nghe sự kiện hết hạn token từ client API
+  useEffect(() => {
+    const unsubscribe = onAuthExpired(() => {
+      setToken(null);
+      setUser(null);
+    });
+    return unsubscribe;
+  }, []);
 
   // Khôi phục phiên đăng nhập khi mở App
   useEffect(() => {

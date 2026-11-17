@@ -10,6 +10,7 @@ import {
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ArrowLeft, User, Target, Play, ShieldAlert, Award } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon, Line, Text as SvgText } from 'react-native-svg';
 import { RootStackParamList } from '../../navigation/types';
 import { playerApi, PlayerProfile, TrainingFocusData } from '../../api/playerApi';
@@ -19,6 +20,7 @@ type ScreenRouteProp = RouteProp<RootStackParamList, 'PlayerProfile'>;
 export const PlayerProfileScreen: React.FC = () => {
   const route = useRoute<ScreenRouteProp>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
   const playerName = route.params?.name || '';
 
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
@@ -55,7 +57,7 @@ export const PlayerProfileScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color="#059669" />
         <Text style={styles.loadingText}>Đang tải hồ sơ {playerName}...</Text>
       </View>
@@ -64,7 +66,7 @@ export const PlayerProfileScreen: React.FC = () => {
 
   if (!profile) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>Không tìm thấy thông tin của vận động viên này.</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backBtnText}>Quay lại</Text>
@@ -107,15 +109,17 @@ export const PlayerProfileScreen: React.FC = () => {
   const winRate = totalRallies > 0 ? Math.round(((profile.totals?.ralliesWon || 0) / totalRallies) * 100) : 0;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
       {/* TOP HEADER */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
         <TouchableOpacity style={styles.backIconBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Hồ Sơ Vận Động Viên</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      <ScrollView contentContainerStyle={styles.content}>
 
       {/* PLAYER BANNER */}
       <View style={styles.playerBanner}>
@@ -281,6 +285,7 @@ export const PlayerProfileScreen: React.FC = () => {
         )}
       </View>
     </ScrollView>
+    </View>
   );
 };
 

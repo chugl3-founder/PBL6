@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Send,
   Sparkles,
@@ -57,6 +58,7 @@ const QUICK_PROMPTS = [
 
 export const CoachScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState<CoachMessage[]>([
     {
@@ -124,34 +126,59 @@ export const CoachScreen: React.FC = () => {
       content: textToSend,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const aiMsgId = (Date.now() + 1).toString();
+    const initialAiMsg: CoachMessage = {
+      id: aiMsgId,
+      role: 'assistant',
+      content: '',
+    };
+
+    setMessages((prev) => [...prev, userMsg, initialAiMsg]);
     if (!customMessage) setInputText('');
     setLoading(true);
 
     try {
-      const response = await coachApi.sendMessage(textToSend, sessionId);
+      let accumulated = '';
+      const response = await coachApi.sendMessage(
+        textToSend,
+        sessionId,
+        undefined,
+        (chunk) => {
+          accumulated += chunk;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === aiMsgId ? { ...m, content: accumulated } : m))
+          );
+        }
+      );
+
       if (response?.session_id) {
         setSessionId(response.session_id);
       }
 
-      const aiMsg: CoachMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.reply,
-        video_citations: response.video_citations || [],
-      };
-
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === aiMsgId
+            ? {
+                ...m,
+                content: response.reply || accumulated,
+                video_citations: response.video_citations || [],
+              }
+            : m
+        )
+      );
       loadSessions();
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: 'Xin lỗi, Huấn luyện viên AI đang bận hoặc gặp sự cố mạng. Vui lòng thử lại sau giây lát!',
-        },
-      ]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === aiMsgId
+            ? {
+                ...m,
+                content:
+                  'Xin lỗi, Huấn luyện viên AI đang bận hoặc gặp sự cố kết nối máy chủ. Vui lòng thử lại sau giây lát!',
+              }
+            : m
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -269,7 +296,7 @@ Hãy phân tích vì sao các trận đấu này phù hợp và nêu các pha c�
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* HEADER */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.headerLeft}>
           <View style={styles.botIconWrapper}>
             <Bot size={20} color="#059669" />

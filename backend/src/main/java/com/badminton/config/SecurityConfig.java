@@ -58,6 +58,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/scouting-reports/shared/*").permitAll()
                 // Video stream public (có giới hạn preview 5p cho guest)
                 .requestMatchers("/api/videos/*/stream").permitAll()
+                // AI Coach RAG (mở cho cả khách vãng lai và người dùng đã đăng nhập)
+                .requestMatchers("/api/coach/**").permitAll()
                 // Admin endpoints bắt buộc quyền ADMIN
                 .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
                 // Các endpoint còn lại yêu cầu đăng nhập

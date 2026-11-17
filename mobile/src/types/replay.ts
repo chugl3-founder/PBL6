@@ -36,6 +36,13 @@ export interface RallyData {
   scoreUpper: number;
   scoreLower: number;
   scoreText: string;
+  gameNumber?: number;
+  scoreA?: number;
+  scoreB?: number;
+  winnerPlayer?: 'PLAYER_A' | 'PLAYER_B' | null;
+  upperPlayer?: string;
+  afterMatch?: boolean;
+  beforeMatch?: boolean;
   strokeSequence: string[];
   isComplete: boolean;
 }

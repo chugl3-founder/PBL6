@@ -50,8 +50,12 @@ export const MyMatchesScreen: React.FC = () => {
     try {
       const data = await matchApi.getMyMatches(0, 30);
       setMatches(data);
-    } catch (err) {
-      console.error('Lỗi khi tải trận đấu của tôi:', err);
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        setMatches([]);
+      } else {
+        console.warn('Lỗi khi tải trận đấu của tôi:', err?.message || err);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
