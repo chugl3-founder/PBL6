@@ -134,6 +134,10 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
   // Scores read from the broadcast scoreboard (OCR) are the real match score;
   // otherwise they are counted from 0-0 at the start of the uploaded video.
   const ocrAnchored = rallies.some((r) => r.winReason?.toLowerCase().startsWith('ocr_confirmed'));
+  // While the AI streams results, rallies arrive before their winner and score: say so instead
+  // of showing the lower-court player as the winner of every rally at 0-0.
+  const isPending = (r: RallyData) => !r.afterMatch && !r.winnerSide && !r.winnerPlayer;
+  const scoring = rallies.some(isPending);
   const multiGame = rallies.some((r) => (r.gameNumber ?? 1) > 1);
   const scoreTooltip = ocrAnchored
     ? 'Tỉ số đọc từ bảng điểm của video (OCR)'
@@ -203,7 +207,11 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
-      {!ocrAnchored && (
+      {scoring ? (
+        <p className="text-xs text-ink/70 px-1 pb-2">
+          AI đang phân tích: người ghi điểm và tỉ số hiện khi phân tích xong.
+        </p>
+      ) : !ocrAnchored && (
         <p className="text-xs text-ink/70 px-1 pb-2" title={scoreTooltip}>
           Không đọc được bảng điểm: tỉ số do AI đếm từ 0–0 ở đầu video.
         </p>
@@ -215,6 +223,7 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
           const winnerSide = winnerByStartingSide(rally, upperPlayer);
           const winnerName = getPlayerNameBySide(winnerSide);
           const lastStroke = rally.strokeSequence?.[rally.strokeSequence.length - 1];
+          const pending = isPending(rally);
 
           return (
             <li key={rally.id}>
@@ -228,14 +237,14 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                 }`}
               >
                 <span
-                  className={`w-1 self-stretch rounded-full ${rally.afterMatch ? 'bg-ink/15' : winnerSide === 'UPPER' ? 'bg-pa' : 'bg-pb'}`}
+                  className={`w-1 self-stretch rounded-full ${rally.afterMatch || pending ? 'bg-ink/15' : winnerSide === 'UPPER' ? 'bg-pa' : 'bg-pb'}`}
                   aria-hidden
                 />
                 <span className="flex-1 min-w-0">
                   <span className="flex items-baseline gap-2">
                     <span className="text-xs text-ink/65 tabular-nums w-10 shrink-0">Pha {rally.rallyNumber}</span>
                     <span className="text-sm font-semibold text-ink truncate">
-                      {rally.afterMatch ? 'Không tính điểm' : `${winnerName} ghi điểm`}
+                      {rally.afterMatch ? 'Không tính điểm' : pending ? 'Đang xác định người ghi điểm' : `${winnerName} ghi điểm`}
                     </span>
                   </span>
                   <span className="flex items-baseline gap-2 text-xs text-ink/70">
@@ -252,6 +261,10 @@ export const RalliesExplorer: React.FC<RalliesExplorerProps> = ({
                     title="Pha này diễn ra sau khi một VĐV đã thắng trận, thường là đoạn AI bắt nhầm sau trận. Không tính vào tỉ số và thống kê."
                   >
                     Sau trận
+                  </span>
+                ) : pending ? (
+                  <span className="font-score text-lg font-semibold text-ink/30 shrink-0" title="Tỉ số hiện khi AI phân tích xong">
+                    –
                   </span>
                 ) : (
                   <span className="font-score text-lg font-semibold tabular-nums text-ink shrink-0" title={scoreTooltip}>
