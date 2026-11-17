@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { PlayCircle, ShieldCheck, Info } from 'lucide-react';
+import { PlayCircle, ShieldCheck, Info, GraduationCap } from 'lucide-react';
+import { isSignedIn } from '../../auth/session';
+import { askCoach, trainingPlanPrompt } from '../../utils/coachEvents';
 import { AiEventData, RallyData } from '../../types/replay';
 import { PlaylistClip, CourtSide, sideName, analyzeLostPoints, toPlaylist } from '../../utils/pointLoss';
 
@@ -10,6 +12,8 @@ interface PointLossInsightsProps {
   playerBName: string;
   upperPlayer: string;
   onPlayPlaylist: (title: string, clips: PlaylistClip[]) => void;
+  /** The match being watched, given to the coach as context for the training plan. */
+  matchId?: number;
 }
 
 /** "Vì sao mất điểm": the lost points of one player, grouped and playable as playlists. */
@@ -20,6 +24,7 @@ export const PointLossInsights: React.FC<PointLossInsightsProps> = ({
   playerBName,
   upperPlayer,
   onPlayPlaylist,
+  matchId,
 }) => {
   const nameOf = (side: CourtSide) => sideName(side, upperPlayer, playerAName, playerBName);
   const [player, setPlayer] = useState<CourtSide>('LOWER');
@@ -91,6 +96,18 @@ export const PointLossInsights: React.FC<PointLossInsightsProps> = ({
           </button>
         </div>
       ))}
+
+      {/* The coach chat only exists for signed-in users (guests see a teaser instead). */}
+      {isSignedIn() && analysis.lost.length > 0 && (
+        <button
+          type="button"
+          onClick={() => askCoach(trainingPlanPrompt(nameOf(player), matchId))}
+          className="w-full h-9 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-ink/90 flex items-center justify-center gap-1.5 transition-colors"
+        >
+          <GraduationCap className="w-4 h-4" />
+          Nhờ HLV AI lập giáo án cho {nameOf(player)}
+        </button>
+      )}
 
       <p className="text-xs text-ink/65 leading-relaxed px-1">
         AI gom nhóm theo cú đánh cuối của mỗi pha cầu. Cú hỏng cuối pha (vào lưới) đôi khi không được nhận

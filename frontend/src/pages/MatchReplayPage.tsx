@@ -10,6 +10,7 @@ import { RalliesExplorer } from '../components/replay/RalliesExplorer';
 import { TacticsBreakdown } from '../components/replay/TacticsBreakdown';
 import { PointLossInsights } from '../components/replay/PointLossInsights';
 import { PlaylistClip } from '../utils/pointLoss';
+import { PLAY_RALLIES_EVENT, PlayRalliesDetail } from '../utils/coachEvents';
 import { MatchHighlights } from '../components/replay/MatchHighlights';
 import { HighlightReelDialog } from '../components/replay/HighlightReelDialog';
 import { ReplayScoreboard } from '../components/replay/ReplayScoreboard';
@@ -607,6 +608,28 @@ export const MatchReplayPage: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [deepLinkSeconds, isYouTube, video]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Coach AI liệt kê nhiều pha cầu: phát lần lượt những pha có trong trận này
+  const coachPlaylistRef = useRef({ rallies, play: handlePlayPlaylist });
+  coachPlaylistRef.current = { rallies, play: handlePlayPlaylist };
+  useEffect(() => {
+    const onPlayRallies = (e: Event) => {
+      const detail = (e as CustomEvent<PlayRalliesDetail>).detail;
+      if (!detail?.rallies?.length) return;
+      const { rallies: all, play } = coachPlaylistRef.current;
+      // Mốc của trận khác (khi Coach so sánh 2 trận) có cùng số pha nhưng khác thời điểm: bỏ qua
+      const picked = detail.rallies
+        .map(c => all.find(r => r.rallyNumber === c.rallyNumber && Math.abs(Math.floor(r.startTime) - c.seconds) <= 2))
+        .filter((r): r is NonNullable<typeof r> => Boolean(r));
+      if (picked.length === 0) {
+        showOsd('Các pha Coach nêu không thuộc trận này');
+        return;
+      }
+      play(detail.title, picked.map(r => ({ start: r.startTime, end: r.endTime, label: `Pha ${r.rallyNumber}` })));
+    };
+    window.addEventListener(PLAY_RALLIES_EVENT, onPlayRallies);
+    return () => window.removeEventListener(PLAY_RALLIES_EVENT, onPlayRallies);
+  }, []);
+
   // Lắng nghe sự kiện tua video từ BadmintonAI Chatbot hoặc widget bên ngoài
   useEffect(() => {
     const handleChatbotSeek = (e: Event) => {
@@ -1062,6 +1085,7 @@ export const MatchReplayPage: React.FC = () => {
                   playerBName={match.playerBName}
                   upperPlayer={match.upperPlayer}
                   onPlayPlaylist={handlePlayPlaylist}
+                  matchId={id ? Number(id) : undefined}
                 />
               </div>
             )}
