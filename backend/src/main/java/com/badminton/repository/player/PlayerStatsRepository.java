@@ -315,13 +315,13 @@ public class PlayerStatsRepository {
      * like {@link #findZones} so the player is on the near half; null when not tracked.
      */
     public record RallyEnd(Long matchId, boolean published, String opponent, double rallyStart, double seconds,
-                           String stroke, boolean byPlayer, boolean playerWon, Double x, Double y) {
+                           String stroke, boolean byPlayer, boolean playerWon, Double x, Double y, int rallyNumber) {
     }
 
     public List<RallyEnd> findRallyEnds(long viewerId, String key) {
         String sql = PLAYER_MATCHES + PLAYER_PLAY + """
                 SELECT r.match_id, (r.match_status = 'PUBLISHED') AS published, r.opponent,
-                  r.start_time, e.time_seconds, e.stroke,
+                  r.start_time, r.rally_number, e.time_seconds, e.stroke,
                   (e.player_side = r.ps) AS by_player,
                   (r.winner_side = r.ps) AS player_won,
                   CASE WHEN jsonb_typeof(e.landing_position_court_proxy->0) = 'number'
@@ -347,7 +347,8 @@ public class PlayerStatsRepository {
                 rs.getBoolean("by_player"),
                 rs.getBoolean("player_won"),
                 (Double) rs.getObject("x", Double.class),
-                (Double) rs.getObject("y", Double.class)
+                (Double) rs.getObject("y", Double.class),
+                rs.getInt("rally_number")
         ));
     }
 

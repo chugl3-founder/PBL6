@@ -25,7 +25,7 @@ class TrainingFocusServiceTest {
     private static void lose(List<RallyEnd> ends, long matchId, int n, String stroke, boolean byPlayer) {
         for (int i = 0; i < n; i++) {
             ends.add(new RallyEnd(matchId, true, "Momota", ends.size() * 10.0, ends.size() * 10.0 + 5, stroke,
-                    byPlayer, false, null, null));
+                    byPlayer, false, null, null, ends.size() + 1));
         }
     }
 
@@ -38,7 +38,7 @@ class TrainingFocusServiceTest {
         // Latest match: only 1 of 10.
         lose(ends, 2, 1, "SMASH", true);
         lose(ends, 2, 9, "DROP", false);
-        ends.add(new RallyEnd(2L, true, "Momota", 999, 1000, "SMASH", true, true, null, null)); // a won rally: ignored
+        ends.add(new RallyEnd(2L, true, "Momota", 999, 1000, "SMASH", true, true, null, null, 99)); // a won rally: ignored
 
         TrainingFocusResponse res = TrainingFocusService.build(
                 List.of(match(2, LocalDate.of(2026, 3, 1)), match(1, LocalDate.of(2026, 1, 1))), ends);
