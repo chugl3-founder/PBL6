@@ -1,17 +1,36 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Send, Bot, Play, Minimize2, History, Plus, ChevronLeft, 
   Mic, MicOff, Volume2, VolumeX, Scale, Loader2,
   Sparkles, CheckCircle2, Target, Shield, Zap
 } from 'lucide-react';
-import { ASK_COACH_EVENT, AskCoachDetail, playRallies } from '../../utils/coachEvents';
+import { ASK_COACH_EVENT, AskCoachDetail, playRallies, PlaylistRally, replayPlaylistUrl } from '../../utils/coachEvents';
 
 interface Citation {
   rally_number: number;
   timestamp: string;
   seconds: number;
+  /** Set when the answer named the match: "[Trận #M - Pha cầu #X - mm:ss]". */
+  match_id?: number | null;
 }
+
+/** A rally link in an answer: "[Pha cầu #X - mm:ss]", or "[Trận #M - Pha cầu #X - mm:ss]" for a named match. */
+const RALLY_LINK = /\[(?:Trận\s*#(\d+)\s*-\s*)?Pha cầu #(\d+)\s*-\s*(\d+):(\d+)\]/;
+const RALLY_LINKS = new RegExp(RALLY_LINK.source, 'g');
+
+interface RallyLink extends PlaylistRally {
+  /** The match named in the link, else the match the line is about; null when neither is known. */
+  matchId: string | null;
+  clock: string;
+}
+
+const parseRallyLink = (m: RegExpMatchArray, fallbackMatchId?: string | null): RallyLink => ({
+  matchId: m[1] ?? fallbackMatchId ?? null,
+  rallyNumber: parseInt(m[2], 10),
+  seconds: parseInt(m[3], 10) * 60 + parseInt(m[4], 10),
+  clock: `${m[3]}:${m[4]}`,
+});
 
 interface Message {
   id: string;
@@ -119,6 +138,7 @@ export const ChatWidget: React.FC = () => {
   const [selectedPace, setSelectedPace] = useState<string>(PACE_OPTIONS[0].label);
 
   const location = useLocation();
+  const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Set once the user starts or continues a conversation: a restore still loading must not replace it.
   const userActedRef = useRef(false);
@@ -252,7 +272,7 @@ export const ChatWidget: React.FC = () => {
 
     window.speechSynthesis.cancel();
     const cleanText = text
-      .replace(/\[Pha cầu #\d+\s*-\s*\d+:\d+\]/g, '')
+      .replace(RALLY_LINKS, '')
       .replace(/\[Xem trận(?:\s*đấu)?\s*#\d+\]/g, '')
       .replace(/[*#_`|>-]/g, ' ')
       .replace(/\s+/g, ' ')
@@ -409,9 +429,8 @@ export const ChatWidget: React.FC = () => {
         video.play().catch(() => {});
       }
     } else if (effectiveTargetId) {
-      // Nếu đang ở trang khác (trang chủ, danh sách) hoặc ở trận khác: Mở Replay của trận đó trong tab mới kèm tham số ?t=seconds
-      const targetUrl = `/public-matches/${effectiveTargetId}/replay?t=${seconds}`;
-      window.open(targetUrl, '_blank');
+      // Trang khác hoặc trận khác: mở Replay của trận đó ngay trong tab này, khung chat vẫn mở bên cạnh
+      navigate(`/public-matches/${effectiveTargetId}/replay?t=${seconds}`);
     } else {
       // Fallback
       window.dispatchEvent(new CustomEvent('badminton:seek-video', { detail: { seconds } }));
@@ -581,12 +600,50 @@ export const ChatWidget: React.FC = () => {
     return () => window.removeEventListener(ASK_COACH_EVENT, onAsk);
   }, [loading]);
 
-  // Các pha cầu khác nhau mà câu trả lời đã nêu, theo thứ tự xuất hiện
+  // Các pha cầu khác nhau của trận đang xem mà câu trả lời đã nêu, theo thứ tự xuất hiện
   const citedRallies = (msg: Message) => {
     const seen = new Set<number>();
-    return (msg.video_citations ?? []).filter(c => !seen.has(c.rally_number) && seen.add(c.rally_number));
+    return (msg.video_citations ?? [])
+      .filter(c => c.match_id == null || c.match_id === currentMatchId)
+      .filter(c => !seen.has(c.rally_number) && seen.add(c.rally_number));
   };
   const onReplayPage = /\/(?:matches|public-matches)\/\d+\/replay/.test(location.pathname);
+
+  /**
+   * "▶ Phát N pha" after a line that names two or more rallies, playing them one after another. The rallies
+   * may be in several matches: the match on screen goes first, else the first one named. Another match opens
+   * its Replay, which starts the list itself.
+   */
+  const linePlayButton = (line: string, lineMatchId: string | null | undefined, key: string) => {
+    const onScreen = onReplayPage && currentMatchId != null ? String(currentMatchId) : null;
+    const links = [...line.matchAll(RALLY_LINKS)].map(m => {
+      const link = parseRallyLink(m, lineMatchId);
+      return { ...link, matchId: link.matchId ?? onScreen };
+    });
+    const target = links.some(l => l.matchId === onScreen) ? onScreen : links[0]?.matchId;
+    const seen = new Set<number>();
+    const rallies = links
+      .filter(l => l.matchId === target && !seen.has(l.rallyNumber) && seen.add(l.rallyNumber))
+      .map(({ rallyNumber, seconds }) => ({ rallyNumber, seconds }));
+    if (target == null || rallies.length < 2) return null;
+    const count = rallies.length;
+    // The heading of the claim: the text before the first link, without markdown.
+    const title = line.split('[')[0].replace(/[*_`#]/g, '').replace(/[:\s(]+$/, '').trim().slice(0, 60) || 'Coach AI';
+    const elsewhere = target !== onScreen;
+    const play = () => (elsewhere ? navigate(replayPlaylistUrl(target, rallies, title)) : playRallies(rallies, title));
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={play}
+        title={elsewhere ? `Mở trận #${target} và phát lần lượt ${count} pha` : `Phát lần lượt ${count} pha`}
+        className="inline-flex items-center gap-1 ml-1 my-0.5 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors"
+      >
+        <Play className="w-3 h-3 fill-current" />
+        Phát {count} pha{elsewhere ? ` · trận #${target}` : ''}
+      </button>
+    );
+  };
 
   // Kích hoạt so sánh phong độ 2 trận từ modal
   const handleExecuteComparison = () => {
@@ -705,6 +762,7 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
           elements.push(
             <li key={idx} className="ml-4 list-disc text-sm text-slate-700 my-0.5 leading-relaxed">
               {renderBoldAndCitations(text, lineMatchId)}
+              {linePlayButton(text, lineMatchId, `play-${idx}`)}
             </li>
           );
         } else if (line.trim() === '---') {
@@ -712,7 +770,12 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
         } else if (!line.trim()) {
           elements.push(<div key={idx} className="h-1" />);
         } else {
-          elements.push(<p key={idx} className="text-sm text-slate-700 my-0.5 leading-relaxed">{renderBoldAndCitations(line, lineMatchId)}</p>);
+          elements.push(
+            <p key={idx} className="text-sm text-slate-700 my-0.5 leading-relaxed">
+              {renderBoldAndCitations(line, lineMatchId)}
+              {linePlayButton(line, lineMatchId, `play-${idx}`)}
+            </p>
+          );
         }
       }
     });
@@ -728,7 +791,7 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
     // Regex nhận diện in đậm, mốc video [Pha cầu #X - mm:ss], và nút xem trận [Xem trận đấu #X]
     // Also ***bold italic***, *italic* (no space just inside the stars, so "2 * 3" stays text) and `code`.
     const regex =
-      /(\*\*\*[^*]+?\*\*\*|\*\*.*?\*\*|\*(?!\s)[^*]+?(?<!\s)\*|`[^`]+`|\[Pha cầu #\d+\s*-\s*\d+:\d+\]|\[Xem trận(?:\s*đấu)?\s*#\d+\])/g;
+      /(\*\*\*[^*]+?\*\*\*|\*\*.*?\*\*|\*(?!\s)[^*]+?(?<!\s)\*|`[^`]+`|\[(?:Trận\s*#\d+\s*-\s*)?Pha cầu #\d+\s*-\s*\d+:\d+\]|\[Xem trận(?:\s*đấu)?\s*#\d+\])/g;
     const parts = text.split(regex);
 
     // Bold and italic text is rendered again inside, so a [Xem trận đấu #X] link or a rally time the
@@ -748,19 +811,20 @@ Hãy phân tích chi tiết vì sao các trận đấu này phù hợp với tô
       }
       
       // Mốc xem video pha cầu cụ thể
-      const citeMatch = part.match(/\[Pha cầu #(\d+)\s*-\s*(\d+):(\d+)\]/);
+      const citeMatch = part.match(RALLY_LINK);
       if (citeMatch) {
-        const rallyNum = parseInt(citeMatch[1], 10);
-        const sec = parseInt(citeMatch[2], 10) * 60 + parseInt(citeMatch[3], 10);
+        const link = parseRallyLink(citeMatch, targetMatchId);
+        const otherMatch = citeMatch[1] != null && citeMatch[1] !== String(currentMatchId) ? citeMatch[1] : null;
         return (
           <button
             key={i}
-            onClick={() => handleSeekVideo(sec, targetMatchId)}
-            title={`Bấm để tua video tới pha cầu #${rallyNum} (${citeMatch[2]}:${citeMatch[3]})${targetMatchId ? ` - Trận #${targetMatchId}` : ''}`}
-            className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-mono font-medium transition-all transform hover:scale-105 shadow-2xs cursor-pointer"
+            onClick={() => handleSeekVideo(link.seconds, link.matchId)}
+            title={`Bấm để xem pha cầu #${link.rallyNumber} (${link.clock})${link.matchId ? ` - Trận #${link.matchId}` : ''}`}
+            className="inline-flex items-center gap-1 mx-0.5 my-0.5 px-1.5 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-medium tabular-nums transition-colors cursor-pointer"
           >
             <Play className="w-2.5 h-2.5 fill-current text-emerald-600" />
-            {part}
+            {otherMatch && <span className="text-emerald-600/80">#{otherMatch} ·</span>}
+            Pha {link.rallyNumber} · {link.clock}
           </button>
         );
       }

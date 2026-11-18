@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { AuthGuard } from '../components/guard/AuthGuard';
@@ -23,6 +23,15 @@ import { ScoutingListPage } from '../pages/ScoutingListPage';
 import { ScoutingReportPage } from '../pages/ScoutingReportPage';
 import { HighlightsPage } from '../pages/HighlightsPage';
 import { RouteTitle } from './RouteTitle';
+
+/**
+ * A new match id gets a fresh Replay page: the player, the playing state and a running rally list of the
+ * previous match must not carry over (a list started from the AI Coach would be cancelled at once).
+ */
+const ReplayRoute: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  return <MatchReplayPage key={id} />;
+};
 
 export const AppRouter: React.FC = () => {
   return (
@@ -50,7 +59,7 @@ export const AppRouter: React.FC = () => {
         {/* Public Routes (Guest & All) */}
         <Route index element={<HomePage />} />
         <Route path="public-matches" element={<PublicMatchesPage />} />
-        <Route path="public-matches/:id/replay" element={<MatchReplayPage />} />
+        <Route path="public-matches/:id/replay" element={<ReplayRoute />} />
         <Route path="players" element={<PlayersPage />} />
         <Route path="players/:name" element={<PlayerProfilePage />} />
         <Route path="scouting/shared/:token" element={<ScoutingReportPage />} />
@@ -120,7 +129,7 @@ export const AppRouter: React.FC = () => {
           path="matches/:id/replay"
           element={
             <AuthGuard>
-              <MatchReplayPage />
+              <ReplayRoute />
             </AuthGuard>
           }
         />

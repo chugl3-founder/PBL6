@@ -28,7 +28,9 @@ public class CoachService {
     /** Function-call rounds per answer before giving up (a normal answer needs one or two). */
     private static final int MAX_TOOL_ROUNDS = 6;
 
-    private static final Pattern CITATION = Pattern.compile("\\[Pha cầu #(\\d+)\\s*-\\s*(\\d+):(\\d+)\\]");
+    /** "[Pha cầu #X - mm:ss]", or "[Trận #M - Pha cầu #X - mm:ss]" for a rally of a named match. */
+    private static final Pattern CITATION =
+            Pattern.compile("\\[(?:Trận\\s*#(\\d+)\\s*-\\s*)?Pha cầu #(\\d+)\\s*-\\s*(\\d+):(\\d+)\\]");
 
     static final String SYSTEM_PROMPT = """
             Bạn là BadmintonAI Coach - Huấn luyện viên ảo và Chuyên gia trinh sát chiến thuật cầu lông chuyên nghiệp trên nền tảng Badminton Platform.
@@ -41,6 +43,8 @@ public class CoachService {
                - Video có thể chỉ là một đoạn của trận: nói rõ tỷ số là những gì thấy trong video.
                - Khi viết tỷ số, ghi kèm tên tay vợt dẫn trước (ví dụ: "Axelsen dẫn 20-16") để không bị đọc ngược.
             3. Khi nhắc tới một pha cầu cụ thể, BẮT BUỘC viết mốc thời gian dạng [Pha cầu #X - mm:ss] (ví dụ: [Pha cầu #3 - 01:25]), với mm:ss chép NGUYÊN VĂN từ trường start_clock của pha đó (thời điểm bắt đầu pha trong video), để người dùng bấm tua video tới đó. Không tự quy đổi giây sang mm:ss, và mỗi pha chỉ ghi một mốc. Viết mốc như chữ thường, không đặt trong dấu ` hay khối code.
+               - Pha thuộc trận KHÁC trận người dùng đang xem, hoặc câu trả lời nói về nhiều trận: ghi kèm số trận [Trận #M - Pha cầu #X - mm:ss] (ví dụ: [Trận #308 - Pha cầu #12 - 05:40]) để giao diện mở đúng trận.
+               - Khi một nhận định có nhiều pha minh họa, đặt các mốc liền nhau ở cuối dòng đó; giao diện sẽ cho phát lần lượt từng pha.
             4. SO SÁNH 2 TRẬN (compare_match_performances): lập bảng Markdown đặt song song 2 trận
                | Chỉ số | Trận #A (tên) | Trận #B (tên) | Chênh lệch / Đánh giá |
                rồi phân tích: (a) thể lực và nhịp độ (pha cầu dài, thời lượng trung bình pha), (b) kết quả và hiệu quả ghi điểm (tỷ số từng ván, số điểm mỗi tay vợt giành được trong video). Kết luận tay vợt tiến bộ hay sa sút ở mặt nào và lời khuyên cụ thể.
@@ -58,7 +62,8 @@ public class CoachService {
             7. ĐIỂM YẾU VÀ CÁCH KHAI THÁC (get_training_focus): khi người dùng hỏi điểm yếu của một tay vợt, họ hay mất điểm thế nào, phong độ gần đây, hoặc nên đánh thế nào để thắng họ. Các trận là trận chuyên nghiệp quay truyền hình: người hỏi chuẩn bị gặp tay vợt đó hoặc theo dõi phong độ, KHÔNG lập giáo án tập luyện cho chính tay vợt đó.
                - Gọi get_training_focus với tên tay vợt; khi cần cơ sở chiến thuật, gọi search_badminton_knowledge (category tactics).
                - Trình bày: (a) "Điểm yếu chính": mỗi điểm yếu một dòng kèm số điểm mất, % trên tổng điểm mất và xu hướng qua các trận (đang khắc phục / lộ rõ hơn, dẫn tỷ lệ các trận trước và trận gần nhất); (b) "Cách khai thác": với mỗi điểm yếu, đối thủ nên làm gì cụ thể (ép tay vợt phải đánh cú dễ hỏng, tạo cơ hội cho cú dứt điểm mà họ khó chống đỡ, chọn vùng và nhịp độ); (c) "Cần để ý": điểm yếu nào đang được khắc phục nên đừng trông chờ.
-               - Dẫn chứng bằng thẻ [Xem trận đấu #X] cho trận có tỷ lệ cao nhất. Nếu chưa đủ dữ liệu, nói rõ, không suy đoán.
+               - Dẫn chứng TỪNG điểm yếu bằng chính các pha trong example_rallies của nó: cuối dòng điểm yếu ghi 2-4 mốc [Trận #M - Pha cầu #X - mm:ss] (M = match_id, X = rally_number, mm:ss = start_clock, chép nguyên văn). Không dùng thẻ [Xem trận đấu #X] để thay cho các pha này.
+               - Nếu chưa đủ dữ liệu, nói rõ, không suy đoán.
                - Muốn bản đầy đủ để in hoặc chia sẻ thì gợi ý người dùng lập báo cáo trinh sát (nút ở trang hồ sơ tay vợt).
             8. Ghi nhớ mạch hội thoại: "trận đó", "pha vừa rồi"... là nói về trận/pha trong các lượt trước.
             9. Trận riêng tư của người khác: công cụ sẽ báo lỗi quyền riêng tư; hãy lịch sự từ chối, không đoán số liệu.
@@ -185,15 +190,16 @@ public class CoachService {
         turn.putArray("parts").addObject().put("text", text);
     }
 
-    /** The clickable rally links "[Pha cầu #X - mm:ss]" in an answer. */
+    /** The clickable rally links in an answer; matchId is null when the link names no match. */
     public static List<VideoCitation> extractCitations(String text) {
         List<VideoCitation> out = new ArrayList<>();
         Matcher m = CITATION.matcher(text);
         while (m.find()) {
-            int minutes = Integer.parseInt(m.group(2));
-            int seconds = Integer.parseInt(m.group(3));
-            out.add(new VideoCitation(Integer.parseInt(m.group(1)), String.format("%02d:%02d", minutes, seconds),
-                    minutes * 60 + seconds));
+            Long matchId = m.group(1) != null ? Long.valueOf(m.group(1)) : null;
+            int minutes = Integer.parseInt(m.group(3));
+            int seconds = Integer.parseInt(m.group(4));
+            out.add(new VideoCitation(Integer.parseInt(m.group(2)), String.format("%02d:%02d", minutes, seconds),
+                    minutes * 60 + seconds, matchId));
         }
         return out;
     }

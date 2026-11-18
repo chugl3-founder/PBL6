@@ -29,7 +29,8 @@ public final class CoachDtos {
     public record VideoCitation(
             @JsonProperty("rally_number") int rallyNumber,
             String timestamp,
-            int seconds) {
+            int seconds,
+            @JsonProperty("match_id") Long matchId) {
     }
 
     public record SessionItem(

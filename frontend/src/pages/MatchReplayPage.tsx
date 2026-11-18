@@ -10,7 +10,7 @@ import { RalliesExplorer } from '../components/replay/RalliesExplorer';
 import { TacticsBreakdown } from '../components/replay/TacticsBreakdown';
 import { PointLossInsights } from '../components/replay/PointLossInsights';
 import { PlaylistClip } from '../utils/pointLoss';
-import { PLAY_RALLIES_EVENT, PlayRalliesDetail } from '../utils/coachEvents';
+import { PLAY_RALLIES_EVENT, PlayRalliesDetail, parsePlaylistParam, playRallies } from '../utils/coachEvents';
 import { MatchHighlights } from '../components/replay/MatchHighlights';
 import { HighlightReelDialog } from '../components/replay/HighlightReelDialog';
 import { ReplayScoreboard } from '../components/replay/ReplayScoreboard';
@@ -623,6 +623,32 @@ export const MatchReplayPage: React.FC = () => {
     }, 250);
     return () => window.clearInterval(timer);
   }, [deepLinkSeconds, isYouTube, video]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "?playlist=12@340,3@62" (Coach AI nêu các pha của trận này từ trang khác): phát lần lượt khi trình phát sẵn sàng
+  const playlistParam = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const list = parsePlaylistParam(params.get('playlist'));
+    return list.length ? { rallies: list, title: params.get('title') || 'Coach AI' } : null;
+  }, [location.search]);
+  const playlistStarted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!playlistParam || loading || rallies.length === 0 || playlistStarted.current === location.search) return;
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      const ready = isYouTube
+        ? typeof ytPlayerRef.current?.seekTo === 'function'
+        : (videoRef.current?.readyState ?? 0) >= 1;
+      if (!ready) {
+        if (tries > 80) window.clearInterval(timer);
+        return;
+      }
+      window.clearInterval(timer);
+      playlistStarted.current = location.search;
+      playRallies(playlistParam.rallies, playlistParam.title);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [playlistParam, loading, rallies.length, isYouTube]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Coach AI liệt kê nhiều pha cầu: phát lần lượt những pha có trong trận này
   const coachPlaylistRef = useRef({ rallies, play: handlePlayPlaylist });

@@ -50,7 +50,7 @@ public record TrainingFocusResponse(
     ) {
     }
 
-    /** A rally that shows the weakness: seconds is where it starts in the match video. */
-    public record Clip(Long matchId, boolean owned, String opponent, double seconds) {
+    /** A rally that shows the weakness: seconds is where it starts in the match video, rallyNumber its number there. */
+    public record Clip(Long matchId, boolean owned, String opponent, double seconds, int rallyNumber) {
     }
 }

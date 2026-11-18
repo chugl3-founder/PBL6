@@ -140,6 +140,16 @@ class CoachServiceTest {
         List<VideoCitation> citations = CoachService.extractCitations(
                 "Xem [Pha cầu #3 - 01:56] và [Pha cầu #12 - 10:05], không phải [Pha cầu #x].");
 
-        assertThat(citations).containsExactly(new VideoCitation(3, "01:56", 116), new VideoCitation(12, "10:05", 605));
+        assertThat(citations).containsExactly(new VideoCitation(3, "01:56", 116, null),
+                new VideoCitation(12, "10:05", 605, null));
+    }
+
+    @Test
+    void extractCitations_readsTheMatchOfARallyFromAnotherMatch() {
+        List<VideoCitation> citations = CoachService.extractCitations(
+                "Mất điểm ở lưới [Trận #308 - Pha cầu #12 - 05:40] [Trận #297 - Pha cầu #3 - 01:02] [Pha cầu #7 - 02:10]");
+
+        assertThat(citations).containsExactly(new VideoCitation(12, "05:40", 340, 308L),
+                new VideoCitation(3, "01:02", 62, 297L), new VideoCitation(7, "02:10", 130, null));
     }
 }

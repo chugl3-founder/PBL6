@@ -47,6 +47,8 @@ public class CoachTools {
 
     private static final String PUBLISHED = "PUBLISHED";
     private static final int MAX_RALLIES = 200;
+    /** Example rallies per weakness handed to the model. */
+    private static final int MAX_FOCUS_RALLIES = 4;
 
     private final MatchAccessService matchAccess;
     private final PublicReplayService publicReplayService;
@@ -281,6 +283,15 @@ public class CoachTools {
                 pm.put("lost", p.lost());
                 pm.put("rate_percent", p.rate());
                 return pm;
+            }).toList());
+            // Rallies that show the weakness, newest match first, for the answer to cite one by one.
+            m.put("example_rallies", f.clips().stream().limit(MAX_FOCUS_RALLIES).map(c -> {
+                Map<String, Object> cm = new LinkedHashMap<>();
+                cm.put("match_id", c.matchId());
+                cm.put("rally_number", c.rallyNumber());
+                cm.put("start_clock", clock(BigDecimal.valueOf(c.seconds())));
+                cm.put("opponent", c.opponent());
+                return cm;
             }).toList());
             items.add(m);
         }

@@ -159,7 +159,8 @@ public class TrainingFocusService {
                     .sorted(Comparator.comparingInt((RallyEnd e) -> order.getOrDefault(e.matchId(), -1)).reversed()
                             .thenComparingDouble(RallyEnd::rallyStart))
                     .limit(MAX_CLIPS)
-                    .map(e -> new Clip(e.matchId(), owned.getOrDefault(e.matchId(), false), e.opponent(), e.rallyStart()))
+                    .map(e -> new Clip(e.matchId(), owned.getOrDefault(e.matchId(), false), e.opponent(), e.rallyStart(),
+                            e.rallyNumber()))
                     .toList();
 
             return new Focus(kind + ":" + stroke, kind, stroke, ends.size(), percent(ends.size(), totalLost),

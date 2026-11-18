@@ -32,3 +32,29 @@ export const exploitWeaknessPrompt = (player: string, matchId?: number) =>
   `Phân tích điểm yếu của ${player} qua các trận đã phân tích`
   + (matchId ? ` (đang xem trận #${matchId})` : '')
   + `, điểm yếu nào đang lộ rõ hơn ở trận gần đây, và đối thủ nên đánh thế nào để khai thác chúng.`;
+
+/** A rally named in a coach answer, to be played in a list. */
+export interface PlaylistRally {
+  rallyNumber: number;
+  seconds: number;
+}
+
+/**
+ * The Replay of a match that, once open, plays these rallies one after another ("?playlist=12@340,3@62").
+ * The coach uses it for rallies of a match other than the one on screen.
+ */
+export const replayPlaylistUrl = (matchId: number | string, rallies: PlaylistRally[], title: string) => {
+  const params = new URLSearchParams({
+    playlist: rallies.map(r => `${r.rallyNumber}@${Math.floor(r.seconds)}`).join(','),
+    title,
+  });
+  return `/public-matches/${matchId}/replay?${params.toString()}`;
+};
+
+/** The rallies of a "?playlist=" parameter; empty when there is none or it is malformed. */
+export const parsePlaylistParam = (value: string | null): PlaylistRally[] =>
+  (value ?? '')
+    .split(',')
+    .map(item => item.match(/^(\d+)@(\d+)$/))
+    .filter((m): m is RegExpMatchArray => m != null)
+    .map(m => ({ rallyNumber: Number(m[1]), seconds: Number(m[2]) }));
